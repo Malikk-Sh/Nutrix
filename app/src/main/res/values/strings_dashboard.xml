@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="greeting_morning">Доброе утро</string>
+    <string name="greeting_day">Добрый день</string>
+    <string name="greeting_evening">Добрый вечер</string>
+    <string name="greeting_night">Доброй ночи</string>
+    <string name="greeting_name">%1$s, %2$s</string>
+    <string name="dashboard_nothing_today">Сегодня записей пока нет</string>
+    <string name="dashboard_summary_water">%1$s мл жидкости</string>
+    <string name="dashboard_summary_no_symptoms">без симптомов</string>
+
+    <string name="card_weight">Вес</string>
+    <string name="card_weight_week">%1$s за неделю</string>
+    <string name="card_weight_empty">Нет измерений</string>
+    <string name="card_food">Питание</string>
+    <string name="card_food_last">Последний приём: %1$s</string>
+    <string name="card_food_empty">Сегодня ещё не записано</string>
+    <string name="card_food_add">Добавить еду</string>
+    <string name="card_food_photo">Фото еды</string>
+    <string name="card_water">Вода</string>
+    <string name="card_water_custom">Свой объём</string>
+    <string name="card_sleep">Сон</string>
+    <string name="card_sleep_times">%1$s → %2$s</string>
+    <string name="card_sleep_empty">Нет данных о сне</string>
+    <string name="card_activity">Активность</string>
+    <string name="card_activity_steps">%1$s шагов</string>
+    <string name="card_activity_hr">Пульс %1$s уд/мин</string>
+    <string name="card_activity_connect">Подключите Health Connect, чтобы видеть шаги и пульс</string>
+    <string name="card_activity_no_data">Нет данных за сегодня</string>
+    <string name="card_wellbeing">Самочувствие</string>
+    <string name="card_wellbeing_empty">Симптомы не отмечены</string>
+    <string name="card_wellbeing_add">Отметить самочувствие</string>
+    <string name="timeline_today">Сегодня</string>
+    <string name="timeline_empty">Здесь появятся события дня: еда, напитки, вес, сон, самочувствие.</string>
+
+    <string name="timeline_wake">Пробуждение</string>
+    <string name="timeline_asleep">Засыпание</string>
+    <string name="timeline_sleep_details">сон %1$s</string>
+    <string name="timeline_weight">Вес, %1$s</string>
+    <string name="timeline_drink">%1$s, %2$d мл</string>
+    <string name="timeline_exercise">%1$s, %2$s</string>
+
+    <string name="calendar_title">Календарь</string>
+    <string name="calendar_prev">Предыдущий месяц</string>
+    <string name="calendar_next">Следующий месяц</string>
+    <string name="calendar_open_day">Открыть день</string>
+    <string name="calendar_filters">Показывать</string>
+    <string name="day_empty">За этот день нет записей</string>
+    <string name="day_add_here">Добавить запись</string>
+
+    <string name="search_title">Поиск</string>
+    <string name="search_hint">Блюдо, заметка, симптом или дата (25.10)</string>
+    <string name="search_meals">Блюда</string>
+    <string name="search_drinks">Напитки</string>
+    <string name="search_symptoms">Симптомы</string>
+    <string name="search_notes">Заметки</string>
+    <string name="search_weights">Вес</string>
+    <string name="search_open_date">Перейти к %1$s</string>
+    <string name="search_nothing">Ничего не найдено</string>
+    <string name="search_start">Начните вводить запрос</string>
+</resources>

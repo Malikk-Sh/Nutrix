@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Leaf inside a progress ring: nutrition + tracking. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M54,27a27,27 0,1 1,-27 27"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="27" android:startY="54"
+                android:endX="81" android:endY="54"
+                android:startColor="#FF7AB4FF"
+                android:endColor="#FF2DD4BF" />
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M40,66C40,50 52,40 68,40C68,56 58,68 42,68Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="40" android:startY="68"
+                android:endX="68" android:endY="40"
+                android:startColor="#FF4ADE80"
+                android:endColor="#FF2DD4BF" />
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M42,66L60,48"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeColor="#FF0E1012" />
+</vector>

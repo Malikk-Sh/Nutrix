@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_water_name">NUTRIX · Вода</string>
+    <string name="widget_water_description">Сколько выпито сегодня и быстрое добавление</string>
+    <string name="widget_weight_name">NUTRIX · Вес</string>
+    <string name="widget_weight_description">Последнее измерение веса</string>
+    <string name="widget_food_name">NUTRIX · Еда</string>
+    <string name="widget_food_description">Сфотографировать и записать приём пищи</string>
+    <string name="widget_stats_name">NUTRIX · Сегодня</string>
+    <string name="widget_stats_description">Краткая статистика за день</string>
+    <string name="widget_water_title">Вода сегодня</string>
+    <string name="widget_weight_title">Вес</string>
+    <string name="widget_food_title">Записать еду</string>
+    <string name="widget_food_camera">Фото</string>
+    <string name="widget_stats_title">Сегодня</string>
+    <string name="widget_meals">Еда</string>
+    <string name="widget_water">Вода</string>
+    <string name="widget_steps">Шаги</string>
+    <string name="widget_no_weight">Нет измерений</string>
+    <string name="widget_of_goal">из %1$s</string>
+</resources>

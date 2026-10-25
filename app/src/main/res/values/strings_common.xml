@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NUTRIX</string>
+    <!-- Language of these strings; drives date and number formatting. -->
+    <string name="locale_tag" translatable="false">ru</string>
+
+    <string name="action_save">Сохранить</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="action_delete">Удалить</string>
+    <string name="action_edit">Изменить</string>
+    <string name="action_add">Добавить</string>
+    <string name="action_done">Готово</string>
+    <string name="action_close">Закрыть</string>
+    <string name="action_back">Назад</string>
+    <string name="action_undo">Отменить</string>
+    <string name="action_ok">ОК</string>
+    <string name="action_retry">Повторить</string>
+    <string name="action_more">Ещё</string>
+    <string name="action_settings">Настройки</string>
+    <string name="action_open">Открыть</string>
+    <string name="action_change">Изменить</string>
+    <string name="action_clear">Очистить</string>
+    <string name="action_all">Все</string>
+    <string name="action_show_all">Показать все</string>
+    <string name="action_search">Поиск</string>
+    <string name="action_select_date">Выбрать дату</string>
+    <string name="action_select_time">Выбрать время</string>
+    <string name="action_today">Сегодня</string>
+    <string name="action_now">Сейчас</string>
+    <string name="action_continue">Продолжить</string>
+    <string name="action_discard">Не сохранять</string>
+    <string name="action_sync">Синхронизировать</string>
+
+    <string name="label_date">Дата</string>
+    <string name="label_time">Время</string>
+    <string name="label_note">Заметка</string>
+    <string name="label_note_hint">Свободный текст, по желанию</string>
+    <string name="label_optional">необязательно</string>
+    <string name="label_today">Сегодня</string>
+    <string name="label_yesterday">Вчера</string>
+    <string name="label_source">Источник</string>
+    <string name="label_photo">Фото</string>
+    <string name="label_no_data">Нет данных</string>
+    <string name="label_approx">≈</string>
+
+    <string name="unit_kg">кг</string>
+    <string name="unit_lb">фунт.</string>
+    <string name="unit_ml">мл</string>
+    <string name="unit_l">л</string>
+    <string name="unit_hour_short">ч</string>
+    <string name="unit_minute_short">мин</string>
+    <string name="unit_bpm">уд/мин</string>
+    <string name="unit_steps">шагов</string>
+    <string name="unit_kcal">ккал</string>
+    <string name="unit_g">г</string>
+    <string name="unit_cm">см</string>
+
+    <string name="deleted_entry">Запись удалена</string>
+    <string name="saved_entry">Сохранено</string>
+    <string name="confirm_delete_title">Удалить запись?</string>
+    <string name="confirm_delete_text">Запись будет удалена. Сразу после удаления её можно вернуть кнопкой «Отменить».</string>
+    <string name="error_generic">Что-то пошло не так: %1$s</string>
+    <string name="imported_readonly">Импортированные записи можно изменить только в исходном приложении.</string>
+    <string name="foreign_zone_hint">Время показано по часовому поясу, в котором была сделана запись.</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Главная</string>
+    <string name="nav_calendar">Календарь</string>
+    <string name="nav_analytics">Аналитика</string>
+    <string name="nav_profile">Профиль</string>
+    <string name="quick_add">Быстрое добавление</string>
+    <string name="quick_add_food">Еда</string>
+    <string name="quick_add_water">Вода</string>
+    <string name="quick_add_weight">Вес</string>
+    <string name="quick_add_symptom">Симптом</string>
+    <string name="quick_add_note">Заметка</string>
+
+    <!-- Sources -->
+    <string name="source_manual">Вручную</string>
+    <string name="source_health_connect">Health Connect</string>
+    <string name="source_samsung_health">Samsung Health</string>
+    <string name="source_via_hc">%1$s через Health Connect</string>
+
+    <!-- Meal types -->
+    <string name="meal_breakfast">Завтрак</string>
+    <string name="meal_lunch">Обед</string>
+    <string name="meal_dinner">Ужин</string>
+    <string name="meal_snack">Перекус</string>
+    <string name="meal_other">Другое</string>
+
+    <!-- Portion eaten -->
+    <string name="portion_all">Всё</string>
+    <string name="portion_75">75%</string>
+    <string name="portion_50">50%</string>
+    <string name="portion_25">25%</string>
+    <string name="portion_few">Несколько кусочков</string>
+
+    <!-- Satiety -->
+    <string name="satiety_not_full">Не насытился</string>
+    <string name="satiety_normal">Нормальное насыщение</string>
+    <string name="satiety_quick">Быстро насытился</string>
+    <string name="satiety_overfull">Чувство переполнения</string>
+
+    <!-- After meal -->
+    <string name="feeling_normal">Нормально</string>
+    <string name="feeling_nausea">Тошнота</string>
+    <string name="feeling_belching">Отрыжка</string>
+    <string name="feeling_pain">Боль</string>
+    <string name="feeling_bloating">Вздутие</string>
+    <string name="feeling_heaviness">Тяжесть</string>
+    <string name="feeling_other">Другое</string>
+
+    <!-- Drinks -->
+    <string name="drink_water">Вода</string>
+    <string name="drink_tea">Чай</string>
+    <string name="drink_coffee">Кофе</string>
+    <string name="drink_milk">Молоко</string>
+    <string name="drink_juice">Сок</string>
+    <string name="drink_other">Другой напиток</string>
+
+    <!-- Symptoms -->
+    <string name="symptom_nausea">Тошнота</string>
+    <string name="symptom_dizziness">Головокружение</string>
+    <string name="symptom_darkening_vision">Потемнение в глазах</string>
+    <string name="symptom_weakness">Слабость</string>
+    <string name="symptom_abdominal_pain">Боль в животе</string>
+    <string name="symptom_early_satiety">Быстрое насыщение</string>
+    <string name="symptom_belching">Отрыжка</string>
+    <string name="symptom_bloating">Вздутие</string>
+    <string name="symptom_palpitations">Сердцебиение</string>
+    <string name="symptom_tremor">Дрожь</string>
+    <string name="symptom_sweating">Повышенная потливость</string>
+    <string name="symptom_other">Другой симптом</string>
+
+    <!-- Body position / activity -->
+    <string name="position_lying">Лёжа</string>
+    <string name="position_sitting">Сидя</string>
+    <string name="position_standing">Стоя</string>
+    <string name="position_standing_up">При вставании</string>
+    <string name="position_walking">При ходьбе</string>
+    <string name="position_exercise">Во время нагрузки</string>
+    <string name="position_eating">Во время еды</string>
+    <string name="position_other">Другое</string>
+
+    <!-- Categories -->
+    <string name="category_meal">Еда</string>
+    <string name="category_drink">Напитки</string>
+    <string name="category_weight">Вес</string>
+    <string name="category_sleep">Сон</string>
+    <string name="category_symptom">Симптомы</string>
+    <string name="category_note">Заметки</string>
+    <string name="category_activity">Активность</string>
+
+    <!-- Appetite scale -->
+    <string name="appetite_0">Совсем нет аппетита</string>
+    <string name="appetite_1">Очень слабый</string>
+    <string name="appetite_2">Слабый</string>
+    <string name="appetite_3">Умеренный</string>
+    <string name="appetite_4">Хороший</string>
+    <string name="appetite_5">Очень сильный</string>
+
+    <string name="intensity_0">Нет</string>
+    <string name="intensity_1">Очень слабо</string>
+    <string name="intensity_2">Слабо</string>
+    <string name="intensity_3">Умеренно</string>
+    <string name="intensity_4">Сильно</string>
+    <string name="intensity_5">Очень сильно</string>
+
+    <plurals name="meals_count">
+        <item quantity="one">%d приём пищи</item>
+        <item quantity="few">%d приёма пищи</item>
+        <item quantity="many">%d приёмов пищи</item>
+        <item quantity="other">%d приёма пищи</item>
+    </plurals>
+    <plurals name="entries_count">
+        <item quantity="one">%d запись</item>
+        <item quantity="few">%d записи</item>
+        <item quantity="many">%d записей</item>
+        <item quantity="other">%d записи</item>
+    </plurals>
+    <plurals name="days_count">
+        <item quantity="one">%d день</item>
+        <item quantity="few">%d дня</item>
+        <item quantity="many">%d дней</item>
+        <item quantity="other">%d дня</item>
+    </plurals>
+    <plurals name="symptoms_count">
+        <item quantity="one">%d симптом</item>
+        <item quantity="few">%d симптома</item>
+        <item quantity="many">%d симптомов</item>
+        <item quantity="other">%d симптома</item>
+    </plurals>
+
+    <string name="chart_no_data">Недостаточно данных для графика</string>
+    <string name="medical_disclaimer">NUTRIX — личный дневник. Приложение не ставит диагнозы и не заменяет консультацию врача.</string>
+</resources>

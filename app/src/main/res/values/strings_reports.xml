@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reports_title">Отчёты и экспорт</string>
+    <string name="reports_period">Период</string>
+    <string name="reports_formats">Формат</string>
+    <string name="report_pdf">PDF-отчёт</string>
+    <string name="report_pdf_desc">Сводка, графики, таблицы по дням, симптомы и заметки</string>
+    <string name="report_doctor">Отчёт для врача (PDF)</string>
+    <string name="report_doctor_desc">Только фактические данные в нейтральной форме, без интерпретаций и диагнозов</string>
+    <string name="report_csv_events">CSV — все события</string>
+    <string name="report_csv_events_desc">Одна таблица: дата, время, категория, значение</string>
+    <string name="report_csv_archive">CSV — таблицы по разделам (ZIP)</string>
+    <string name="report_csv_archive_desc">Отдельные файлы: еда, напитки, вес, симптомы, сон, активность, заметки</string>
+    <string name="report_json">JSON</string>
+    <string name="report_json_desc">Полные структурированные данные за период</string>
+    <string name="report_include_photos">Включить фото еды в PDF</string>
+    <string name="report_save">Сохранить</string>
+    <string name="report_share">Поделиться</string>
+    <string name="report_generating">Формирование отчёта…</string>
+    <string name="report_saved">Файл сохранён</string>
+    <string name="report_failed">Не удалось сформировать файл</string>
+    <string name="report_empty">За выбранный период нет данных</string>
+
+    <!-- PDF content -->
+    <string name="pdf_title">Отчёт NUTRIX</string>
+    <string name="pdf_doctor_title">Отчёт для врача</string>
+    <string name="pdf_period">Период: %1$s — %2$s</string>
+    <string name="pdf_generated">Сформирован: %1$s</string>
+    <string name="pdf_patient">Пациент: %1$s</string>
+    <string name="pdf_height">Рост: %1$d см</string>
+    <string name="pdf_disclaimer">Данные внесены пользователем самостоятельно в личный дневник (и частично импортированы из Health Connect / Samsung Health с указанием источника). Отчёт не является медицинским заключением и не содержит диагнозов.</string>
+    <string name="pdf_summary">Сводка</string>
+    <string name="pdf_days_tracked">Дней с записями</string>
+    <string name="pdf_meals_avg">Приёмов пищи в день (среднее)</string>
+    <string name="pdf_fluid_avg">Жидкость в день (среднее)</string>
+    <string name="pdf_appetite_avg">Аппетит (среднее, 0–5)</string>
+    <string name="pdf_early_satiety">Эпизоды раннего насыщения</string>
+    <string name="pdf_nausea">Эпизоды тошноты</string>
+    <string name="pdf_weight_first_last">Вес: первое → последнее</string>
+    <string name="pdf_weight_min_max">Вес: минимум / максимум</string>
+    <string name="pdf_sleep_avg">Сон (среднее за ночь)</string>
+    <string name="pdf_steps_avg">Шаги (среднее за день)</string>
+    <string name="pdf_hr">Пульс: мин / средний / макс</string>
+    <string name="pdf_symptoms_total">Отмечено симптомов</string>
+    <string name="pdf_weight_chart">Динамика веса</string>
+    <string name="pdf_daily">По дням</string>
+    <string name="pdf_col_date">Дата</string>
+    <string name="pdf_col_meals">Еда</string>
+    <string name="pdf_col_fluid">Жидк., мл</string>
+    <string name="pdf_col_appetite">Аппетит</string>
+    <string name="pdf_col_sleep">Сон</string>
+    <string name="pdf_col_steps">Шаги</string>
+    <string name="pdf_col_weight">Вес</string>
+    <string name="pdf_col_symptoms">Симптомы</string>
+    <string name="pdf_symptoms">Симптомы и самочувствие</string>
+    <string name="pdf_meals">Приёмы пищи</string>
+    <string name="pdf_notes">Заметки</string>
+    <string name="pdf_photos">Фотографии еды</string>
+    <string name="pdf_symptom_counts">Частота симптомов</string>
+    <string name="pdf_kcal_note">Калорийность указана как приблизительная оценка пользователя или по справочнику.</string>
+    <string name="pdf_page">Стр. %1$d</string>
+    <string name="pdf_none">нет записей</string>
+    <string name="pdf_intensity">интенсивность %1$d/5</string>
+    <string name="pdf_duration">длительность %1$s</string>
+    <string name="pdf_after_meal">после приёма пищи %1$s</string>
+</resources>
