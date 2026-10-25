@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="water_title">Напитки</string>
+    <string name="water_today">Выпито сегодня</string>
+    <string name="water_of_goal">из %1$s мл</string>
+    <string name="water_goal_not_set">Ориентир не задан</string>
+    <string name="water_set_goal">Задать ориентир</string>
+    <string name="water_goal_title">Ваш ориентир</string>
+    <string name="water_goal_text">Укажите объём жидкости, на который хотите ориентироваться. NUTRIX не рассчитывает «норму» автоматически — при необходимости обсудите её с врачом.</string>
+    <string name="water_goal_label">Ориентир в день</string>
+    <string name="water_goal_remove">Убрать ориентир</string>
+    <string name="water_quick">Быстро добавить</string>
+    <string name="water_quick_type">Напиток для быстрых кнопок</string>
+    <string name="water_quick_edit">Настроить объёмы</string>
+    <string name="water_quick_edit_title">Кнопки быстрого добавления</string>
+    <string name="water_quick_edit_text">До шести объёмов в миллилитрах.</string>
+    <string name="water_templates">Мои напитки</string>
+    <string name="water_template_add">Новый шаблон</string>
+    <string name="water_template_edit">Шаблон напитка</string>
+    <string name="water_template_name">Название</string>
+    <string name="water_template_name_hint">Например, моя кружка чая</string>
+    <string name="water_template_hint">Создайте шаблон, например «Моя кружка чая — 300 мл», и добавляйте его одним нажатием.</string>
+    <string name="water_template_longpress">Нажмите, чтобы добавить; удерживайте, чтобы изменить шаблон.</string>
+    <string name="water_volume">Объём</string>
+    <string name="water_type">Напиток</string>
+    <string name="water_today_list">Сегодня</string>
+    <string name="water_history">Последние 14 дней</string>
+    <string name="water_added">Добавлено: %1$s, %2$d мл</string>
+    <string name="water_empty">Сегодня ещё нет записей о напитках</string>
+    <string name="water_all_fluids_note">В общий объём входят все напитки: вода, чай, кофе, молоко, сок и другие.</string>
+    <string name="drink_add_title">Новый напиток</string>
+    <string name="drink_edit_title">Напиток</string>
+    <string name="drink_name_label">Название (необязательно)</string>
+    <string name="drink_photo_add">Добавить фото</string>
+    <string name="drink_volume_invalid">Укажите объём от 1 до 5000 мл</string>
+    <string name="drink_saved">Напиток сохранён</string>
+    <string name="water_template_saved">Шаблон сохранён</string>
+</resources>

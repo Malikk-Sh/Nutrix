@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="integrations_title">Источники данных</string>
+    <string name="integrations_intro">NUTRIX только читает данные. Ничего не записывается обратно в Health Connect или Samsung Health и не передаётся на серверы.</string>
+
+    <string name="hc_title">Health Connect</string>
+    <string name="hc_status_available">Доступен</string>
+    <string name="hc_status_update">Требуется установить или обновить Health Connect</string>
+    <string name="hc_status_unsupported">Health Connect не поддерживается на этом устройстве</string>
+    <string name="hc_install">Установить / обновить</string>
+    <string name="hc_connect">Подключить</string>
+    <string name="hc_grant_more">Выдать разрешения</string>
+    <string name="hc_open_settings">Настройки Health Connect</string>
+    <string name="hc_disconnect">Отключить интеграцию</string>
+    <string name="hc_disconnect_title">Отключить Health Connect?</string>
+    <string name="hc_disconnect_text">Синхронизация прекратится. Можно также удалить из NUTRIX уже импортированные данные (ваши ручные записи не затрагиваются).</string>
+    <string name="hc_disconnect_keep">Отключить, данные оставить</string>
+    <string name="hc_disconnect_delete">Отключить и удалить импорт</string>
+    <string name="hc_permissions">Разрешения</string>
+    <string name="hc_perm_granted">выдано</string>
+    <string name="hc_perm_denied">не выдано</string>
+    <string name="hc_perm_background">Чтение в фоне (периодическая синхронизация)</string>
+    <string name="hc_perm_history">Чтение истории старше 30 дней</string>
+    <string name="hc_type_steps">Шаги</string>
+    <string name="hc_type_sleep">Сон</string>
+    <string name="hc_type_heart">Пульс</string>
+    <string name="hc_type_weight">Вес</string>
+    <string name="hc_type_exercise">Тренировки</string>
+    <string name="hc_type_active_kcal">Активные калории</string>
+    <string name="hc_type_total_kcal">Общие энергозатраты</string>
+    <string name="hc_no_permissions">Разрешения не выданы — данные Health Connect недоступны. Можно выдать их в любой момент.</string>
+    <string name="hc_partial_permissions">Выдана только часть разрешений. Недостающие категории не синхронизируются.</string>
+    <string name="hc_background_unavailable">Фоновое чтение не разрешено или не поддерживается: данные обновляются при открытии приложения.</string>
+
+    <string name="samsung_title">Samsung Health</string>
+    <string name="samsung_subtitle">Прямое подключение через Samsung Health Data SDK</string>
+    <string name="samsung_not_installed">Samsung Health не установлен. Приложение продолжит работать с Health Connect и ручным вводом.</string>
+    <string name="samsung_installed">Samsung Health %1$s установлен</string>
+    <string name="samsung_sdk_missing">SDK Samsung Health Data не включён в эту сборку. Поместите samsung-health-data-api-*.aar в app/libs и пересоберите приложение (см. README).</string>
+    <string name="samsung_status_ready">Подключение доступно</string>
+    <string name="samsung_status_old">Обновите Samsung Health (нужна версия 6.30.2 или новее)</string>
+    <string name="samsung_status_disabled">Samsung Health отключён в настройках устройства</string>
+    <string name="samsung_status_not_initialized">Откройте Samsung Health и завершите первоначальную настройку</string>
+    <string name="samsung_status_not_authorized">Samsung Health отклонил доступ. Без партнёрского одобрения Samsung чтение работает только в режиме разработчика Samsung Health.</string>
+    <string name="samsung_status_error">Не удалось связаться с Samsung Health</string>
+    <string name="samsung_dev_mode_title">Режим разработчика</string>
+    <string name="samsung_dev_mode_text">NUTRIX не зарегистрирован как партнёр Samsung, поэтому прямой доступ работает только при включённом режиме разработчика: Samsung Health → ⋮ → Настройки → О Samsung Health → 10 раз нажать на версию → «Developer mode (Samsung Health Data SDK)» → включить «Developer Mode for Data Read». На Galaxy те же данные обычно доступны и через Health Connect.</string>
+    <string name="samsung_resolve">Исправить в Samsung Health</string>
+    <string name="samsung_connect">Подключить</string>
+    <string name="samsung_categories">Доступные категории</string>
+    <string name="samsung_cat_steps">Шаги</string>
+    <string name="samsung_cat_sleep">Сон</string>
+    <string name="samsung_cat_heart">Пульс</string>
+    <string name="samsung_cat_weight">Вес (состав тела)</string>
+    <string name="samsung_cat_exercise">Тренировки</string>
+    <string name="samsung_cat_activity">Сводка активности (калории)</string>
+
+    <string name="sync_section">Синхронизация</string>
+    <string name="sync_now">Синхронизировать сейчас</string>
+    <string name="sync_auto">Периодическая синхронизация</string>
+    <string name="sync_interval">Каждые %1$d ч</string>
+    <string name="sync_last_ok">Последняя синхронизация: %1$s</string>
+    <string name="sync_never">Ещё не выполнялась</string>
+    <string name="sync_result">Обновлено записей: %1$s, удалено: %2$s, дней активности: %3$s</string>
+    <string name="sync_error">Ошибка: %1$s</string>
+    <string name="sync_err_NOT_AVAILABLE">источник недоступен</string>
+    <string name="sync_err_NO_PERMISSIONS">нет разрешений</string>
+    <string name="sync_err_PERMISSION_REVOKED">разрешения были отозваны</string>
+    <string name="sync_err_BACKGROUND_NOT_ALLOWED">фоновое чтение не разрешено</string>
+    <string name="sync_err_PLATFORM_ERROR">ошибка платформы, попробуйте позже</string>
+    <string name="sync_err_SDK_NOT_BUNDLED">SDK не включён в сборку</string>
+    <string name="sync_err_DISABLED">интеграция отключена</string>
+    <string name="sync_done">Синхронизация завершена</string>
+
+    <string name="priority_title">Приоритет источников</string>
+    <string name="priority_text">Если одни и те же данные (например, сон или шаги) приходят из нескольких источников, показывается источник выше в списке. Ручные записи всегда имеют приоритет.</string>
+    <string name="priority_up">Выше</string>
+
+    <string name="privacy_title">Конфиденциальность</string>
+    <string name="privacy_text">NUTRIX — личный дневник здоровья, работающий без регистрации и без интернета.\n\n• Все записи, фотографии и настройки хранятся только на вашем устройстве, в приватной папке приложения.\n• Данные Health Connect и Samsung Health (шаги, сон, пульс, вес, тренировки, энергозатраты) только читаются — для отображения на графиках, в календаре и отчётах. Ничего не записывается обратно.\n• Никакие данные не передаются на серверы, нет рекламы, аналитики и трекеров.\n• Резервные копии и отчёты создаются только по вашей команде и сохраняются туда, куда вы укажете.\n• Отозвать доступ можно в любой момент в настройках Health Connect или Samsung Health.\n\nПриложение не ставит диагнозы и не заменяет консультацию врача.</string>
+</resources>

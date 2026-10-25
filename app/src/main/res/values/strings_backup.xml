@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="backup_title">Резервное копирование</string>
+    <string name="backup_intro">Резервная копия — это ZIP-архив с базой данных, фотографиями, настройками и шаблонами. Каждый файл сохраняется с контрольной суммой SHA-256, которая проверяется при восстановлении.</string>
+    <string name="backup_create">Создать копию</string>
+    <string name="backup_create_text">Можно зашифровать архив паролем (AES-256). Пароль нигде не сохраняется — без него восстановить копию будет невозможно.</string>
+    <string name="backup_password">Пароль (необязательно)</string>
+    <string name="backup_password_repeat">Повторите пароль</string>
+    <string name="backup_password_mismatch">Пароли не совпадают</string>
+    <string name="backup_save">Сохранить архив</string>
+    <string name="backup_in_progress">Создание резервной копии…</string>
+    <string name="backup_done">Резервная копия сохранена: %1$d фото</string>
+    <string name="backup_failed">Не удалось создать резервную копию</string>
+
+    <string name="restore_title">Восстановление</string>
+    <string name="restore_text">Все текущие записи, фотографии и настройки будут заменены данными из копии. PIN-код и ключи шифрования устройства не переносятся.</string>
+    <string name="restore_pick">Выбрать архив</string>
+    <string name="restore_need_password">Архив зашифрован. Введите пароль.</string>
+    <string name="restore_wrong_password">Неверный пароль</string>
+    <string name="restore_checking">Проверка целостности…</string>
+    <string name="restore_invalid_NOT_A_BACKUP">Файл не является резервной копией NUTRIX</string>
+    <string name="restore_invalid_CHECKSUM_MISMATCH">Архив повреждён: контрольные суммы не совпадают</string>
+    <string name="restore_invalid_DATABASE_CORRUPTED">База данных в архиве повреждена</string>
+    <string name="restore_invalid_NEWER_VERSION">Копия создана более новой версией NUTRIX. Обновите приложение.</string>
+    <string name="restore_invalid_IO_ERROR">Не удалось прочитать файл</string>
+    <string name="restore_confirm_title">Восстановить данные?</string>
+    <string name="restore_confirm_text">Копия от %1$s, приложение %2$s, фото: %3$d. Проверка целостности пройдена. Текущие данные будут заменены, приложение перезапустится.</string>
+    <string name="restore_confirm">Восстановить</string>
+    <string name="restore_password_unlock">Проверить</string>
+
+    <string name="auto_backup_title">Автоматические копии</string>
+    <string name="auto_backup_text">Сохранять копию в выбранную папку (например, на карту памяти или в облачную папку на устройстве) с заданной периодичностью.</string>
+    <string name="auto_backup_folder">Папка: %1$s</string>
+    <string name="auto_backup_pick_folder">Выбрать папку</string>
+    <string name="auto_backup_interval">Каждые %1$d дн.</string>
+    <string name="auto_backup_keep">Хранить последних: %1$d</string>
+    <string name="auto_backup_last">Последняя автокопия: %1$s</string>
+    <string name="auto_backup_password">Пароль для автокопий</string>
+    <string name="auto_backup_password_set">Пароль задан (хранится зашифрованным в Android Keystore)</string>
+    <string name="auto_backup_password_none">Без шифрования</string>
+    <string name="auto_backup_password_change">Задать пароль</string>
+    <string name="auto_backup_password_remove">Убрать пароль</string>
+    <string name="auto_backup_run_now">Создать сейчас</string>
+    <string name="auto_backup_need_folder">Сначала выберите папку</string>
+</resources>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reminders_title">Напоминания</string>
+    <string name="reminders_intro">Все напоминания необязательны и формируются на устройстве. Их можно отложить или выключить в любой момент.</string>
+    <string name="reminder_meal">Поесть</string>
+    <string name="reminder_water">Выпить воды</string>
+    <string name="reminder_weight">Записать вес</string>
+    <string name="reminder_wellbeing">Дневник самочувствия</string>
+    <string name="reminder_missed">Проверить пропущенные записи</string>
+    <string name="reminder_missed_hint">Сработает, только если за день не было ни одной записи.</string>
+    <string name="reminder_mode_fixed">В заданное время</string>
+    <string name="reminder_mode_interval">С интервалом</string>
+    <string name="reminder_add_time">Добавить время</string>
+    <string name="reminder_every">Каждые %1$s</string>
+    <string name="reminder_window">С %1$s до %2$s</string>
+    <string name="reminder_days">Дни недели</string>
+    <string name="reminder_next">Следующее: %1$s</string>
+    <string name="reminder_none_planned">Нет запланированных срабатываний</string>
+    <string name="reminders_quiet">Часы тишины</string>
+    <string name="reminders_quiet_text">В это время напоминания не приходят.</string>
+    <string name="reminders_quiet_range">С %1$s до %2$s</string>
+    <string name="reminders_snooze">Отложить на</string>
+    <string name="reminders_snooze_value">%1$d мин</string>
+    <string name="reminders_permission">Чтобы получать напоминания, разрешите уведомления.</string>
+    <string name="reminders_permission_grant">Разрешить уведомления</string>
+
+    <string name="channel_reminders">Напоминания</string>
+    <string name="channel_reminders_desc">Мягкие напоминания о дневнике</string>
+    <string name="channel_system">Служебные</string>
+
+    <string name="notif_meal_title">Время для еды?</string>
+    <string name="notif_meal_text">Если вы поели, можно отметить это в NUTRIX — достаточно фото.</string>
+    <string name="notif_water_title">Глоток воды?</string>
+    <string name="notif_water_text">Небольшое напоминание о жидкости. Отметить можно одним касанием.</string>
+    <string name="notif_weight_title">Записать вес</string>
+    <string name="notif_weight_text">Если удобно, отметьте сегодняшнее измерение.</string>
+    <string name="notif_wellbeing_title">Как самочувствие?</string>
+    <string name="notif_wellbeing_text">Можно отметить симптомы или просто пропустить это напоминание.</string>
+    <string name="notif_missed_title">Дополнить дневник?</string>
+    <string name="notif_missed_text">Сегодня записей пока нет. Если хотите, добавьте их — даже частично.</string>
+    <string name="notif_action_snooze">Отложить</string>
+    <string name="notif_action_water">+%1$d мл</string>
+    <string name="notif_water_added">Добавлено %1$d мл</string>
+</resources>

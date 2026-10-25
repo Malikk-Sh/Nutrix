@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="nutrix_background">#FF0E1012</color>
+    <color name="nutrix_teal">#FF2DD4BF</color>
+    <color name="ic_launcher_background">#FF0E1012</color>
+    <color name="widget_background">#F2181C1F</color>
+    <color name="widget_text">#FFE7E9EB</color>
+    <color name="widget_secondary">#FFA9B0B6</color>
+</resources>

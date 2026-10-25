@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="symptoms_title">Самочувствие</string>
+    <string name="symptoms_quick">Отметить одним касанием</string>
+    <string name="symptoms_quick_hint">Касание сразу сохраняет симптом с текущим временем. Подробности можно добавить позже.</string>
+    <string name="symptoms_marked">Отмечено: %1$s</string>
+    <string name="symptoms_add_details">Уточнить</string>
+    <string name="symptoms_history">Записи</string>
+    <string name="symptoms_empty">Записей о самочувствии пока нет</string>
+    <string name="symptoms_empty_text">Отмечайте симптомы, чтобы видеть их связь с питанием, сном и водой.</string>
+    <string name="symptom_add_title">Новая запись о самочувствии</string>
+    <string name="symptom_edit_title">Запись о самочувствии</string>
+    <string name="symptom_select">Что беспокоит</string>
+    <string name="symptom_select_hint">Можно выбрать несколько — для каждого будет отдельная запись.</string>
+    <string name="symptom_other_name">Опишите симптом</string>
+    <string name="symptom_start">Время начала</string>
+    <string name="symptom_intensity">Интенсивность</string>
+    <string name="symptom_duration">Продолжительность</string>
+    <string name="symptom_duration_custom">Минут</string>
+    <string name="symptom_meal_link">Возможная связь с приёмом пищи</string>
+    <string name="symptom_meal_none">Не связано / не знаю</string>
+    <string name="symptom_meal_none_available">Нет приёмов пищи за последние 8 часов</string>
+    <string name="symptom_position">Положение тела или активность</string>
+    <string name="symptom_need_selection">Выберите хотя бы один симптом</string>
+    <string name="symptom_saved">Запись сохранена</string>
+    <string name="symptom_after_meal">после: %1$s</string>
+    <string name="symptom_caution">Если симптомы сильные, появились впервые, усиливаются или вызывают беспокойство, обратитесь к врачу. При резком ухудшении самочувствия звоните в экстренные службы (112).</string>
+    <string name="duration_5">5 мин</string>
+    <string name="duration_15">15 мин</string>
+    <string name="duration_30">30 мин</string>
+    <string name="duration_60">1 ч</string>
+    <string name="duration_120">2 ч</string>
+    <string name="duration_long">Дольше</string>
+
+    <string name="note_add_title">Новая заметка</string>
+    <string name="note_edit_title">Заметка</string>
+    <string name="note_text_hint">Что хотите записать?</string>
+    <string name="note_saved">Заметка сохранена</string>
+    <string name="note_empty">Напишите текст заметки</string>
+</resources>

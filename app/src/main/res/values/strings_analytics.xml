@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="analytics_title">Аналитика</string>
+    <string name="period_7">7 дней</string>
+    <string name="period_14">14 дней</string>
+    <string name="period_30">30 дней</string>
+    <string name="period_90">90 дней</string>
+    <string name="period_custom">Период…</string>
+    <string name="period_range">%1$s — %2$s</string>
+    <string name="analytics_tracked_days">Дней с записями: %1$d из %2$d</string>
+    <string name="analytics_untracked_note">Дни без единой записи в дневнике не учитываются в графиках количества еды, жидкости и симптомов — они считаются незаполненными, а не «нулевыми».</string>
+    <string name="analytics_average">Среднее: %1$s</string>
+    <string name="analytics_days">дней с данными: %1$d</string>
+    <string name="analytics_section_charts">Показатели</string>
+    <string name="analytics_section_compare">Сравнения</string>
+
+    <string name="metric_weight">Динамика веса</string>
+    <string name="metric_meals">Приёмы пищи в день</string>
+    <string name="metric_fluid">Объём жидкости</string>
+    <string name="metric_appetite">Средний аппетит</string>
+    <string name="metric_early_satiety">Раннее насыщение (раз в день)</string>
+    <string name="metric_nausea">Тошнота (раз в день)</string>
+    <string name="metric_sleep">Продолжительность сна</string>
+    <string name="metric_bedtime">Время засыпания</string>
+    <string name="metric_steps">Шаги</string>
+    <string name="metric_heart">Пульс (средний за день)</string>
+
+    <string name="compare_appetite_sleep">Аппетит и продолжительность сна</string>
+    <string name="compare_appetite_wake">Аппетит и время пробуждения</string>
+    <string name="compare_meals_symptoms">Приёмы пищи и симптомы</string>
+    <string name="compare_fluid_dizziness">Жидкость и головокружение</string>
+    <string name="compare_weight_meals">Масса тела и частота питания (по неделям)</string>
+    <string name="compare_axis_sleep">сон, ч</string>
+    <string name="compare_axis_appetite">аппетит</string>
+    <string name="compare_axis_wake">пробуждение, ч</string>
+    <string name="compare_axis_meals">приёмов в день</string>
+    <string name="compare_axis_symptoms">симптомов в день</string>
+    <string name="compare_axis_fluid">жидкость, мл</string>
+    <string name="compare_axis_dizziness">эпизодов головокружения</string>
+    <string name="compare_axis_weight">вес</string>
+    <string name="compare_insufficient">Недостаточно данных: нужно минимум %1$d совпадающих периодов, сейчас %2$d.</string>
+    <string name="compare_r">Коэффициент корреляции r = %1$s (n = %2$d)</string>
+    <string name="strength_none">Связь не прослеживается</string>
+    <string name="strength_weak_pos">Слабая прямая связь</string>
+    <string name="strength_weak_neg">Слабая обратная связь</string>
+    <string name="strength_moderate_pos">Умеренная прямая связь</string>
+    <string name="strength_moderate_neg">Умеренная обратная связь</string>
+    <string name="strength_strong_pos">Сильная прямая связь</string>
+    <string name="strength_strong_neg">Сильная обратная связь</string>
+    <string name="compare_disclaimer">Корреляция показывает только совместные изменения в ваших записях и не доказывает, что одно вызывает другое. На результат влияют пропуски в дневнике и другие факторы.</string>
+</resources>

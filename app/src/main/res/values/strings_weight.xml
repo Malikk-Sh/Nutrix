@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="weight_title">Вес</string>
+    <string name="weight_latest">Последнее измерение</string>
+    <string name="weight_week_change">За неделю</string>
+    <string name="weight_month_change">За месяц</string>
+    <string name="weight_avg7">Среднее за 7 дней</string>
+    <string name="weight_min">Минимум</string>
+    <string name="weight_max">Максимум</string>
+    <string name="weight_goal">Цель</string>
+    <string name="weight_to_goal">До цели</string>
+    <string name="weight_goal_reached">Цель достигнута</string>
+    <string name="weight_goal_set">Задать цель</string>
+    <string name="weight_goal_dialog">Целевой вес</string>
+    <string name="weight_goal_remove">Убрать цель</string>
+    <string name="weight_chart">Динамика</string>
+    <string name="weight_history">История измерений</string>
+    <string name="weight_add">Записать вес</string>
+    <string name="weight_edit">Измерение веса</string>
+    <string name="weight_value">Вес</string>
+    <string name="weight_invalid">Введите вес от 2 до 400 кг (или эквивалент в фунтах)</string>
+    <string name="weight_duplicate_title">Похожее измерение уже есть</string>
+    <string name="weight_duplicate_text">В %1$s уже записан вес %2$s. Сохранить ещё одно измерение?</string>
+    <string name="weight_duplicate_save">Сохранить всё равно</string>
+    <string name="weight_empty">Пока нет измерений веса</string>
+    <string name="weight_empty_text">Записывайте вес вручную или подключите Health Connect, чтобы видеть данные умных весов.</string>
+    <string name="weight_fluctuation_note">Вес естественно колеблется в течение дня и между днями (вода, соль, пищеварение). Кратковременные изменения не обязательно означают изменение жировой или мышечной массы — ориентируйтесь на тенденцию за несколько недель.</string>
+    <string name="weight_saved">Вес сохранён</string>
+    <string name="weight_period_30">30 дней</string>
+    <string name="weight_period_90">90 дней</string>
+    <string name="weight_period_365">Год</string>
+    <string name="weight_period_all">Всё время</string>
+</resources>
