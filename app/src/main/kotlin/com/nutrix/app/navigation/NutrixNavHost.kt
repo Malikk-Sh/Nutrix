@@ -14,9 +14,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CalendarMonth
+import com.nutrix.app.core.ui.icons.CalendarMonth
 import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.Insights
+import com.nutrix.app.core.ui.icons.Insights
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -328,7 +328,7 @@ fun NutrixNavHost(pendingAction: String?, onActionConsumed: () -> Unit) {
                 if (isTopLevel && !wide) {
                     NavigationBar(
                         modifier = Modifier.align(Alignment.BottomCenter),
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.96f),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
                     ) {
                         topLevels.forEach { t ->
                             val selected = destination?.hierarchy?.any { it.hasRoute(t.type) } == true

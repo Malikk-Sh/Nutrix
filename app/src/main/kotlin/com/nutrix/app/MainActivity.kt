@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
@@ -126,26 +128,29 @@ fun NutrixRoot(vm: RootViewModel) {
             LocalSnackbarHost provides snackbar,
             LocalExternalTransition provides { vm.lock.allowExternalTransition() },
         ) {
-            Box(Modifier.fillMaxSize()) {
-                // While locked the diary is covered by an opaque lock screen and hidden from accessibility.
-                if (lockState != LockState.CHECKING) {
-                    Box(if (lockState == LockState.LOCKED) Modifier.fillMaxSize().clearAndSetSemantics { } else Modifier.fillMaxSize()) {
-                        NutrixNavHost(
-                            pendingAction = pendingAction.takeIf { lockState == LockState.UNLOCKED },
-                            onActionConsumed = { vm.pendingAction.value = null },
-                        )
+            // Surface supplies the theme's content color to screens that draw text outside cards/app bars.
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                Box(Modifier.fillMaxSize()) {
+                    // While locked the diary is covered by an opaque lock screen and hidden from accessibility.
+                    if (lockState != LockState.CHECKING) {
+                        Box(if (lockState == LockState.LOCKED) Modifier.fillMaxSize().clearAndSetSemantics { } else Modifier.fillMaxSize()) {
+                            NutrixNavHost(
+                                pendingAction = pendingAction.takeIf { lockState == LockState.UNLOCKED },
+                                onActionConsumed = { vm.pendingAction.value = null },
+                            )
+                        }
                     }
-                }
-                SnackbarHost(
-                    snackbar,
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .imePadding()
-                        .padding(bottom = 84.dp),
-                )
-                if (lockState == LockState.LOCKED) {
-                    LockScreen(vm.lock, biometricEnabled = s.biometricEnabled)
+                    SnackbarHost(
+                        snackbar,
+                        Modifier
+                            .align(Alignment.BottomCenter)
+                            .navigationBarsPadding()
+                            .imePadding()
+                            .padding(bottom = 84.dp),
+                    )
+                    if (lockState == LockState.LOCKED) {
+                        LockScreen(vm.lock, biometricEnabled = s.biometricEnabled)
+                    }
                 }
             }
         }

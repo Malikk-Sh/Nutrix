@@ -17,11 +17,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Healing
-import androidx.compose.material.icons.rounded.MonitorWeight
-import androidx.compose.material.icons.rounded.PhotoCamera
-import androidx.compose.material.icons.rounded.StickyNote2
-import androidx.compose.material.icons.rounded.WaterDrop
+import com.nutrix.app.core.ui.icons.Healing
+import com.nutrix.app.core.ui.icons.MonitorWeight
+import com.nutrix.app.core.ui.icons.PhotoCamera
+import com.nutrix.app.core.ui.icons.StickyNote2
+import com.nutrix.app.core.ui.icons.WaterDrop
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme

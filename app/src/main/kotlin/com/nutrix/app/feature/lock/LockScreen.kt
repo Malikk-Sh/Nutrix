@@ -20,8 +20,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Backspace
-import androidx.compose.material.icons.rounded.Fingerprint
+import com.nutrix.app.core.ui.icons.automirrored.Backspace
+import com.nutrix.app.core.ui.icons.Fingerprint
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon

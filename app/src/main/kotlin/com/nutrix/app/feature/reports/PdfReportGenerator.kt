@@ -27,6 +27,28 @@ import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Destination of rendered pages; [AndroidPdfSink] in the app, a bitmap sink in tests. */
+interface PageSink {
+    fun startPage(number: Int, width: Int, height: Int): Canvas
+    fun finishPage()
+}
+
+class AndroidPdfSink : PageSink {
+    val document = PdfDocument()
+    private var page: PdfDocument.Page? = null
+
+    override fun startPage(number: Int, width: Int, height: Int): Canvas {
+        val p = document.startPage(PdfDocument.PageInfo.Builder(width, height, number).create())
+        page = p
+        return p.canvas
+    }
+
+    override fun finishPage() {
+        page?.let(document::finishPage)
+        page = null
+    }
+}
+
 /**
  * Builds an A4 PDF with [PdfDocument]. Doctor mode keeps strictly factual wording
  * (no interpretations, no analytics conclusions).
@@ -39,8 +61,18 @@ class PdfReportGenerator @Inject constructor(
     private fun s(id: Int, vararg args: Any) = context.getString(id, *args)
 
     fun write(data: ReportData, doctorMode: Boolean, includePhotos: Boolean, out: OutputStream) {
-        val doc = PdfDocument()
-        val w = PageWriter(doc)
+        val sink = AndroidPdfSink()
+        try {
+            render(data, doctorMode, includePhotos, sink)
+            sink.document.writeTo(out)
+        } finally {
+            sink.document.close()
+        }
+    }
+
+    /** Lays out the whole report into [sink]; returns the number of pages. */
+    fun render(data: ReportData, doctorMode: Boolean, includePhotos: Boolean, sink: PageSink): Int {
+        val w = PageWriter(sink)
         val unitKg = s(R.string.unit_kg)
         val h = s(R.string.unit_hour_short)
         val m = s(R.string.unit_minute_short)
@@ -183,9 +215,7 @@ class PdfReportGenerator @Inject constructor(
             }
         }
 
-        w.finish()
-        doc.writeTo(out)
-        doc.close()
+        return w.finish()
     }
 
     private fun decodeThumb(path: String): Bitmap? {
@@ -198,13 +228,13 @@ class PdfReportGenerator @Inject constructor(
     }
 
     /** Minimal flowing layout engine over PdfDocument pages. */
-    private inner class PageWriter(private val doc: PdfDocument) {
+    private inner class PageWriter(private val sink: PageSink) {
         val pageW = 595
         val pageH = 842
         val margin = 40f
         val contentW = pageW - 2 * margin
         private var pageNumber = 0
-        private var page: PdfDocument.Page? = null
+        private var pageOpen = false
         private lateinit var canvas: Canvas
         private var y = 0f
 
@@ -225,17 +255,18 @@ class PdfReportGenerator @Inject constructor(
         }
 
         private fun newPage() {
-            page?.let { finishPage(it) }
+            if (pageOpen) finishPage()
             pageNumber++
-            page = doc.startPage(PdfDocument.PageInfo.Builder(pageW, pageH, pageNumber).create())
-            canvas = page!!.canvas
+            canvas = sink.startPage(pageNumber, pageW, pageH)
+            pageOpen = true
             y = margin
         }
 
-        private fun finishPage(p: PdfDocument.Page) {
-            p.canvas.drawText(s(R.string.pdf_page, pageNumber), pageW - margin - 40f, pageH - 20f, small)
-            p.canvas.drawText("NUTRIX", margin, pageH - 20f, small)
-            doc.finishPage(p)
+        private fun finishPage() {
+            canvas.drawText(s(R.string.pdf_page, pageNumber), pageW - margin - 40f, pageH - 20f, small)
+            canvas.drawText("NUTRIX", margin, pageH - 20f, small)
+            sink.finishPage()
+            pageOpen = false
         }
 
         private fun ensure(height: Float) {
@@ -381,9 +412,9 @@ class PdfReportGenerator @Inject constructor(
             photoRowH = 0f
         }
 
-        fun finish() {
-            page?.let { finishPage(it) }
-            page = null
+        fun finish(): Int {
+            if (pageOpen) finishPage()
+            return pageNumber
         }
     }
 }

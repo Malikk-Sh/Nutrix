@@ -6,6 +6,7 @@
     <string name="food_photo_section">Фотографии</string>
     <string name="food_camera">Камера</string>
     <string name="food_gallery">Галерея</string>
+    <string name="food_photo_view">Просмотр</string>
     <string name="food_photo_crop">Обрезать</string>
     <string name="food_photo_remove">Убрать фото</string>
     <string name="food_photo_cover">Сделать главной</string>

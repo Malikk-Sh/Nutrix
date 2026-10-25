@@ -32,11 +32,11 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.FlashAuto
-import androidx.compose.material.icons.rounded.FlashOff
-import androidx.compose.material.icons.rounded.FlashOn
-import androidx.compose.material.icons.rounded.FlipCameraAndroid
-import androidx.compose.material.icons.rounded.NoPhotography
+import com.nutrix.app.core.ui.icons.FlashAuto
+import com.nutrix.app.core.ui.icons.FlashOff
+import com.nutrix.app.core.ui.icons.FlashOn
+import com.nutrix.app.core.ui.icons.FlipCameraAndroid
+import com.nutrix.app.core.ui.icons.NoPhotography
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon

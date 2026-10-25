@@ -45,6 +45,7 @@
     <string name="samsung_status_error">Не удалось связаться с Samsung Health</string>
     <string name="samsung_dev_mode_title">Режим разработчика</string>
     <string name="samsung_dev_mode_text">NUTRIX не зарегистрирован как партнёр Samsung, поэтому прямой доступ работает только при включённом режиме разработчика: Samsung Health → ⋮ → Настройки → О Samsung Health → 10 раз нажать на версию → «Developer mode (Samsung Health Data SDK)» → включить «Developer Mode for Data Read». На Galaxy те же данные обычно доступны и через Health Connect.</string>
+    <string name="samsung_network_note">Код NUTRIX не обращается к сети. Официальный Samsung Health Data SDK сам может связаться с Galaxy Store (vas.samsungapps.com), чтобы проверить, установлен ли и обновлён ли Samsung Health. Данные дневника при этом не передаются.</string>
     <string name="samsung_resolve">Исправить в Samsung Health</string>
     <string name="samsung_connect">Подключить</string>
     <string name="samsung_categories">Доступные категории</string>

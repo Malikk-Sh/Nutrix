@@ -5,7 +5,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -23,19 +27,20 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.AutoAwesome
+import com.nutrix.app.core.ui.icons.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Crop
+import com.nutrix.app.core.ui.icons.Crop
 import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
+import com.nutrix.app.core.ui.icons.ExpandLess
+import com.nutrix.app.core.ui.icons.ExpandMore
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.PhotoCamera
-import androidx.compose.material.icons.rounded.PhotoLibrary
-import androidx.compose.material.icons.rounded.Repeat
+import com.nutrix.app.core.ui.icons.PhotoCamera
+import com.nutrix.app.core.ui.icons.PhotoLibrary
+import com.nutrix.app.core.ui.icons.Repeat
 import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.StarOutline
-import androidx.compose.material.icons.rounded.Healing
+import com.nutrix.app.core.ui.icons.StarOutline
+import com.nutrix.app.core.ui.icons.Healing
+import com.nutrix.app.core.ui.icons.ZoomIn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -61,6 +66,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -375,6 +384,8 @@ fun FoodEditorScreen(
 @Composable
 private fun PhotoWithMenu(fileName: String, isCover: Boolean, onCrop: () -> Unit, onRemove: () -> Unit, onCover: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
+    var preview by remember { mutableStateOf(false) }
+    if (preview) PhotoPreviewDialog(fileName) { preview = false }
     Box {
         PhotoThumb(fileName, size = 96.dp, shape = MaterialTheme.shapes.medium, onClick = { menu = true })
         if (isCover) {
@@ -389,6 +400,11 @@ private fun PhotoWithMenu(fileName: String, isCover: Boolean, onCrop: () -> Unit
             )
         }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.food_photo_view)) },
+                leadingIcon = { Icon(Icons.Rounded.ZoomIn, null) },
+                onClick = { menu = false; preview = true },
+            )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.food_photo_crop)) },
                 leadingIcon = { Icon(Icons.Rounded.Crop, null) },
@@ -406,6 +422,42 @@ private fun PhotoWithMenu(fileName: String, isCover: Boolean, onCrop: () -> Unit
                 leadingIcon = { Icon(Icons.Rounded.Close, null) },
                 onClick = { menu = false; onRemove() },
             )
+        }
+    }
+}
+
+/** Full-screen photo preview with pinch-to-zoom. */
+@Composable
+fun PhotoPreviewDialog(fileName: String, onDismiss: () -> Unit) {
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(androidx.compose.ui.graphics.Color.Black)
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        scale = (scale * zoom).coerceIn(1f, 5f)
+                        offset = if (scale == 1f) androidx.compose.ui.geometry.Offset.Zero else offset + pan
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = com.nutrix.app.core.ui.components.photoFile(fileName),
+                contentDescription = stringResource(R.string.food_photo_view),
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y),
+            )
+            IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(8.dp)) {
+                Icon(Icons.Rounded.Close, stringResource(R.string.action_close), tint = androidx.compose.ui.graphics.Color.White)
+            }
         }
     }
 }

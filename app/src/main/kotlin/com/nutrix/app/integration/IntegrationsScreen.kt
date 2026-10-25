@@ -14,14 +14,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowUpward
+import com.nutrix.app.core.ui.icons.ArrowUpward
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.RadioButtonUnchecked
-import androidx.compose.material.icons.rounded.Shield
-import androidx.compose.material.icons.rounded.Sync
-import androidx.compose.material.icons.rounded.Watch
+import com.nutrix.app.core.ui.icons.RadioButtonUnchecked
+import com.nutrix.app.core.ui.icons.Shield
+import com.nutrix.app.core.ui.icons.Sync
+import com.nutrix.app.core.ui.icons.Watch
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -190,6 +190,8 @@ fun IntegrationsScreen(onBack: () -> Unit, viewModel: IntegrationsViewModel = hi
                             }
                             Spacer(Modifier.height(10.dp))
                             InfoBanner(stringResource(R.string.samsung_dev_mode_text), Icons.Rounded.Info)
+                            Spacer(Modifier.height(8.dp))
+                            Text(stringResource(R.string.samsung_network_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }

@@ -14,11 +14,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Bedtime
+import com.nutrix.app.core.ui.icons.Bedtime
 import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.DirectionsRun
+import com.nutrix.app.core.ui.icons.DirectionsRun
 import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.Sync
+import com.nutrix.app.core.ui.icons.Sync
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
@@ -203,6 +203,13 @@ fun SleepActivityScreen(
                             valueText = { Formatters.integer(it.toLong()) },
                         )
                         state.activity.lastOrNull { it.localDate == TimeUtils.todayEpochDay() }?.let { today ->
+                            today.stepsSource?.let {
+                                Text(
+                                    "${stringResource(R.string.label_source)}: ${stringResource(it.labelRes)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                             Spacer(Modifier.height(10.dp))
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                                 today.activeKcal?.let { LabeledValue(stringResource(R.string.energy_active), "${Formatters.integer(it.toLong())} ${stringResource(R.string.unit_kcal)}") }
@@ -229,6 +236,13 @@ fun SleepActivityScreen(
                                 today.hrMin?.let { LabeledValue(stringResource(R.string.heart_min), "$it") }
                                 today.hrAvg?.let { LabeledValue(stringResource(R.string.heart_avg), "$it") }
                                 today.hrMax?.let { LabeledValue(stringResource(R.string.heart_max), "$it") }
+                            }
+                            today.hrSource?.let {
+                                Text(
+                                    "${stringResource(R.string.label_source)}: ${stringResource(it.labelRes)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
                     }

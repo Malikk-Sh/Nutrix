@@ -19,8 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.RestartAlt
-import androidx.compose.material.icons.rounded.RotateRight
+import com.nutrix.app.core.ui.icons.RestartAlt
+import com.nutrix.app.core.ui.icons.RotateRight
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
