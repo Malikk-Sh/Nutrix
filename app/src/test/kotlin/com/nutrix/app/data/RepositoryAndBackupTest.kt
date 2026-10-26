@@ -130,8 +130,15 @@ class RepositoryAndBackupTest {
         // Change data, then restore the plain backup and verify the original state returns.
         meals.delete(mealId)
         settings.setProfile("Другое имя", null, null, null)
+        settings.setChangesToken(DataSource.HEALTH_CONNECT, "WeightRecord", "cursor-after-backup")
+        settings.setSyncResult(DataSource.HEALTH_CONNECT, 1234, null, "1/0/0", true)
         val again = backup.check(plain, null) as RestoreCheck.Ok
         backup.restore(again)
+        assertThat(settings.changesToken(DataSource.HEALTH_CONNECT, "WeightRecord")).isNull()
+        assertThat(settings.syncState(DataSource.HEALTH_CONNECT).first().initialImportDone).isFalse()
+        // Restore keeps the original Room instance usable; existing observers must not crash.
+        assertThat(db.mealDao().getRange(day.toEpochDay(), day.toEpochDay())).hasSize(1)
+        db.close()
         db = NutrixDatabase.build(context)
         val restoredMeals = db.mealDao().getRange(day.toEpochDay(), day.toEpochDay())
         assertThat(restoredMeals.single().meal.title).isEqualTo("Гречка с курицей")

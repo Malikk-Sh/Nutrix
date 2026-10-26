@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -60,6 +61,7 @@ fun canUseBiometrics(context: android.content.Context): Boolean =
 @Composable
 fun LockScreen(lockManager: AppLockManager, biometricEnabled: Boolean) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     var pin by remember { mutableStateOf("") }
@@ -97,11 +99,11 @@ fun LockScreen(lockManager: AppLockManager, biometricEnabled: Boolean) {
                 PinResult.Success -> message = null
                 is PinResult.Wrong -> {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    message = context.getString(R.string.lock_wrong_pin, r.attemptsLeft)
+                    message = resources.getString(R.string.lock_wrong_pin, r.attemptsLeft)
                     pin = ""
                 }
                 is PinResult.LockedOut -> {
-                    message = context.getString(R.string.lock_locked_out, r.secondsLeft)
+                    message = resources.getString(R.string.lock_locked_out, r.secondsLeft)
                     pin = ""
                 }
             }

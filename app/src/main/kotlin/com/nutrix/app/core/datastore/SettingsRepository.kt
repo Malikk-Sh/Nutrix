@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.datastore.preferences.preferencesDataStoreFile
 import com.nutrix.app.core.model.DataSource
 import com.nutrix.app.core.model.ThemeMode
 import com.nutrix.app.core.model.WeightUnit
@@ -26,6 +27,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -67,6 +69,7 @@ class SettingsRepository @Inject constructor(
         val autoBackupUri = stringPreferencesKey("auto_backup_uri")
         val autoBackupInterval = intPreferencesKey("auto_backup_interval_days")
         val autoBackupKeep = intPreferencesKey("auto_backup_keep")
+        val autoBackupEncrypted = booleanPreferencesKey("auto_backup_encrypted")
         val lastAutoBackup = longPreferencesKey("last_auto_backup")
         val reportPhotos = booleanPreferencesKey("report_photos")
 
@@ -82,6 +85,17 @@ class SettingsRepository @Inject constructor(
     }
 
     private val secretKeys = setOf("pin_blob", "backup_password_blob")
+    private val backupTypes = mapOf(
+        Keys.userName.name to "s", Keys.heightCm.name to "i", Keys.startWeight.name to "d", Keys.targetWeight.name to "d",
+        Keys.weightUnit.name to "s", Keys.themeMode.name to "s", Keys.waterGoal.name to "i", Keys.quickVolumes.name to "s",
+        Keys.lockEnabled.name to "b", Keys.biometricEnabled.name to "b", Keys.lockTimeout.name to "i", Keys.secureScreen.name to "b",
+        Keys.smartSuggestions.name to "b", Keys.calorieEstimates.name to "b", Keys.quietEnabled.name to "b",
+        Keys.quietStart.name to "i", Keys.quietEnd.name to "i", Keys.snooze.name to "i", Keys.reminders.name to "s",
+        Keys.hcEnabled.name to "b", Keys.samsungEnabled.name to "b", Keys.autoSync.name to "b", Keys.syncInterval.name to "i",
+        Keys.sourcePriority.name to "s", Keys.autoBackup.name to "b", Keys.autoBackupUri.name to "s",
+        Keys.autoBackupInterval.name to "i", Keys.autoBackupKeep.name to "i", Keys.autoBackupEncrypted.name to "b",
+        Keys.lastAutoBackup.name to "l", Keys.reportPhotos.name to "b",
+    )
 
     val settings: Flow<UserSettings> = store.data.map { it.toSettings() }
 
@@ -205,7 +219,13 @@ class SettingsRepository @Inject constructor(
     suspend fun pinBlob(): String? = store.data.first()[Keys.pinBlob]
     suspend fun setPinBlob(blob: String?) = edit { it.setOrRemove(Keys.pinBlob, blob) }
     suspend fun backupPasswordBlob(): String? = store.data.first()[Keys.backupPasswordBlob]
-    suspend fun setBackupPasswordBlob(blob: String?) = edit { it.setOrRemove(Keys.backupPasswordBlob, blob) }
+    suspend fun setBackupPasswordBlob(blob: String?) = edit {
+        it.setOrRemove(Keys.backupPasswordBlob, blob)
+        it[Keys.autoBackupEncrypted] = blob != null
+    }
+    suspend fun autoBackupRequiresPassword(): Boolean = store.data.first().let {
+        it[Keys.autoBackupEncrypted] ?: (it[Keys.backupPasswordBlob] != null)
+    }
 
     // Sync state
     fun syncState(source: DataSource): Flow<SourceSyncState> = store.data.map {
@@ -253,7 +273,7 @@ class SettingsRepository @Inject constructor(
                 } ?: return@mapNotNull null
                 "${typeTag(value)}:${key.name}" to element
             }.toMap()
-        return JsonObject(map)
+        return JsonObject(map + ("b:${Keys.autoBackupEncrypted.name}" to JsonPrimitive(autoBackupRequiresPassword())))
     }
 
     private fun typeTag(value: Any): String = when (value) {
@@ -265,29 +285,68 @@ class SettingsRepository @Inject constructor(
         else -> "s"
     }
 
-    /** Restores preferences exported by [exportForBackup]; secrets and sync tokens stay untouched. */
-    suspend fun importFromBackup(obj: JsonObject) = edit { prefs ->
-        prefs.asMap().keys.filter { it.name !in secretKeys && !it.name.startsWith("token_") && !it.name.startsWith("sync_") }
-            .forEach { prefs.remove(it) }
+    /** Validate before changing the database or any preferences; unknown future keys are ignored. */
+    fun validateBackup(obj: JsonObject) {
         obj.forEach { (taggedName, element) ->
-            val primitive = element as? JsonPrimitive ?: return@forEach
-            val tag = taggedName.substringBefore(':')
             val name = taggedName.substringAfter(':')
-            if (name in secretKeys) return@forEach
-            when (tag) {
-                "b" -> primitive.booleanOrNull?.let { prefs[booleanPreferencesKey(name)] = it }
-                "i" -> primitive.intOrNull?.let { prefs[intPreferencesKey(name)] = it }
-                "l" -> primitive.longOrNull?.let { prefs[longPreferencesKey(name)] = it }
-                "d" -> primitive.doubleOrNull?.let { prefs[doublePreferencesKey(name)] = it }
-                else -> prefs[stringPreferencesKey(name)] = primitive.content
-            }
-        }
-        // A restored backup never carries the PIN, so the lock must not stay enabled without one.
-        if (prefs[Keys.pinBlob] == null) {
-            prefs[Keys.lockEnabled] = false
-            prefs[Keys.biometricEnabled] = false
+            val expected = backupTypes[name] ?: return@forEach
+            val value = element as? JsonPrimitive ?: error("Invalid setting: $name")
+            require(taggedName.substringBefore(':') == expected && when (expected) {
+                "b" -> !value.isString && value.booleanOrNull != null
+                "i" -> !value.isString && value.intOrNull != null
+                "l" -> !value.isString && value.longOrNull != null
+                "d" -> !value.isString && value.doubleOrNull?.isFinite() == true
+                else -> value.isString
+            }) { "Invalid setting: $name" }
         }
     }
+
+    /** Restore portable settings, preserving local secrets and resetting all import cursors. */
+    suspend fun importFromBackup(obj: JsonObject) {
+        validateBackup(obj)
+        edit { prefs ->
+            prefs.asMap().keys.filter { it.name !in secretKeys }
+                .forEach { prefs.remove(it) }
+            obj.forEach { (taggedName, element) ->
+                val primitive = element as? JsonPrimitive ?: return@forEach
+                val tag = taggedName.substringBefore(':')
+                val name = taggedName.substringAfter(':')
+                if (name !in backupTypes) return@forEach
+                when (tag) {
+                    "b" -> primitive.booleanOrNull?.let { prefs[booleanPreferencesKey(name)] = it }
+                    "i" -> primitive.intOrNull?.let { prefs[intPreferencesKey(name)] = it }
+                    "l" -> primitive.longOrNull?.let { prefs[longPreferencesKey(name)] = it }
+                    "d" -> primitive.doubleOrNull?.let { prefs[doublePreferencesKey(name)] = it }
+                    else -> prefs[stringPreferencesKey(name)] = primitive.content
+                }
+            }
+            // A restored backup never carries the PIN, so the lock must not stay enabled without one.
+            if (prefs[Keys.pinBlob] == null) {
+                prefs[Keys.lockEnabled] = false
+                prefs[Keys.biometricEnabled] = false
+            }
+            // Folder permissions and encryption keys belong to this device, not the archive.
+            if (prefs[Keys.autoBackupEncrypted] == true && prefs[Keys.backupPasswordBlob] == null) {
+                prefs[Keys.autoBackup] = false
+            }
+        }
+    }
+
+    /** Capture durable bytes while DataStore serialises updates; used only by restore recovery. */
+    internal suspend fun snapshotForRecovery(destination: File): Preferences {
+        var snapshot: Preferences? = null
+        store.updateData { prefs ->
+            snapshot = prefs
+            val source = context.preferencesDataStoreFile("settings")
+            if (source.exists()) {
+                destination.outputStream().use { out -> source.inputStream().use { it.copyTo(out) }; out.fd.sync() }
+            }
+            prefs
+        }
+        return checkNotNull(snapshot)
+    }
+
+    internal suspend fun restoreSnapshot(snapshot: Preferences) { store.updateData { snapshot } }
 
     suspend fun clearAll() = edit { it.clear() }
 }

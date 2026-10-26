@@ -8,6 +8,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.nutrix.app.core.datastore.SettingsRepository
+import com.nutrix.app.core.DataOperationGate
 import com.nutrix.app.core.model.DataSource
 import com.nutrix.app.integration.SyncError
 import com.nutrix.app.integration.SyncReport
@@ -22,8 +23,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,8 +34,8 @@ class HealthSyncCoordinator @Inject constructor(
     private val settings: SettingsRepository,
     private val healthConnect: HealthConnectSyncer,
     private val samsung: SamsungHealthSyncer,
+    private val gate: DataOperationGate,
 ) {
-    private val mutex = Mutex()
     private val _running = MutableStateFlow(false)
     val running: StateFlow<Boolean> = _running.asStateFlow()
 
@@ -51,7 +50,7 @@ class HealthSyncCoordinator @Inject constructor(
         ).maxOrNull()
     }
 
-    suspend fun syncAll(manual: Boolean, background: Boolean = false): Map<DataSource, SyncReport> = mutex.withLock {
+    suspend fun syncAll(manual: Boolean, background: Boolean = false): Map<DataSource, SyncReport> = gate.exclusive {
         _running.value = true
         try {
             val s = settings.current()
@@ -64,7 +63,7 @@ class HealthSyncCoordinator @Inject constructor(
         }
     }
 
-    suspend fun syncSource(source: DataSource): SyncReport = mutex.withLock {
+    suspend fun syncSource(source: DataSource): SyncReport = gate.exclusive {
         _running.value = true
         try {
             when (source) {

@@ -60,8 +60,7 @@ data class CorrelationResult(
 }
 
 /**
- * Pure analytics over diary data. Days without any diary entry are treated as "not tracked"
- * (unknown), never as zero, so gaps in logging do not look like days without food or water.
+ * Each metric uses its own observed days. An entry in another diary does not confirm zero.
  */
 object AnalyticsCalculator {
     const val MIN_DAILY_PAIRS = 7
@@ -72,7 +71,6 @@ object AnalyticsCalculator {
             input.notes.map { it.localDate }).filter { it in input.from..input.to }.toSet()
 
     fun series(input: AnalyticsInput): Map<Metric, MetricSeries> {
-        val tracked = trackedDays(input).sorted()
         val inRange = { d: Long -> d in input.from..input.to }
         val mealsByDay = input.meals.groupBy { it.localDate }
         val drinksByDay = input.drinks.groupBy { it.localDate }
@@ -80,17 +78,21 @@ object AnalyticsCalculator {
 
         val weight = input.weights.filter { inRange(it.localDate) }.groupBy { it.localDate }
             .map { (d, l) -> ChartPoint(d, l.map { it.weightKg }.average()) }.sortedBy { it.epochDay }
-        val meals = tracked.map { ChartPoint(it, (mealsByDay[it]?.size ?: 0).toDouble()) }
-        val fluid = tracked.map { d -> ChartPoint(d, drinksByDay[d].orEmpty().sumOf { it.volumeMl }.toDouble()) }
+        val meals = mealsByDay.filterKeys(inRange).map { (d, rows) -> ChartPoint(d, rows.size.toDouble()) }.sortedBy { it.epochDay }
+        val fluid = drinksByDay.filterKeys(inRange).map { (d, rows) -> ChartPoint(d, rows.sumOf { it.volumeMl }.toDouble()) }.sortedBy { it.epochDay }
         val appetite = mealsByDay.filterKeys(inRange).mapNotNull { (d, l) ->
             l.mapNotNull { it.appetite }.takeIf { it.isNotEmpty() }?.let { ChartPoint(d, it.average()) }
         }.sortedBy { it.epochDay }
-        val earlySatiety = tracked.map { d ->
+        val satietyDays = (input.meals.filter { it.satiety != null }.map { it.localDate } +
+            input.symptoms.filter { it.type == SymptomType.EARLY_SATIETY }.map { it.localDate }).filter(inRange).toSortedSet()
+        val feelingDays = (input.meals.filter { it.feelings.isNotEmpty() }.map { it.localDate } +
+            input.symptoms.filter { it.type == SymptomType.NAUSEA }.map { it.localDate }).filter(inRange).toSortedSet()
+        val earlySatiety = satietyDays.map { d ->
             val fromMeals = mealsByDay[d].orEmpty().count { it.satiety == Satiety.QUICK }
             val fromSymptoms = symptomsByDay[d].orEmpty().count { it.type == SymptomType.EARLY_SATIETY }
             ChartPoint(d, (fromMeals + fromSymptoms).toDouble())
         }
-        val nausea = tracked.map { d ->
+        val nausea = feelingDays.map { d ->
             val fromMeals = mealsByDay[d].orEmpty().count { AfterMealFeeling.NAUSEA in it.feelings }
             val fromSymptoms = symptomsByDay[d].orEmpty().count { it.type == SymptomType.NAUSEA }
             ChartPoint(d, (fromMeals + fromSymptoms).toDouble())
@@ -102,7 +104,7 @@ object AnalyticsCalculator {
             val start = TimeUtils.localDateTime(main.startMillis, main.zoneId).toLocalTime()
             ChartPoint(d, TimeUtils.bedtimeMinutesFromEvening(start).toDouble())
         }.sortedBy { it.epochDay }
-        val steps = input.activity.filter { inRange(it.localDate) && (it.steps ?: 0) > 0 }.map { ChartPoint(it.localDate, it.steps!!.toDouble()) }
+        val steps = input.activity.filter { inRange(it.localDate) && it.steps != null }.map { ChartPoint(it.localDate, it.steps!!.toDouble()) }
         val hr = input.activity.filter { inRange(it.localDate) }.mapNotNull { a ->
             (a.hrAvg ?: a.hrLatestBpm)?.let { ChartPoint(a.localDate, it.toDouble()) }
         }
@@ -127,13 +129,13 @@ object AnalyticsCalculator {
             val main = l.maxBy { it.durationMinutes }
             TimeUtils.minutesOfDay(TimeUtils.localDateTime(main.endMillis, main.zoneId).toLocalTime()) / 60.0
         }
-        val tracked = trackedDays(input)
         val mealsPerDay = series.getValue(Metric.MEALS).points.associate { it.epochDay to it.value }
-        val symptomsPerDay = tracked.associateWith { d -> input.symptoms.count { it.localDate == d }.toDouble() }
+        val symptomsPerDay = input.symptoms.filter { it.localDate in input.from..input.to }.groupBy { it.localDate }
+            .mapValues { (_, rows) -> rows.size.toDouble() }
         val fluidPerDay = series.getValue(Metric.FLUID).points.associate { it.epochDay to it.value }
-        val dizzinessPerDay = tracked.associateWith { d ->
-            input.symptoms.count { it.localDate == d && (it.type == SymptomType.DIZZINESS || it.type == SymptomType.DARKENING_VISION) }.toDouble()
-        }
+        val dizzinessPerDay = input.symptoms.filter { it.localDate in input.from..input.to &&
+            (it.type == SymptomType.DIZZINESS || it.type == SymptomType.DARKENING_VISION) }.groupBy { it.localDate }
+            .mapValues { (_, rows) -> rows.size.toDouble() }
 
         return listOf(
             daily(Comparison.APPETITE_VS_SLEEP, sleep, appetite),

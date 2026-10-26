@@ -111,4 +111,14 @@ class CoreLogicTest {
         val result = SleepDeduplicator.dedupe(listOf(a, b, nap), listOf(DataSource.HEALTH_CONNECT, DataSource.SAMSUNG_HEALTH))
         assertThat(result.map { it.id }).containsExactly(2L, 3L)
     }
+
+    @Test
+    fun `zero steps from preferred source wins over lower priority source`() {
+        val merged = ActivityMerger.mergeDay(10, listOf(
+            ActivityDailyEntity(localDate = 10, source = DataSource.HEALTH_CONNECT, steps = 0),
+            ActivityDailyEntity(localDate = 10, source = DataSource.SAMSUNG_HEALTH, steps = 5200),
+        ), listOf(DataSource.HEALTH_CONNECT, DataSource.SAMSUNG_HEALTH))
+        assertThat(merged.steps).isEqualTo(0L)
+        assertThat(merged.stepsSource).isEqualTo(DataSource.HEALTH_CONNECT)
+    }
 }

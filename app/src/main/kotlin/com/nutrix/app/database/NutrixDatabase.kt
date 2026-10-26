@@ -60,8 +60,8 @@ abstract class NutrixDatabase : RoomDatabase() {
     companion object {
         const val NAME = "nutrix.db"
 
-        fun build(context: Context): NutrixDatabase =
-            Room.databaseBuilder(context, NutrixDatabase::class.java, NAME)
+        fun build(context: Context, name: String = NAME): NutrixDatabase =
+            Room.databaseBuilder(context, NutrixDatabase::class.java, name)
                 // Future schema changes must ship real migrations; never wipe user diaries.
                 .build()
     }

@@ -9,6 +9,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.nutrix.app.backup.AutoBackupScheduler
 import com.nutrix.app.core.ApplicationScope
+import com.nutrix.app.core.DataOperationGate
 import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.photo.PhotoStorage
 import com.nutrix.app.core.security.AppLockManager
@@ -65,11 +66,12 @@ class MaintenanceWorker @AssistedInject constructor(
     private val photos: PhotoStorage,
     private val meals: MealRepository,
     private val drinks: DrinkRepository,
+    private val gate: DataOperationGate,
 ) : CoroutineWorker(appContext, params) {
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result = gate.exclusive {
         val referenced = meals.referencedPhotoFiles() + drinks.referencedPhotoFiles()
         photos.deleteUnreferenced(referenced, meals.draftPayloads())
-        return Result.success()
+        Result.success()
     }
 
     companion object {

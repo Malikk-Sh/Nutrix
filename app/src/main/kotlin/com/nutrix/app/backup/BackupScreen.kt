@@ -106,8 +106,12 @@ class BackupViewModel @Inject constructor(
     fun restore(ok: RestoreCheck.Ok, context: android.content.Context) {
         ui.value = BackupUi.Working
         viewModelScope.launch {
-            backup.restore(ok)
-            AppRestarter.restart(context)
+            try {
+                backup.restore(ok)
+                AppRestarter.restart(context)
+            } catch (e: Exception) {
+                ui.value = BackupUi.Failed
+            }
         }
     }
 

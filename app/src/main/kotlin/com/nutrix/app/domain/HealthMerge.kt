@@ -30,7 +30,7 @@ object ActivityMerger {
 
     fun mergeDay(day: Long, rows: List<ActivityDailyEntity>, priority: List<DataSource>): DailyActivity {
         val ordered = rows.sortedBy { rank(it.source, priority) }
-        val stepsRow = ordered.firstOrNull { it.steps != null && it.steps > 0 }
+        val stepsRow = ordered.firstOrNull { it.steps != null }
         val hrRow = ordered.firstOrNull { it.hrAvg != null || it.hrLatestBpm != null }
         return DailyActivity(
             localDate = day,

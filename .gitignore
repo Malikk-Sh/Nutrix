@@ -10,3 +10,7 @@
 .cxx
 .kotlin/
 *.hprof
+*.jks
+*.p12
+keystore.properties
+app/release.keystore
