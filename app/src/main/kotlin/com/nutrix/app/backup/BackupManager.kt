@@ -229,15 +229,20 @@ class BackupManager @Inject constructor(
             val root = RestoreRecovery.directory(context)
             check(!root.exists() && root.mkdirs()) { "Pending restore recovery" }
             val newPhotos = File(root, "new_photos").apply { check(mkdirs()) }
-            val source = NutrixDatabase.build(context, File(dir, DB_ENTRY).path)
+            val stagedDatabase = File(root, DB_ENTRY)
+            val source = NutrixDatabase.build(context, stagedDatabase.path)
             var snapshot: androidx.datastore.preferences.core.Preferences? = null
             var committed = false
             var state: RestoreRecovery.State? = null
             try {
-                // Stage every byte before changing live files. Unlisted/missing files were rejected in check().
-                File(dir, PHOTOS_DIR).listFiles()?.forEach { file ->
-                    File(newPhotos, file.name).outputStream().use { out -> file.inputStream().use { it.copyTo(out) }; out.fd.sync() }
+                // Cache can be evicted even after validation. Copy the database and each declared
+                // photo into durable staging; never let Room recreate a missing cache database.
+                ok.manifest.files.filter { it.path == DB_ENTRY || it.path.startsWith("$PHOTOS_DIR/") }.forEach { entry ->
+                    val staged = if (entry.path == DB_ENTRY) stagedDatabase else File(newPhotos, File(entry.path).name)
+                    staged.outputStream().use { out -> File(dir, entry.path).inputStream().use { it.copyTo(out) }; out.fd.sync() }
+                    require(staged.length() == entry.size && sha256(staged) == entry.sha256) { "Backup changed during staging" }
                 }
+                source.openHelper.readableDatabase // Open the durable snapshot before switching live files.
                 snapshot = settings.snapshotForRecovery(File(root, "settings.preferences_pb"))
                 val preparedState = RestoreRecovery.State(UUID.randomUUID().toString(), RestoreRecovery.photos(context).exists(), File(root, "settings.preferences_pb").exists())
                 state = preparedState
