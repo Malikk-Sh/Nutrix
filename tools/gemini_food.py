@@ -41,7 +41,7 @@ def request_json(path, key, payload=None):
             raise SmokeError("Ответ Gemini слишком большой")
         return json.loads(data)
     except urllib.error.HTTPError as exc:
-        explanations = {400: "Модель отклонила фото или JSON-схему", 401: "Ключ не принят",
+        explanations = {400: "Запрос отклонён: проверьте API-ключ, модель и поддержку JSON-схемы", 401: "Ключ не принят",
                         403: "Нет доступа: проверьте ключ, проект и доступность региона", 404: "Модель недоступна",
                         429: "Квота или лимит запросов исчерпаны"}
         raise SmokeError(f"HTTP {exc.code}: {explanations.get(exc.code, 'Ошибка сервиса Gemini')}") from None

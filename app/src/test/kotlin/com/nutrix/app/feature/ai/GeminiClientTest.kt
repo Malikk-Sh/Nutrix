@@ -58,12 +58,21 @@ class GeminiClientTest {
         assertThat(result.proteinGrams).isEqualTo(35.0)
     }
 
-    @Test fun `quota errors are sanitized and not retried`() = runBlocking {
+    @Test fun `HTTP errors are sanitized and not retried and invalid keys support Google HTTP 400`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(429).setBody("PRIVATE $key"))
         val error = runCatching { client.analyze(key, "gemini-3.1-flash-lite", AiPhoto(byteArrayOf(1)), "") }.exceptionOrNull() as FoodAiException
         assertThat(error.reason).isEqualTo(FoodAiError.QUOTA)
         assertThat(error.message).doesNotContain(key)
         assertThat(server.requestCount).isEqualTo(1)
+        server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":{"message":"PRIVATE $key","details":[{"reason":"API_KEY_INVALID"}]}}"""))
+        val invalidKey = runCatching { client.models(key) }.exceptionOrNull() as FoodAiException
+        assertThat(invalidKey.reason).isEqualTo(FoodAiError.KEY_INVALID)
+        assertThat(invalidKey.message).doesNotContain(key)
+        server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":{"message":"PRIVATE $key","status":"INVALID_ARGUMENT"}}"""))
+        val badRequest = runCatching { client.analyze(key, "gemini-3.1-flash-lite", AiPhoto(byteArrayOf(1)), "") }.exceptionOrNull() as FoodAiException
+        assertThat(badRequest.reason).isEqualTo(FoodAiError.BAD_REQUEST)
+        assertThat(badRequest.message).doesNotContain(key)
+        assertThat(server.requestCount).isEqualTo(3)
     }
 
     @Test fun `redirect does not forward key or repeat upload`() = runBlocking {

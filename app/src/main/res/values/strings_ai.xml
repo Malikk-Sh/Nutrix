@@ -43,7 +43,7 @@
     <string name="ai_error_timeout">Превышено время ожидания. Запрос не повторяется автоматически. Можно повторить вручную.</string>
     <string name="ai_error_network">Не удалось подключиться к Gemini. Проверьте интернет и повторите запрос.</string>
     <string name="ai_error_server">Сервис Gemini временно недоступен. Повторите позже.</string>
-    <string name="ai_error_request">Модель отклонила запрос с фото и JSON-схемой. Проверьте выбранную модель.</string>
+    <string name="ai_error_request">Gemini отклонил запрос. Проверьте API-ключ, выбранную модель и поддержку фото с JSON-схемой.</string>
     <string name="ai_error_response">Gemini вернул неполную или некорректную оценку. Данные блюда не изменены. Попробуйте уточнить состав или выбрать другую модель.</string>
     <string name="ai_error_blocked">Gemini не обработал этот снимок. Попробуйте другое фото еды.</string>
     <string name="ai_error_truncated">Ответ модели обрезан. Попробуйте более простое фото или другую модель.</string>

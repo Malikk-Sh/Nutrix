@@ -80,7 +80,7 @@ class GeminiClient internal constructor(
                     response.use {
                         try {
                             if (!response.isSuccessful) throw FoodAiException(when (response.code) {
-                                400 -> FoodAiError.BAD_REQUEST
+                                400 -> badRequestReason(response)
                                 401 -> FoodAiError.KEY_INVALID
                                 403 -> FoodAiError.ACCESS_DENIED
                                 404 -> FoodAiError.MODEL_UNAVAILABLE
@@ -106,6 +106,18 @@ class GeminiClient internal constructor(
                 }
             })
         }
+    }
+
+    private fun badRequestReason(response: Response): FoodAiError {
+        // Google also returns HTTP 400 for invalid/expired keys. Inspect only its
+        // structured reason, within a small bound; never expose the message/body.
+        return try {
+            val error = Json.parseToJsonElement(response.peekBody(16L * 1024).string()).jsonObject["error"]?.jsonObject
+            val invalidKey = error?.get("details")?.jsonArray.orEmpty().any { detail ->
+                detail.jsonObject["reason"]?.jsonPrimitive?.content in setOf("API_KEY_INVALID", "API_KEY_EXPIRED", "API_KEY_NOT_FOUND")
+            }
+            if (invalidKey) FoodAiError.KEY_INVALID else FoodAiError.BAD_REQUEST
+        } catch (_: Exception) { FoodAiError.BAD_REQUEST }
     }
 
     private companion object { const val MAX_RESPONSE_BYTES = 256L * 1024 }
