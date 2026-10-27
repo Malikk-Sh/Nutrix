@@ -48,6 +48,24 @@ class PhotoStorage @Inject constructor(
         name
     }
 
+    /** Re-encode only the chosen food photo; excludes EXIF/location and bounds upload size. */
+    suspend fun prepareForAi(fileName: String): ByteArray = withContext(Dispatchers.IO) {
+        try {
+            require(File(fileName).name == fileName)
+            val source = file(fileName)
+            require(source.canonicalFile.parentFile == directory.canonicalFile && source.isFile)
+            val bitmap = decodeSampled({ source.inputStream() }, 1280)
+            try {
+                java.io.ByteArrayOutputStream().use { out ->
+                    check(bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out))
+                    out.toByteArray().also { require(it.size <= com.nutrix.app.core.model.GeminiConfig.MAX_PHOTO_BYTES) }
+                }
+            } finally { bitmap.recycle() }
+        } catch (_: Exception) {
+            throw java.io.IOException("Food photo unavailable")
+        }
+    }
+
     /** Copies a stored photo (e.g. when creating a favorite from a meal). */
     suspend fun duplicate(fileName: String): String? = withContext(Dispatchers.IO) {
         val src = file(fileName)

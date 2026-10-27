@@ -140,6 +140,7 @@ room {
 }
 
 dependencies {
+    implementation(libs.okhttp)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.activity.compose)
@@ -189,6 +190,7 @@ dependencies {
         implementation(libs.gson) // required at runtime by the Samsung Health Data SDK
     }
 
+    testImplementation(libs.mockwebserver)
     testImplementation(libs.junit)
     testImplementation(libs.truth)
     testImplementation(libs.robolectric)

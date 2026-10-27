@@ -50,6 +50,7 @@ import com.nutrix.app.R
 import com.nutrix.app.backup.BackupScreen
 import com.nutrix.app.core.time.TimeUtils
 import com.nutrix.app.core.ui.components.LocalSnackbarHost
+import com.nutrix.app.feature.ai.GeminiSettingsScreen
 import com.nutrix.app.feature.activity.SleepActivityScreen
 import com.nutrix.app.feature.activity.SleepEditorScreen
 import com.nutrix.app.feature.analytics.AnalyticsScreen
@@ -201,10 +202,12 @@ fun NutrixNavHost(pendingAction: String?, onActionConsumed: () -> Unit) {
                                 onBackup = { nav.navigate(BackupRoute) },
                                 onReports = { nav.navigate(ReportsRoute) },
                                 onAbout = { nav.navigate(AboutRoute) },
+                                onGeminiSettings = { nav.navigate(GeminiSettingsRoute) },
                             ),
                         )
                     }
 
+                    composable<GeminiSettingsRoute> { GeminiSettingsScreen(onBack = nav::popBackStack) }
                     composable<FoodDiaryRoute> {
                         FoodDiaryScreen(
                             onBack = nav::popBackStack,
@@ -218,6 +221,7 @@ fun NutrixNavHost(pendingAction: String?, onActionConsumed: () -> Unit) {
                         val route = entry.toRoute<FoodEditorRoute>()
                         FoodEditorScreen(
                             openCamera = route.openCamera,
+                            onOpenGeminiSettings = { nav.navigate(GeminiSettingsRoute) },
                             onClose = { nav.popBackStack() },
                             onOpenCamera = { nav.navigate(CameraRoute) },
                             onCrop = { nav.navigate(CropRoute(it)) },

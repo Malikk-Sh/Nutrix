@@ -37,6 +37,7 @@ data class UserSettings(
     val autoBackupKeep: Int = 5,
     val lastAutoBackupMillis: Long? = null,
     val includePhotosInReports: Boolean = false,
+    val geminiModel: String = com.nutrix.app.core.model.GeminiConfig.DEFAULT_MODEL,
 ) {
     companion object {
         val DEFAULT_QUICK_VOLUMES = listOf(100, 200, 250, 500)
