@@ -69,7 +69,7 @@ class FoodAiUiTest {
             compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() ||
                 runCatching { compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(text)) }.isSuccess
         }
-        compose.onAllNodesWithText(text).onFirst().performClick()
+        compose.onAllNodesWithText(text).onFirst().assertIsEnabled().performClick()
     }
 
     @Test fun `photo review apply and save work through the real editor UI`() {
@@ -80,7 +80,12 @@ class FoodAiUiTest {
         runBlocking { assertThat(meals.get(mealId)!!.meal.title).isEqualTo("Исходное блюдо") }
         click("Заменить данные блюда этой оценкой")
         click("Сохранить")
-        compose.waitUntil(10_000) { runBlocking { meals.get(mealId)?.meal?.nutrition?.proteinGrams == 35.0 } }
+        compose.waitUntil(10_000) {
+            // Room resumes the editor on Android's main looper after IO. A DB-only
+            // predicate does not pump Robolectric/Compose and can strand that resume.
+            compose.waitForIdle()
+            runBlocking { meals.get(mealId)?.meal?.nutrition?.proteinGrams == 35.0 }
+        }
         runBlocking {
             val meal = meals.get(mealId)!!.meal
             assertThat(meal.title).isEqualTo("Гречка с курицей")
