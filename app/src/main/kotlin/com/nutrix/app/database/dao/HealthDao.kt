@@ -88,7 +88,7 @@ interface HealthDao {
     @Query("SELECT * FROM exercises WHERE localDate BETWEEN :from AND :to ORDER BY startMillis")
     suspend fun getExerciseRange(from: Long, to: Long): List<ExerciseEntity>
 
-    @Query("SELECT DISTINCT localDate FROM activity_daily WHERE localDate BETWEEN :from AND :to AND (steps > 0 OR exerciseMinutes > 0)")
+    @Query("SELECT DISTINCT localDate FROM activity_daily WHERE localDate BETWEEN :from AND :to AND (steps > 0 OR exerciseMinutes > 0) UNION SELECT DISTINCT localDate FROM exercises WHERE localDate BETWEEN :from AND :to")
     fun observeActivityDays(from: Long, to: Long): Flow<List<Long>>
 
     @Query("SELECT externalId FROM sleep_sessions WHERE source = :source AND externalId IS NOT NULL AND endMillis BETWEEN :fromMillis AND :toMillis")

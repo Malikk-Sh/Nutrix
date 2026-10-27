@@ -92,7 +92,6 @@ import com.nutrix.app.core.ui.components.ChoiceChips
 import com.nutrix.app.core.ui.components.ConfirmDialog
 import com.nutrix.app.core.ui.components.DateTimeRow
 import com.nutrix.app.core.ui.components.InfoBanner
-import com.nutrix.app.core.ui.components.LocalExternalTransition
 import com.nutrix.app.core.ui.components.MultiChoiceChips
 import com.nutrix.app.core.ui.components.NutrixCard
 import com.nutrix.app.core.ui.components.NutrixScreen
@@ -122,7 +121,6 @@ fun FoodEditorScreen(
     val form = state.form
     val colors = LocalCategoryColors.current
     val haptic = LocalHapticFeedback.current
-    val externalTransition = LocalExternalTransition.current
 
     var showLeaveDialog by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
@@ -138,8 +136,8 @@ fun FoodEditorScreen(
             null -> Unit
         }
     }
-    LaunchedEffect(cameraResult) { cameraResult?.let(viewModel::consumeCameraResult) }
-    LaunchedEffect(cropResult) { cropResult?.let(viewModel::consumeCropResult) }
+    LaunchedEffect(cameraResult, state.loaded, state.pendingDraft, state.isSaving) { cameraResult?.let(viewModel::consumeCameraResult) }
+    LaunchedEffect(cropResult, state.loaded, state.pendingDraft, state.isSaving) { cropResult?.let(viewModel::consumeCropResult) }
     LaunchedEffect(state.loaded) {
         if (state.loaded && openCamera && !cameraLaunched && state.pendingDraft == null) {
             cameraLaunched = true
@@ -151,20 +149,23 @@ fun FoodEditorScreen(
         viewModel.addPhotoFromUris(uris)
     }
 
-    BackHandler(enabled = state.dirty) { showLeaveDialog = true }
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_STOP) { viewModel.flushDraft() }
+    BackHandler(enabled = state.dirty || state.isSaving || state.processingPhoto) {
+        if (!state.isSaving && !state.processingPhoto) showLeaveDialog = true
+    }
 
     NutrixScreen(
         title = stringResource(if (state.isEdit) R.string.food_edit_title else R.string.food_add_title),
-        onBack = { if (state.dirty) showLeaveDialog = true else onClose() },
+        onBack = { if (!state.isSaving && !state.processingPhoto) { if (state.dirty) showLeaveDialog = true else onClose() } },
         actions = {
             if (state.isEdit) {
-                IconButton(onClick = { onAddSymptom(form.mealId) }) {
+                IconButton(enabled = !state.isSaving && !state.processingPhoto, onClick = { onAddSymptom(form.mealId) }) {
                     Icon(Icons.Rounded.Healing, contentDescription = stringResource(R.string.food_add_symptom))
                 }
-                IconButton(onClick = { onRepeat(form.mealId) }) {
+                IconButton(enabled = !state.isSaving && !state.processingPhoto, onClick = { onRepeat(form.mealId) }) {
                     Icon(Icons.Rounded.Repeat, contentDescription = stringResource(R.string.food_repeat))
                 }
-                IconButton(onClick = { showDeleteDialog = true }) {
+                IconButton(enabled = !state.isSaving && !state.processingPhoto, onClick = { showDeleteDialog = true }) {
                     Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.action_delete))
                 }
             }
@@ -176,17 +177,23 @@ fun FoodEditorScreen(
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         viewModel.save()
                     },
-                    enabled = state.loaded && !viewModel.isWeightInvalid(),
+                    enabled = state.loaded && !state.isSaving && !state.processingPhoto && state.pendingDraft == null && !viewModel.isWeightInvalid(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                         .height(54.dp),
-                ) { Text(stringResource(R.string.action_save), style = MaterialTheme.typography.titleMedium) }
+                ) { Text(stringResource(if (state.isSaving) R.string.action_saving else R.string.action_save), style = MaterialTheme.typography.titleMedium) }
             }
         },
     ) { padding ->
         ScreenList(padding, bottomExtra = 24.dp) {
+            if (state.error == "save" || state.error == "draft") {
+                item(key = "save-error") {
+                    Text(stringResource(if (state.error == "save") R.string.food_save_error else R.string.food_draft_error),
+                        color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
+                }
+            }
             state.pendingDraft?.let {
                 item(key = "draft") {
                     NutrixCard(color = MaterialTheme.colorScheme.primaryContainer) {
@@ -209,7 +216,7 @@ fun FoodEditorScreen(
                             PhotoWithMenu(
                                 fileName = photo,
                                 isCover = photo == form.photos.firstOrNull(),
-                                onCrop = { viewModel.prepareCrop(photo); onCrop(photo) },
+                                onCrop = { if (!state.isSaving && !state.processingPhoto && state.pendingDraft == null) { viewModel.prepareCrop(photo); onCrop(photo) } },
                                 onRemove = { viewModel.removePhoto(photo) },
                                 onCover = { viewModel.movePhotoFirst(photo) },
                             )
@@ -220,17 +227,16 @@ fun FoodEditorScreen(
                     }
                     if (form.photos.isNotEmpty() || state.processingPhoto) Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        FilledTonalButton(onClick = onOpenCamera, enabled = form.photos.size < MAX_PHOTOS) {
+                        FilledTonalButton(onClick = onOpenCamera, enabled = state.loaded && !state.isSaving && !state.processingPhoto && state.pendingDraft == null && form.photos.size < MAX_PHOTOS) {
                             Icon(Icons.Rounded.PhotoCamera, null, Modifier.size(20.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.food_camera))
                         }
                         FilledTonalButton(
                             onClick = {
-                                externalTransition()
                                 galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                             },
-                            enabled = form.photos.size < MAX_PHOTOS,
+                            enabled = state.loaded && !state.isSaving && !state.processingPhoto && state.pendingDraft == null && form.photos.size < MAX_PHOTOS,
                         ) {
                             Icon(Icons.Rounded.PhotoLibrary, null, Modifier.size(20.dp))
                             Spacer(Modifier.width(6.dp))
@@ -339,35 +345,24 @@ fun FoodEditorScreen(
     }
 
     if (showLeaveDialog) {
-        if (state.isEdit) {
-            ConfirmDialog(
-                title = stringResource(R.string.food_leave_edit_title),
-                text = stringResource(R.string.food_leave_edit_text),
-                confirmLabel = stringResource(R.string.food_leave_edit_confirm),
-                dismissLabel = stringResource(R.string.food_keep_editing),
-                onConfirm = { showLeaveDialog = false; onClose() },
-                onDismiss = { showLeaveDialog = false },
-            )
-        } else {
-            AlertDialog(
-                onDismissRequest = { showLeaveDialog = false },
-                title = { Text(stringResource(R.string.food_leave_title)) },
-                text = { Text(stringResource(R.string.food_leave_text)) },
-                confirmButton = {
-                    TextButton(onClick = { showLeaveDialog = false; viewModel.saveDraftAndClose() }) {
-                        Text(stringResource(R.string.food_leave_save_draft))
+        AlertDialog(
+            onDismissRequest = { showLeaveDialog = false },
+            title = { Text(stringResource(R.string.food_leave_title)) },
+            text = { Text(stringResource(R.string.food_leave_text)) },
+            confirmButton = {
+                TextButton(onClick = { showLeaveDialog = false; viewModel.saveDraftAndClose() }) {
+                    Text(stringResource(R.string.food_leave_save_draft))
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { showLeaveDialog = false; viewModel.discardAndClose() }) {
+                        Text(stringResource(R.string.food_leave_discard))
                     }
-                },
-                dismissButton = {
-                    Row {
-                        TextButton(onClick = { showLeaveDialog = false; viewModel.discardAndClose() }) {
-                            Text(stringResource(R.string.food_leave_discard))
-                        }
-                        TextButton(onClick = { showLeaveDialog = false }) { Text(stringResource(R.string.action_cancel)) }
-                    }
-                },
-            )
-        }
+                    TextButton(onClick = { showLeaveDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+                }
+            },
+        )
     }
 
     if (showDeleteDialog) {

@@ -75,6 +75,8 @@ class SettingsRepository @Inject constructor(
 
         // Secrets (never exported in backups): Keystore-encrypted blobs.
         val pinBlob = stringPreferencesKey("pin_blob")
+        val pinFailures = intPreferencesKey("pin_failures")
+        val pinLockoutUntil = longPreferencesKey("pin_lockout_until")
         val backupPasswordBlob = stringPreferencesKey("backup_password_blob")
 
         fun syncLast(source: DataSource) = longPreferencesKey("sync_last_${source.name}")
@@ -84,7 +86,7 @@ class SettingsRepository @Inject constructor(
         fun changesToken(source: DataSource, type: String) = stringPreferencesKey("token_${source.name}_$type")
     }
 
-    private val secretKeys = setOf("pin_blob", "backup_password_blob")
+    private val secretKeys = setOf("pin_blob", "backup_password_blob", "pin_failures", "pin_lockout_until")
     private val backupTypes = mapOf(
         Keys.userName.name to "s", Keys.heightCm.name to "i", Keys.startWeight.name to "d", Keys.targetWeight.name to "d",
         Keys.weightUnit.name to "s", Keys.themeMode.name to "s", Keys.waterGoal.name to "i", Keys.quickVolumes.name to "s",
@@ -216,6 +218,15 @@ class SettingsRepository @Inject constructor(
     suspend fun setIncludePhotosInReports(enabled: Boolean) = edit { it[Keys.reportPhotos] = enabled }
 
     // Secrets
+    suspend fun pinAttempts(): Pair<Int, Long> = store.data.first().let {
+        (it[Keys.pinFailures] ?: 0) to (it[Keys.pinLockoutUntil] ?: 0L)
+    }
+
+    suspend fun setPinAttempts(failures: Int, lockoutUntil: Long) = edit {
+        it[Keys.pinFailures] = failures
+        it[Keys.pinLockoutUntil] = lockoutUntil
+    }
+
     suspend fun pinBlob(): String? = store.data.first()[Keys.pinBlob]
     suspend fun setPinBlob(blob: String?) = edit { it.setOrRemove(Keys.pinBlob, blob) }
     suspend fun backupPasswordBlob(): String? = store.data.first()[Keys.backupPasswordBlob]

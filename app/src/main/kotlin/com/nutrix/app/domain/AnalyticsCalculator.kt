@@ -98,7 +98,7 @@ object AnalyticsCalculator {
             ChartPoint(d, (fromMeals + fromSymptoms).toDouble())
         }
         val sleepByDay = input.sleeps.filter { inRange(it.localDate) }.groupBy { it.localDate }
-        val sleep = sleepByDay.map { (d, l) -> ChartPoint(d, l.sumOf { it.durationMinutes } / 60.0) }.sortedBy { it.epochDay }
+        val sleep = sleepByDay.map { (d, l) -> ChartPoint(d, SleepTotals.minutes(l) / 60.0) }.sortedBy { it.epochDay }
         val bedtime = sleepByDay.map { (d, l) ->
             val main = l.maxBy { it.durationMinutes }
             val start = TimeUtils.localDateTime(main.startMillis, main.zoneId).toLocalTime()

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import com.nutrix.app.domain.SleepTotals
 import com.nutrix.app.core.ui.icons.Bedtime
 import androidx.compose.material.icons.rounded.Delete
 import com.nutrix.app.core.ui.icons.DirectionsRun
@@ -84,6 +85,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -94,6 +98,7 @@ data class SleepActivityState(
     val activity: List<DailyActivity> = emptyList(),
     val exercises: List<ExerciseEntity> = emptyList(),
     val anySourceEnabled: Boolean = false,
+    val sleepMinutes: Map<Long, Int> = emptyMap(),
 )
 
 @HiltViewModel
@@ -108,8 +113,10 @@ class SleepActivityViewModel @Inject constructor(
         health.observeActivityRange(today - 13, today),
         health.observeExercises(today - 13, today),
         settings.settings,
-    ) { sleeps, activity, exercises, s ->
-        SleepActivityState(sleeps, activity, exercises.sortedByDescending { it.startMillis }, s.healthConnectEnabled || s.samsungHealthEnabled)
+        health.observeSleepRange(today - 13, today),
+    ) { sleeps, activity, exercises, s, chartSleep ->
+        SleepActivityState(sleeps, activity, exercises.sortedByDescending { it.startMillis }, s.healthConnectEnabled || s.samsungHealthEnabled,
+            chartSleep.groupBy { it.localDate }.mapValues { SleepTotals.minutes(it.value) })
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SleepActivityState())
 
     val syncing = sync.running
@@ -170,7 +177,7 @@ fun SleepActivityScreen(
                     NutrixCard {
                         val last14 = (13 downTo 0).map { back ->
                             val day = TimeUtils.todayEpochDay() - back
-                            day to state.sleeps.filter { it.localDate == day }.sumOf { it.durationMinutes } / 60.0
+                            day to (state.sleepMinutes[day] ?: 0) / 60.0
                         }
                         MiniBars(
                             values = last14.map { it.second },
@@ -298,7 +305,7 @@ private fun ExerciseRow(e: ExerciseEntity) {
             IconBadge(Icons.Rounded.DirectionsRun, colors.activity, size = 40.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(e.title ?: stringResource(R.string.exercise_default), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(e.title ?: com.nutrix.app.feature.calendar.exerciseName(e.exerciseType), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     "${Formatters.dayMonthShort(LocalDate.ofEpochDay(e.localDate))} · ${Formatters.time(e.startMillis, e.zoneId)} · " +
                         Formatters.duration((e.endMillis - e.startMillis) / 60_000L, h, m) +
@@ -344,34 +351,55 @@ class SleepEditorViewModel @Inject constructor(
     val form: StateFlow<SleepForm> = _form.asStateFlow()
     val closed = MutableStateFlow(false)
     val isEdit = route.sleepId != 0L
+    val loaded = MutableStateFlow(!isEdit)
+    val saving = MutableStateFlow(false)
+    val error = MutableStateFlow(false)
 
     init {
         if (isEdit) viewModelScope.launch {
-            val s = health.getSleep(route.sleepId) ?: run { closed.value = true; return@launch }
+            val s = health.getSleep(route.sleepId)?.takeIf { it.source == DataSource.MANUAL }
+                ?: run { closed.value = true; return@launch }
             val start = RecordTime(s.startMillis, s.zoneId)
             val end = RecordTime(s.endMillis, s.zoneId)
             _form.value = SleepForm(s.id, start.localDate, start.localTime, end.localDate, end.localTime, s.note.orEmpty())
+            loaded.value = true
         }
     }
 
-    fun update(transform: (SleepForm) -> SleepForm) = _form.update(transform)
+    fun update(transform: (SleepForm) -> SleepForm) {
+        if (loaded.value && !saving.value && !closed.value) _form.update(transform)
+    }
 
     fun save() {
         val f = _form.value
-        if (!f.valid) return
+        if (!f.valid || !loaded.value || saving.value || closed.value) return
+        saving.value = true
+        error.value = false
         val zone = ZoneId.systemDefault()
         viewModelScope.launch {
-            health.saveManualSleep(f.id, f.startMillis(zone), f.endMillis(zone), zone, f.note)
-            messages.show(R.string.sleep_saved)
-            closed.value = true
+            withContext(NonCancellable) {
+                try {
+                    health.saveManualSleep(f.id, f.startMillis(zone), f.endMillis(zone), zone, f.note)
+                    messages.show(R.string.sleep_saved)
+                    closed.value = true
+                } catch (_: Exception) {
+                    saving.value = false
+                    error.value = true
+                }
+            }
         }
     }
 
     fun delete() {
+        if (!loaded.value || saving.value || closed.value) return
+        saving.value = true
         viewModelScope.launch {
-            val removed = health.deleteSleep(_form.value.id) ?: return@launch
-            undo.offer(undo = { health.restoreSleep(removed) })
-            closed.value = true
+            try {
+                val removed = health.deleteSleep(_form.value.id) ?: kotlin.error("Sleep no longer exists")
+                undo.offer(undo = { health.restoreSleep(removed) })
+                closed.value = true
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { saving.value = false; error.value = true }
         }
     }
 }
@@ -380,28 +408,33 @@ class SleepEditorViewModel @Inject constructor(
 fun SleepEditorScreen(onClose: () -> Unit, viewModel: SleepEditorViewModel = hiltViewModel()) {
     val form by viewModel.form.collectAsStateWithLifecycle()
     val closed by viewModel.closed.collectAsStateWithLifecycle()
+    val loaded by viewModel.loaded.collectAsStateWithLifecycle()
+    val saving by viewModel.saving.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
+    androidx.activity.compose.BackHandler(enabled = saving) { }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val colors = LocalCategoryColors.current
     LaunchedEffect(closed) { if (closed) onClose() }
     NutrixScreen(
         title = stringResource(if (viewModel.isEdit) R.string.sleep_edit_title else R.string.sleep_add_title),
-        onBack = onClose,
-        actions = { if (viewModel.isEdit) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete)) } },
+        onBack = { if (!saving) onClose() },
+        actions = { if (viewModel.isEdit) IconButton(enabled = loaded && !saving, onClick = { confirmDelete = true }) { Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete)) } },
         bottomBar = {
             Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
                 Button(
                     onClick = viewModel::save,
-                    enabled = form.valid,
+                    enabled = loaded && !saving && form.valid,
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                         .height(54.dp),
-                ) { Text(stringResource(R.string.action_save)) }
+                ) { Text(stringResource(if (saving) R.string.action_saving else R.string.action_save)) }
             }
         },
     ) { padding ->
         ScreenList(padding, bottomExtra = 24.dp) {
+            if (error) item { Text(stringResource(R.string.sleep_save_error), color = MaterialTheme.colorScheme.error) }
             item {
                 NutrixCard {
                     Text(stringResource(R.string.sleep_fell_asleep), style = MaterialTheme.typography.titleSmall)

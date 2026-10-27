@@ -49,7 +49,6 @@ import androidx.lifecycle.viewModelScope
 import com.nutrix.app.R
 import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.time.Formatters
-import com.nutrix.app.core.ui.components.LocalExternalTransition
 import com.nutrix.app.core.ui.components.NutrixCard
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.ScreenList
@@ -160,7 +159,6 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewMode
     val status by viewModel.status.collectAsStateWithLifecycle()
     val includePhotos by viewModel.includePhotos.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val external = LocalExternalTransition.current
     var rangeDialog by rememberSaveable { mutableStateOf(false) }
 
     val launchers = ExportFormat.entries.associateWith { f ->
@@ -216,7 +214,7 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewMode
                     }
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(onClick = { external(); launchers.getValue(format).launch(viewModel.fileName()) }, enabled = status !is ExportStatus.Working) {
+                        Button(onClick = { launchers.getValue(format).launch(viewModel.fileName()) }, enabled = status !is ExportStatus.Working) {
                             Text(stringResource(R.string.report_save))
                         }
                         OutlinedButton(onClick = viewModel::share, enabled = status !is ExportStatus.Working) { Text(stringResource(R.string.report_share)) }
@@ -240,7 +238,6 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewMode
         is ExportStatus.Share -> LaunchedEffect(st) {
             viewModel.reset()
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", st.file)
-            external()
             context.startActivity(
                 Intent.createChooser(
                     Intent(Intent.ACTION_SEND).setType(st.mime).putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),

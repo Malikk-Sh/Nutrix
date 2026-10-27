@@ -255,7 +255,7 @@ class BackupManager @Inject constructor(
                     RestoreRecovery.move(newPhotos, current)
                     settings.importFromBackup(settingsJson)
                     target.execSQL("INSERT OR REPLACE INTO drafts(kind, payload, updatedAt) VALUES (?, ?, ?)",
-                        arrayOf(RestoreRecovery.MARKER, preparedState.id, System.currentTimeMillis()))
+                        arrayOf<Any>(RestoreRecovery.MARKER, preparedState.id, System.currentTimeMillis()))
                 }
                 committed = true
             } catch (e: Throwable) {

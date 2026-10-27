@@ -45,7 +45,6 @@ import com.nutrix.app.core.model.DrinkType
 import com.nutrix.app.core.ui.components.ChoiceChips
 import com.nutrix.app.core.ui.components.ConfirmDialog
 import com.nutrix.app.core.ui.components.DateTimeRow
-import com.nutrix.app.core.ui.components.LocalExternalTransition
 import com.nutrix.app.core.ui.components.NutrixCard
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.NutrixTextField
@@ -64,7 +63,6 @@ fun DrinkEditorScreen(
     val closed by viewModel.closed.collectAsStateWithLifecycle()
     val camera by viewModel.cameraResult.collectAsStateWithLifecycle()
     val colors = LocalCategoryColors.current
-    val external = LocalExternalTransition.current
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(closed) { if (closed) onClose() }
     LaunchedEffect(camera) { camera?.let(viewModel::consumeCamera) }
@@ -139,7 +137,6 @@ fun DrinkEditorScreen(
                         }
                         Spacer(Modifier.width(8.dp))
                         FilledTonalButton(onClick = {
-                            external()
                             picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                         }) {
                             Icon(Icons.Rounded.PhotoLibrary, null, Modifier.size(18.dp))

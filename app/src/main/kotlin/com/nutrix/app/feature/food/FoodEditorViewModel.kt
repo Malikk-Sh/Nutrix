@@ -36,16 +36,25 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.util.UUID
 import javax.inject.Inject
 
 /** Everything the editor holds; serialisable so it can be stored as a draft. */
 @Serializable
 data class MealForm(
+    val saveToken: String = UUID.randomUUID().toString(),
     val mealId: Long = 0,
     val epochDay: Long = TimeUtils.todayEpochDay(),
     val minuteOfDay: Int = TimeUtils.minutesOfDay(LocalTime.now()),
@@ -86,6 +95,7 @@ data class FoodEditorUiState(
     val calorieEstimatesEnabled: Boolean = true,
     val pendingDraft: MealForm? = null,
     val processingPhoto: Boolean = false,
+    val isSaving: Boolean = false,
     val error: String? = null,
 )
 
@@ -109,6 +119,18 @@ class FoodEditorViewModel @Inject constructor(
     private val route = savedStateHandle.toRoute<FoodEditorRoute>()
     private val json = Json { ignoreUnknownKeys = true }
     private var initialForm: MealForm? = null
+    private val draftMutex = Mutex()
+    private var draftJob: Job? = null
+    private var finished = false
+    private val draftKind = when {
+        route.mealId != 0L -> "meal-edit-${route.mealId}"
+        route.favoriteId != 0L -> "meal-favorite-${route.favoriteId}"
+        route.repeatMealId != 0L -> "meal-repeat-${route.repeatMealId}"
+        else -> DRAFT_KIND
+    }
+    private fun encode(form: MealForm) = json.encodeToString(MealForm.serializer(), form)
+    private fun decode(payload: String?) = payload?.let { runCatching { json.decodeFromString(MealForm.serializer(), it) }.getOrNull() }
+    private fun ownedPhotos(): List<String> = savedStateHandle.get<ArrayList<String>>(EDITOR_PHOTOS).orEmpty()
 
     private val _state = MutableStateFlow(FoodEditorUiState(isEdit = route.mealId != 0L))
     val state: StateFlow<FoodEditorUiState> = _state.asStateFlow()
@@ -165,9 +187,15 @@ class FoodEditorViewModel @Inject constructor(
             else -> MealForm(mealType = SmartSuggestions.guessMealType(history, now))
         }
         initialForm = form
-        val draft = if (route.mealId == 0L && route.favoriteId == 0L && route.repeatMealId == 0L) {
-            meals.getDraft(DRAFT_KIND)?.let { runCatching { json.decodeFromString(MealForm.serializer(), it.payload) }.getOrNull() }
-        } else null
+        val draft = (decode(savedStateHandle[EDITOR_FORM]) ?: decode(meals.getDraft(draftKind)?.payload))
+            ?.takeIf { it.mealId == form.mealId }
+        // Android may restore a bundle captured before the transaction committed.
+        if (draft != null && meals.isSaveCommitted(draft.saveToken)) {
+            savedStateHandle.remove<String>(EDITOR_FORM)
+            finished = true
+            _events.value = FoodEditorEvent.Saved
+            return
+        }
         _state.update {
             it.copy(
                 form = form,
@@ -215,10 +243,39 @@ class FoodEditorViewModel @Inject constructor(
         Units.roundTo(Units.toDisplay(kg, unit), 1).toString().replace('.', ',')
 
     fun update(transform: (MealForm) -> MealForm) {
-        _state.update { s ->
-            val newForm = transform(s.form)
-            s.copy(form = newForm, dirty = newForm != initialForm)
+        val state = _state.value
+        if (!state.loaded || state.isSaving || finished || state.pendingDraft != null) return
+        val form = transform(state.form)
+        val owned = ownedPhotos() + form.photos.filter { it !in initialForm?.photos.orEmpty() }
+        savedStateHandle[EDITOR_PHOTOS] = ArrayList(owned.distinct())
+        if (form == initialForm) savedStateHandle.remove<String>(EDITOR_FORM) else savedStateHandle[EDITOR_FORM] = encode(form)
+        _state.update { it.copy(form = form, dirty = form != initialForm, error = null) }
+        scheduleDraft()
+    }
+
+    private fun scheduleDraft() {
+        draftJob?.cancel()
+        draftJob = viewModelScope.launch {
+            delay(500)
+            persistDraft()
         }
+    }
+
+    private suspend fun persistDraft() = draftMutex.withLock {
+        if (finished || _state.value.isSaving || _state.value.pendingDraft != null) return@withLock
+        try {
+            if (_state.value.dirty) meals.saveDraft(draftKind, encode(_state.value.form))
+            else meals.deleteDraft(draftKind)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            _state.update { it.copy(error = "draft") }
+        }
+    }
+
+    fun flushDraft() {
+        draftJob?.cancel()
+        viewModelScope.launch { persistDraft() }
     }
 
     fun setDate(date: LocalDate) = update { it.copy(epochDay = date.toEpochDay()) }
@@ -267,21 +324,32 @@ class FoodEditorViewModel @Inject constructor(
     }
 
     fun addPhotoFromUris(uris: List<Uri>) {
-        if (uris.isEmpty()) return
+        if (uris.isEmpty() || _state.value.processingPhoto || _state.value.isSaving || finished || _state.value.pendingDraft != null) return
+        _state.update { it.copy(processingPhoto = true) }
         viewModelScope.launch {
-            _state.update { it.copy(processingPhoto = true) }
-            val names = uris.mapNotNull { uri -> runCatching { photoStorage.importUri(uri) }.getOrNull() }
-            update { it.copy(photos = it.photos + names) }
-            _state.update { it.copy(processingPhoto = false, error = if (names.size < uris.size) "photo" else null) }
+            var failed = false
+            try {
+                for (uri in uris) {
+                    try {
+                        val name = photoStorage.importUri(uri)
+                        update { it.copy(photos = it.photos + name) }
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { failed = true }
+                }
+            } finally {
+                _state.update { it.copy(processingPhoto = false, error = if (failed) "photo" else null) }
+            }
         }
     }
 
     fun consumeCameraResult(fileName: String) {
+        if (!_state.value.loaded || _state.value.pendingDraft != null || _state.value.isSaving || finished) return
         savedStateHandle[NavResults.CAMERA_PHOTO] = null
         update { it.copy(photos = it.photos + fileName) }
     }
 
     fun consumeCropResult(cropped: String) {
+        if (!_state.value.loaded || _state.value.pendingDraft != null || _state.value.isSaving || finished) return
         val source = savedStateHandle.get<String>(NavResults.CROP_SOURCE)
         savedStateHandle[NavResults.CROPPED_PHOTO] = null
         savedStateHandle[NavResults.CROP_SOURCE] = null
@@ -300,28 +368,63 @@ class FoodEditorViewModel @Inject constructor(
     fun movePhotoFirst(fileName: String) = update { it.copy(photos = listOf(fileName) + (it.photos - fileName)) }
 
     fun restoreDraft() {
+        if (_state.value.isSaving || finished) return
         val draft = _state.value.pendingDraft ?: return
-        _state.update { it.copy(form = draft.copy(mealId = 0), pendingDraft = null, dirty = true) }
+        _state.update { it.copy(pendingDraft = null) }
+        update { draft }
     }
 
     fun dismissDraft() {
-        viewModelScope.launch { meals.deleteDraft(DRAFT_KIND) }
-        _state.update { it.copy(pendingDraft = null) }
+        if (_state.value.isSaving || finished) return
+        _state.update { it.copy(isSaving = true) }
+        viewModelScope.launch {
+            draftMutex.withLock {
+                try {
+                    val pending = _state.value.pendingDraft
+                    meals.deleteDraft(draftKind)
+                    savedStateHandle.remove<String>(EDITOR_FORM)
+                    meals.deleteUnusedPhotos(pending?.photos.orEmpty() + ownedPhotos())
+                    savedStateHandle.remove<ArrayList<String>>(EDITOR_PHOTOS)
+                    _state.update { it.copy(pendingDraft = null, isSaving = false) }
+                } catch (error: CancellationException) { throw error }
+                catch (_: Exception) { _state.update { it.copy(isSaving = false, error = "draft") } }
+            }
+        }
     }
 
     fun saveDraftAndClose() {
+        val state = _state.value
+        if (!state.loaded || state.isSaving || state.processingPhoto || state.pendingDraft != null || finished) return
+        _state.update { it.copy(isSaving = true) }
+        draftJob?.cancel()
         viewModelScope.launch {
-            meals.saveDraft(DRAFT_KIND, json.encodeToString(MealForm.serializer(), _state.value.form))
-            _events.value = FoodEditorEvent.Closed
+            draftMutex.withLock {
+                try {
+                    meals.saveDraft(draftKind, encode(state.form))
+                    finished = true
+                    _events.value = FoodEditorEvent.Closed
+                } catch (error: CancellationException) { throw error }
+                catch (_: Exception) { _state.update { it.copy(isSaving = false, error = "draft") } }
+            }
         }
     }
 
     fun discardAndClose() {
+        if (_state.value.isSaving || _state.value.processingPhoto || finished) return
+        _state.update { it.copy(isSaving = true) }
+        draftJob?.cancel()
         viewModelScope.launch {
-            // Photos taken for an abandoned new meal are not referenced by anything: remove them.
-            val form = _state.value.form
-            if (form.mealId == 0L) form.photos.forEach(photoStorage::delete)
-            _events.value = FoodEditorEvent.Closed
+            draftMutex.withLock {
+                try {
+                    meals.deleteDraft(draftKind)
+                    savedStateHandle.remove<String>(EDITOR_FORM)
+                    meals.deleteUnusedPhotos(ownedPhotos() + _state.value.pendingDraft?.photos.orEmpty())
+                    savedStateHandle.remove<ArrayList<String>>(EDITOR_PHOTOS)
+                    finished = true
+                    _events.value = FoodEditorEvent.Closed
+                } catch (error: CancellationException) { throw error }
+                catch (_: Exception) { _state.update { it.copy(isSaving = false, error = "draft") } }
+            }
         }
     }
 
@@ -336,49 +439,67 @@ class FoodEditorViewModel @Inject constructor(
     fun save() {
         val s = _state.value
         val form = s.form
-        if (isWeightInvalid()) return
+        if (!s.loaded || s.isSaving || s.processingPhoto || s.pendingDraft != null || finished || isWeightInvalid()) return
+        val weightKg = parsedWeightKg()
+        _state.update { it.copy(isSaving = true, error = null) }
+        draftJob?.cancel()
         viewModelScope.launch {
-            val rt = form.recordTime
-            val weightKg = parsedWeightKg()
-            val entity = MealEntity(
-                id = form.mealId,
-                epochMillis = rt.epochMillis,
-                zoneId = rt.zoneId,
-                localDate = rt.epochDay,
-                mealType = form.mealType,
-                title = form.title.trim().ifBlank { null },
-                items = form.items,
-                appetite = form.appetite,
-                portion = form.portion,
-                satiety = form.satiety,
-                feelings = form.feelings.sortedBy { it.ordinal },
-                feelingOther = form.feelingOther.trim().ifBlank { null }.takeIf { AfterMealFeeling.OTHER in form.feelings },
-                weightKg = weightKg,
-                note = form.note.trim().ifBlank { null },
-                portionGrams = form.gramsText.toIntOrNull(),
-                caloriesEstimate = form.kcalText.toIntOrNull(),
-                createdAt = if (form.createdAt > 0) form.createdAt else System.currentTimeMillis(),
-            )
-            val id = meals.save(entity, form.photos)
-            if (form.alsoSaveWeight && weightKg != null) {
-                weights.saveManual(0, rt, weightKg, null)
+            draftMutex.withLock {
+                withContext(NonCancellable) {
+                    try {
+                        val rt = form.recordTime
+                        val entity = MealEntity(
+                            id = form.mealId,
+                            epochMillis = rt.epochMillis,
+                            zoneId = rt.zoneId,
+                            localDate = rt.epochDay,
+                            mealType = form.mealType,
+                            title = form.title.trim().ifBlank { null },
+                            items = form.items,
+                            appetite = form.appetite,
+                            portion = form.portion,
+                            satiety = form.satiety,
+                            feelings = form.feelings.sortedBy { it.ordinal },
+                            feelingOther = form.feelingOther.trim().ifBlank { null }.takeIf { AfterMealFeeling.OTHER in form.feelings },
+                            weightKg = weightKg,
+                            note = form.note.trim().ifBlank { null },
+                            portionGrams = form.gramsText.toIntOrNull(),
+                            caloriesEstimate = form.kcalText.toIntOrNull(),
+                            createdAt = if (form.createdAt > 0) form.createdAt else System.currentTimeMillis(),
+                        )
+                        meals.save(entity, form.photos, form.alsoSaveWeight, form.saveAsFavorite, draftKind, form.saveToken)
+                        finished = true
+                        savedStateHandle.remove<String>(EDITOR_FORM)
+                        // Only files no longer referenced by the committed record may be removed.
+                        runCatching { meals.deleteUnusedPhotos(ownedPhotos()) }
+                        savedStateHandle.remove<ArrayList<String>>(EDITOR_PHOTOS)
+                        messages.show(R.string.food_saved)
+                        _events.value = FoodEditorEvent.Saved
+                    } catch (_: Exception) {
+                        _state.update { it.copy(isSaving = false, error = "save") }
+                    }
+                }
             }
-            if (form.saveAsFavorite) {
-                meals.favoriteFromMeal(entity.copy(id = id), form.photos.firstOrNull())
-            }
-            if (form.mealId == 0L) meals.deleteDraft(DRAFT_KIND)
-            messages.show(R.string.food_saved)
-            _events.value = FoodEditorEvent.Saved
         }
     }
 
     fun delete() {
-        val id = _state.value.form.mealId
-        if (id == 0L) return
+        val state = _state.value
+        val id = state.form.mealId
+        if (id == 0L || state.isSaving || state.processingPhoto || finished) return
+        _state.update { it.copy(isSaving = true) }
+        draftJob?.cancel()
         viewModelScope.launch {
-            val snapshot = meals.delete(id) ?: return@launch
-            undo.offer(undo = { meals.restore(snapshot) }, commit = { meals.purge(snapshot) })
-            _events.value = FoodEditorEvent.Deleted
+            draftMutex.withLock {
+                try {
+                    val snapshot = meals.delete(id, draftKind) ?: error("Meal no longer exists")
+                    finished = true
+                    savedStateHandle.remove<String>(EDITOR_FORM)
+                    undo.offer(undo = { meals.restore(snapshot) }, commit = { meals.purge(snapshot) })
+                    _events.value = FoodEditorEvent.Deleted
+                } catch (error: CancellationException) { throw error }
+                catch (_: Exception) { _state.update { it.copy(isSaving = false, error = "save") } }
+            }
         }
     }
 
@@ -394,5 +515,7 @@ class FoodEditorViewModel @Inject constructor(
 
     companion object {
         const val DRAFT_KIND = "meal"
+        private const val EDITOR_FORM = "meal_editor_form"
+        private const val EDITOR_PHOTOS = "meal_editor_photos"
     }
 }

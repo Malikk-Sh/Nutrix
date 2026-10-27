@@ -35,7 +35,6 @@ import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.datastore.UserSettings
 import com.nutrix.app.core.security.AppLockManager
 import com.nutrix.app.core.security.LockState
-import com.nutrix.app.core.ui.components.LocalExternalTransition
 import com.nutrix.app.core.ui.components.LocalSnackbarHost
 import com.nutrix.app.core.ui.components.showUndo
 import com.nutrix.app.core.ui.theme.NutrixTheme
@@ -127,7 +126,6 @@ fun NutrixRoot(vm: RootViewModel) {
     NutrixTheme(s.themeMode) {
         CompositionLocalProvider(
             LocalSnackbarHost provides snackbar,
-            LocalExternalTransition provides { vm.lock.allowExternalTransition() },
         ) {
             // Surface supplies the theme's content color to screens that draw text outside cards/app bars.
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {

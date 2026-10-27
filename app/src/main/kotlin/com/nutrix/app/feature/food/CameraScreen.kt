@@ -73,7 +73,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.nutrix.app.R
 import com.nutrix.app.core.photo.PhotoStorage
-import com.nutrix.app.core.ui.components.LocalExternalTransition
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import java.io.File
@@ -126,7 +125,6 @@ fun CameraScreen(onCaptured: (String) -> Unit, onBack: () -> Unit, viewModel: Ca
 @Composable
 private fun PermissionRationale(onGrant: () -> Unit, showSettings: Boolean) {
     val context = LocalContext.current
-    val external = LocalExternalTransition.current
     Column(
         Modifier
             .fillMaxSize()
@@ -149,7 +147,6 @@ private fun PermissionRationale(onGrant: () -> Unit, showSettings: Boolean) {
         if (showSettings) {
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = {
-                external()
                 context.startActivity(
                     Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
