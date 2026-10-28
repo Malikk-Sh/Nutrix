@@ -1,0 +1,111 @@
+name: Publish personal APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      verification_run_id:
+        description: Successful Android checks run containing nutrix-personal-apk
+        required: true
+        type: string
+      tag:
+        description: Existing draft release tag (vMAJOR.MINOR.PATCH)
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: publish-personal-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERIFICATION_RUN_ID: ${{ inputs.verification_run_id }}
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Validate inputs and await Android checks
+        shell: bash
+        run: |
+          [[ "$VERIFICATION_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          gh run watch "$VERIFICATION_RUN_ID" --exit-status --interval 20
+      - name: Verify release source matches the tested source
+        id: source
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, re, subprocess
+          def gh(*args):
+              return json.loads(subprocess.check_output(['gh', *args], text=True))
+          repo = os.environ['GH_REPO']
+          run = gh('api', f"repos/{repo}/actions/runs/{os.environ['VERIFICATION_RUN_ID']}")
+          assert run['repository']['full_name'] == repo
+          assert run['path'] == '.github/workflows/android.yml'
+          assert run['status'] == 'completed' and run['conclusion'] == 'success'
+          release = gh('release', 'view', os.environ['RELEASE_TAG'], '--json', 'isDraft,targetCommitish')
+          assert release['isDraft'], 'Only an unpublished draft can be published'
+          target = release['targetCommitish']
+          assert re.fullmatch('[0-9a-f]{40}', target), 'Pin draft target to a full commit SHA'
+          def tree(sha):
+              return gh('api', f'repos/{repo}/git/commits/{sha}')['tree']['sha']
+          assert tree(run['head_sha']) == tree(target), 'Tested and released source trees differ'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'commit={target}\n')
+          PY
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.commit }}
+          persist-credentials: false
+      - uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: '13114758'
+          packages: 'build-tools;35.0.0'
+          log-accepted-android-sdk-licenses: false
+      - name: Download verified build
+        run: gh run download "$VERIFICATION_RUN_ID" --name nutrix-personal-apk --dir release-staging
+      - name: Verify APK version, signature and alignment
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, os, re, subprocess, zipfile
+          from pathlib import Path
+          staging = Path('release-staging')
+          apks = list(staging.glob('*.apk'))
+          assert len(apks) == 1, 'Expected exactly one installable APK'
+          apk = apks[0]
+          tools = Path(os.environ['ANDROID_HOME']) / 'build-tools/35.0.0'
+          def run(*args):
+              return subprocess.check_output([str(a) for a in args], text=True)
+          badging = run(tools / 'aapt2', 'dump', 'badging', apk)
+          package = re.search(r"package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'", badging)
+          assert package and package[1] == 'com.nutrix.app'
+          assert int(package[2]) > 0 and package[3] == os.environ['RELEASE_TAG'][1:] + '-personal'
+          assert 'application-debuggable' not in badging
+          def certificate(path):
+              output = run(tools / 'apksigner', 'verify', '--print-certs', path)
+              return re.search(r'Signer #1 certificate SHA-256 digest: (\w+)', output)[1]
+          assert certificate(apk) == certificate('dist/NUTRIX-1.0.0-debug.apk')
+          run(tools / 'zipalign', '-c', '-P', '16', '4', apk)
+          with zipfile.ZipFile(apk) as z:
+              assert z.testzip() is None
+              for name in ('food-analysis-prompt.txt', 'food-analysis.schema.json'):
+                  assert z.read('assets/' + name) == (Path('app/src/main/assets') / name).read_bytes()
+          destination = staging / 'NUTRIX.apk'
+          if apk != destination:
+              apk.rename(destination)
+          digest = hashlib.sha256(destination.read_bytes()).hexdigest()
+          (staging / 'SHA256SUMS.txt').write_text(digest + '  NUTRIX.apk\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write(f'Verified {package[3]}, versionCode {package[2]}. SHA-256: `{digest}`.\n')
+          PY
+      - name: Attach verified files to draft
+        run: gh release upload "$RELEASE_TAG" release-staging/NUTRIX.apk release-staging/SHA256SUMS.txt
+      - name: Publish release
+        run: gh release edit "$RELEASE_TAG" --draft=false --latest
