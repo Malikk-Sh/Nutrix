@@ -48,13 +48,32 @@ class AnalyticsCalculatorTest {
     }
 
     @Test
-    fun `fluid includes every drink type and zero only for tracked days`() {
+    fun `fluid includes recorded drinks without inventing zero on meal only days`() {
         val d0 = base.toEpochDay()
         val series = AnalyticsCalculator.series(input(5, meals = listOf(meal(d0 + 1)), drinks = listOf(drink(d0, 250), drink(d0, 300))))
         val fluid = series.getValue(Metric.FLUID).points.associate { it.epochDay to it.value }
         assertThat(fluid[d0]).isEqualTo(550.0)
-        assertThat(fluid[d0 + 1]).isEqualTo(0.0)
+        assertThat(fluid).doesNotContainKey(d0 + 1)
         assertThat(fluid).doesNotContainKey(d0 + 2)
+    }
+
+    @Test
+    fun `unassessed feelings remain unknown and explicit normal assessment is zero`() {
+        val d0 = base.toEpochDay()
+        val series = AnalyticsCalculator.series(input(3, meals = listOf(meal(d0), meal(d0 + 1, feelings = listOf(AfterMealFeeling.NORMAL)))))
+        val nausea = series.getValue(Metric.NAUSEA).points
+        assertThat(nausea.map { it.epochDay }).containsExactly(d0 + 1)
+        assertThat(nausea.single().value).isEqualTo(0.0)
+        assertThat(series.getValue(Metric.EARLY_SATIETY).points).isEmpty()
+    }
+
+    @Test
+    fun `zero step measurement is retained while missing measurement is skipped`() {
+        val d0 = base.toEpochDay()
+        val data = input(3).copy(activity = listOf(DailyActivity(d0, steps = 0), DailyActivity(d0 + 1)))
+        val points = AnalyticsCalculator.series(data).getValue(Metric.STEPS).points
+        assertThat(points.map { it.epochDay }).containsExactly(d0)
+        assertThat(points.single().value).isEqualTo(0.0)
     }
 
     @Test

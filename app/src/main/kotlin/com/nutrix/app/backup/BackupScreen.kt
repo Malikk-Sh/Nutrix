@@ -44,7 +44,6 @@ import com.nutrix.app.R
 import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.time.Formatters
 import com.nutrix.app.core.ui.components.InfoBanner
-import com.nutrix.app.core.ui.components.LocalExternalTransition
 import com.nutrix.app.core.ui.components.NutrixCard
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.ScreenList
@@ -106,8 +105,12 @@ class BackupViewModel @Inject constructor(
     fun restore(ok: RestoreCheck.Ok, context: android.content.Context) {
         ui.value = BackupUi.Working
         viewModelScope.launch {
-            backup.restore(ok)
-            AppRestarter.restart(context)
+            try {
+                backup.restore(ok)
+                AppRestarter.restart(context)
+            } catch (e: Exception) {
+                ui.value = BackupUi.Failed
+            }
         }
     }
 
@@ -144,7 +147,6 @@ fun BackupScreen(onBack: () -> Unit, viewModel: BackupViewModel = hiltViewModel(
     val s by viewModel.settingsState.collectAsStateWithLifecycle()
     val hasAutoPassword by viewModel.hasAutoPassword.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val external = LocalExternalTransition.current
     var password by remember { mutableStateOf("") }
     var repeat by remember { mutableStateOf("") }
     var autoPasswordDialog by remember { mutableStateOf(false) }
@@ -180,7 +182,6 @@ fun BackupScreen(onBack: () -> Unit, viewModel: BackupViewModel = hiltViewModel(
                     Spacer(Modifier.height(8.dp))
                     Button(
                         onClick = {
-                            external()
                             createLauncher.launch("nutrix-backup-${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm"))}.zip")
                         },
                         enabled = !mismatch && ui !is BackupUi.Working,
@@ -193,7 +194,6 @@ fun BackupScreen(onBack: () -> Unit, viewModel: BackupViewModel = hiltViewModel(
                     Text(stringResource(R.string.restore_text), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(onClick = {
-                        external()
                         openLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
                     }, enabled = ui !is BackupUi.Working) { Text(stringResource(R.string.restore_pick)) }
                 }
@@ -209,7 +209,7 @@ fun BackupScreen(onBack: () -> Unit, viewModel: BackupViewModel = hiltViewModel(
                             Switch(
                                 checked = st.autoBackupEnabled,
                                 onCheckedChange = { on ->
-                                    if (on && st.autoBackupFolderUri == null) { external(); folderLauncher.launch(null) }
+                                    if (on && st.autoBackupFolderUri == null) { folderLauncher.launch(null) }
                                     else viewModel.setAuto(on, st.autoBackupFolderUri, st.autoBackupIntervalDays, st.autoBackupKeep)
                                 },
                             )
@@ -220,7 +220,7 @@ fun BackupScreen(onBack: () -> Unit, viewModel: BackupViewModel = hiltViewModel(
                                 stringResource(R.string.auto_backup_folder, st.autoBackupFolderUri?.let { Uri.decode(Uri.parse(it).lastPathSegment ?: it) } ?: "—"),
                                 style = MaterialTheme.typography.bodySmall,
                             )
-                            TextButton(onClick = { external(); folderLauncher.launch(null) }) { Text(stringResource(R.string.auto_backup_pick_folder)) }
+                            TextButton(onClick = { folderLauncher.launch(null) }) { Text(stringResource(R.string.auto_backup_pick_folder)) }
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf(1, 3, 7, 14, 30).forEach { d ->
                                     FilterChip(st.autoBackupIntervalDays == d, { viewModel.setAuto(true, st.autoBackupFolderUri, d, st.autoBackupKeep) }, label = { Text(stringResource(R.string.auto_backup_interval, d)) })

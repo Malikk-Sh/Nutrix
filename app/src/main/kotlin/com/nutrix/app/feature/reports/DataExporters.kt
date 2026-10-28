@@ -40,7 +40,7 @@ class CsvWriter(private val out: Writer, private val separator: Char = ',') {
 
     companion object {
         /** UTF-8 byte order mark so spreadsheet apps detect Cyrillic correctly. */
-        const val BOM = "﻿"
+        const val BOM = "\uFEFF"
     }
 }
 

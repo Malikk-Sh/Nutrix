@@ -187,7 +187,7 @@ class SdkSamsungHealthGateway @Inject constructor(
             val latest = hrToday?.takeIf { day == to }
             val daily = ExternalDaily(
                 date = day,
-                steps = steps?.get(day)?.takeIf { it > 0 },
+                steps = steps?.get(day)?.takeIf { it >= 0 },
                 activeKcal = active?.get(day)?.toDouble()?.takeIf { it > 0 },
                 totalKcal = total?.get(day)?.toDouble()?.takeIf { it > 0 },
                 exerciseMinutes = activeTime?.get(day)?.toMinutes()?.toInt()?.takeIf { it > 0 },

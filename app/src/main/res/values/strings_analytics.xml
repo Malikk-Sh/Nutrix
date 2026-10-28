@@ -8,7 +8,7 @@
     <string name="period_custom">Период…</string>
     <string name="period_range">%1$s — %2$s</string>
     <string name="analytics_tracked_days">Дней с записями: %1$d из %2$d</string>
-    <string name="analytics_untracked_note">Дни без единой записи в дневнике не учитываются в графиках количества еды, жидкости и симптомов — они считаются незаполненными, а не «нулевыми».</string>
+    <string name="analytics_untracked_note">Каждый показатель учитывает только дни с записями именно в этой категории. Запись еды не означает, что жидкости было 0 мл. Пропуски не считаются нулями; нулевые измерения шагов сохраняются. Средние и связи описывают только внесённые записи.</string>
     <string name="analytics_average">Среднее: %1$s</string>
     <string name="analytics_days">дней с данными: %1$d</string>
     <string name="analytics_section_charts">Показатели</string>

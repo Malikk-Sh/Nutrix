@@ -5,6 +5,7 @@ import com.nutrix.app.core.model.DataSource
 import com.nutrix.app.integration.SyncError
 import com.nutrix.app.integration.SyncReport
 import com.nutrix.app.integration.sync.ExternalImporter
+import com.nutrix.app.integration.sync.SyncWindow
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.time.ZoneId
@@ -30,10 +31,10 @@ class SamsungHealthSyncer @Inject constructor(
         return try {
             val categories = gateway.grantedCategories()
             if (categories.isEmpty()) return SyncReport(error = SyncError.NO_PERMISSIONS)
-            val initialDone = settings.syncState(source).first().initialImportDone
+            val state = settings.syncState(source).first()
             val zone = ZoneId.systemDefault()
             val today = LocalDate.now(zone)
-            val from = today.minusDays(if (initialDone) 30 else 90)
+            val from = SyncWindow.start(today, state.lastSyncMillis, state.initialImportDone, 90, 30, zone)
             val fromMillis = from.atStartOfDay(zone).toInstant().toEpochMilli()
             val toMillis = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
             var report = SyncReport()
@@ -59,7 +60,7 @@ class SamsungHealthSyncer @Inject constructor(
                     deleted = importer.reconcileExercises(source, fromMillis, toMillis, items.map { it.id }.toSet()),
                 )
             }
-            val dailyFrom = if (initialDone) today.minusDays(7) else from
+            val dailyFrom = SyncWindow.start(today, state.lastSyncMillis, state.initialImportDone, 90, zone = zone)
             report = report.copy(days = importer.importDaily(source, gateway.readDaily(dailyFrom, today)))
             importer.notifyChanged()
             report

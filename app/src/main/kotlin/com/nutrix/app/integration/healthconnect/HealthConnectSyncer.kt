@@ -10,6 +10,7 @@ import com.nutrix.app.core.model.DataSource
 import com.nutrix.app.integration.SyncError
 import com.nutrix.app.integration.SyncReport
 import com.nutrix.app.integration.sync.ExternalImporter
+import com.nutrix.app.integration.sync.SyncWindow
 import kotlinx.coroutines.flow.first
 import java.time.Instant
 import java.time.LocalDate
@@ -57,7 +58,7 @@ class HealthConnectSyncer @Inject constructor(
                     fullImport(type, now.minusSeconds(historyDays * 86_400), now)
                 } else {
                     when (val batch = manager.readChanges(token)) {
-                        HealthConnectManager.ChangeBatch.TokenExpired -> fullImport(type, now.minusSeconds(30 * 86_400L), now)
+                        HealthConnectManager.ChangeBatch.TokenExpired -> fullImport(type, now.minusSeconds(historyDays * 86_400L), now)
                         is HealthConnectManager.ChangeBatch.Changes -> {
                             val upserted = applyUpserts(batch.upserts)
                             val deleted = batch.deletedIds.count { importer.deleteById(source, it) }
@@ -68,7 +69,7 @@ class HealthConnectSyncer @Inject constructor(
                 }
             }
             val today = LocalDate.now(ZoneId.systemDefault())
-            val dailyFrom = if (state.initialImportDone) today.minusDays(7) else today.minusDays(minOf(historyDays, 90L))
+            val dailyFrom = SyncWindow.start(today, state.lastSyncMillis, state.initialImportDone, historyDays)
             val days = importer.importDaily(source, manager.readDaily(dailyFrom, today, granted))
             report = report.copy(days = days)
             importer.notifyChanged()

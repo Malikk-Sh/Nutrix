@@ -54,7 +54,6 @@ import com.nutrix.app.core.model.DataSource
 import com.nutrix.app.core.time.Formatters
 import com.nutrix.app.core.ui.components.CardHeader
 import com.nutrix.app.core.ui.components.InfoBanner
-import com.nutrix.app.core.ui.components.LocalExternalTransition
 import com.nutrix.app.core.ui.components.NutrixCard
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.ScreenList
@@ -79,7 +78,6 @@ fun IntegrationsScreen(onBack: () -> Unit, viewModel: IntegrationsViewModel = hi
     val running by viewModel.running.collectAsStateWithLifecycle()
     val reports by viewModel.lastReport.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val external = LocalExternalTransition.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val colors = LocalCategoryColors.current
     var disconnect by rememberSaveable { mutableStateOf<DataSource?>(null) }
@@ -106,7 +104,6 @@ fun IntegrationsScreen(onBack: () -> Unit, viewModel: IntegrationsViewModel = hi
                     Text(statusText, style = MaterialTheme.typography.bodyMedium)
                     when (hc.availability) {
                         HcAvailability.UPDATE_REQUIRED -> TextButton(onClick = {
-                            external()
                             runCatching { context.startActivity(viewModel.hc.installIntent()) }
                         }) { Text(stringResource(R.string.hc_install)) }
                         HcAvailability.AVAILABLE -> {
@@ -138,11 +135,9 @@ fun IntegrationsScreen(onBack: () -> Unit, viewModel: IntegrationsViewModel = hi
                             Spacer(Modifier.height(8.dp))
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Button(onClick = {
-                                    external()
                                     hcLauncher.launch(viewModel.hc.requestablePermissions())
                                 }) { Text(stringResource(if (hc.enabled) R.string.hc_grant_more else R.string.hc_connect)) }
                                 OutlinedButton(onClick = {
-                                    external()
                                     runCatching { context.startActivity(viewModel.hc.settingsIntent()) }
                                 }) { Text(stringResource(R.string.hc_open_settings)) }
                                 if (hc.enabled) TextButton(onClick = { disconnect = DataSource.HEALTH_CONNECT }) { Text(stringResource(R.string.hc_disconnect)) }
@@ -178,11 +173,10 @@ fun IntegrationsScreen(onBack: () -> Unit, viewModel: IntegrationsViewModel = hi
                             Spacer(Modifier.height(8.dp))
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(onClick = {
-                                    external()
                                     context.findActivity()?.let(viewModel::connectSamsung)
                                 }) { Text(stringResource(R.string.samsung_connect)) }
                                 if (status in setOf(SamsungStatus.OLD_VERSION, SamsungStatus.DISABLED, SamsungStatus.NOT_INITIALIZED)) {
-                                    OutlinedButton(onClick = { external(); context.findActivity()?.let(viewModel::resolveSamsung) }) {
+                                    OutlinedButton(onClick = { context.findActivity()?.let(viewModel::resolveSamsung) }) {
                                         Text(stringResource(R.string.samsung_resolve))
                                     }
                                 }

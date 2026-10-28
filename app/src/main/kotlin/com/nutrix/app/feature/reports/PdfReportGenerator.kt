@@ -13,6 +13,7 @@ import android.graphics.pdf.PdfDocument
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import com.nutrix.app.domain.SleepTotals
 import com.nutrix.app.R
 import com.nutrix.app.core.model.AfterMealFeeling
 import com.nutrix.app.core.model.Satiety
@@ -148,7 +149,7 @@ class PdfReportGenerator @Inject constructor(
                 if (tracked) data.meals.count { it.meal.localDate == d }.toString() else "—",
                 if (tracked) data.drinks.filter { it.localDate == d }.sumOf { it.volumeMl }.toString() else "—",
                 data.meals.filter { it.meal.localDate == d }.mapNotNull { it.meal.appetite }.takeIf { it.isNotEmpty() }?.average()?.let { Formatters.decimal(it) } ?: "—",
-                data.sleeps.filter { it.localDate == d }.sumOf { it.durationMinutes }.takeIf { it > 0 }?.let { Formatters.duration(it.toLong(), h, m) } ?: "—",
+                SleepTotals.minutes(data.sleeps.filter { it.localDate == d }).takeIf { it > 0 }?.let { Formatters.duration(it.toLong(), h, m) } ?: "—",
                 data.activity.firstOrNull { it.localDate == d }?.steps?.let { Formatters.integer(it) } ?: "—",
                 data.weights.filter { it.localDate == d }.takeIf { it.isNotEmpty() }?.map { it.weightKg }?.average()?.let { Formatters.decimal(it) } ?: "—",
                 if (tracked) data.symptoms.count { it.localDate == d }.toString() else "—",

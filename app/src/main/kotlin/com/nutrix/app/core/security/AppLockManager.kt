@@ -13,6 +13,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,9 +38,7 @@ class AppLockManager @Inject constructor(
     val state: StateFlow<LockState> = _state.asStateFlow()
 
     private var backgroundSince: Long? = null
-    private var externalTransitionUntil = 0L
-    private var failedAttempts = 0
-    private var lockoutUntil = 0L
+    private val pinMutex = Mutex()
 
     fun start() {
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
@@ -45,11 +46,6 @@ class AppLockManager @Inject constructor(
             val s = settings.current()
             _state.value = if (s.lockEnabled && settings.pinBlob() != null) LockState.LOCKED else LockState.UNLOCKED
         }
-    }
-
-    /** Call before opening the camera app, photo picker or file picker so returning does not re-lock. */
-    fun allowExternalTransition() {
-        externalTransitionUntil = SystemClock.elapsedRealtime() + 10 * 60 * 1000L
     }
 
     override fun onStop(owner: LifecycleOwner) {
@@ -63,10 +59,6 @@ class AppLockManager @Inject constructor(
             val s = settings.current()
             if (!s.lockEnabled || settings.pinBlob() == null) return@launch
             val now = SystemClock.elapsedRealtime()
-            if (now < externalTransitionUntil) {
-                externalTransitionUntil = 0L
-                return@launch
-            }
             if (now - since >= s.lockTimeoutSeconds * 1000L) _state.value = LockState.LOCKED
         }
     }
@@ -76,12 +68,14 @@ class AppLockManager @Inject constructor(
     suspend fun setPin(pin: String) {
         val verifier = withContext(Dispatchers.Default) { PinHasher.create(pin) }
         settings.setPinBlob(cipher.encrypt(verifier.encode()))
+        settings.setPinAttempts(0, 0)
     }
 
     suspend fun disableLock() {
         settings.setLockEnabled(false)
         settings.setBiometricEnabled(false)
         settings.setPinBlob(null)
+        settings.setPinAttempts(0, 0)
         _state.value = LockState.UNLOCKED
     }
 
@@ -92,28 +86,38 @@ class AppLockManager @Inject constructor(
         }
     }
 
-    suspend fun unlockWithPin(pin: String): PinResult {
-        val now = SystemClock.elapsedRealtime()
-        if (now < lockoutUntil) return PinResult.LockedOut(((lockoutUntil - now) / 1000).toInt() + 1)
-        return if (verifyPin(pin)) {
-            failedAttempts = 0
-            _state.value = LockState.UNLOCKED
-            PinResult.Success
-        } else {
-            failedAttempts++
-            if (failedAttempts >= MAX_ATTEMPTS) {
-                failedAttempts = 0
-                lockoutUntil = now + LOCKOUT_MS
-                PinResult.LockedOut((LOCKOUT_MS / 1000).toInt())
+    suspend fun unlockWithPin(pin: String): PinResult = pinMutex.withLock {
+        withContext(NonCancellable) {
+            // Wall-clock deadline survives process death and a device reboot.
+            val now = System.currentTimeMillis()
+            val (failures, lockoutUntil) = settings.pinAttempts()
+            if (now < lockoutUntil) return@withContext PinResult.LockedOut(
+                (((lockoutUntil - now).coerceAtMost(LOCKOUT_MS) + 999) / 1000).toInt(),
+            )
+            if (verifyPin(pin)) {
+                settings.setPinAttempts(0, 0)
+                _state.value = LockState.UNLOCKED
+                PinResult.Success
             } else {
-                PinResult.Wrong(MAX_ATTEMPTS - failedAttempts)
+                val next = failures + 1
+                if (next >= MAX_ATTEMPTS) {
+                    settings.setPinAttempts(0, System.currentTimeMillis() + LOCKOUT_MS)
+                    PinResult.LockedOut((LOCKOUT_MS / 1000).toInt())
+                } else {
+                    settings.setPinAttempts(next, 0)
+                    PinResult.Wrong(MAX_ATTEMPTS - next)
+                }
             }
         }
     }
 
     fun unlockWithBiometrics() {
-        failedAttempts = 0
-        _state.value = LockState.UNLOCKED
+        scope.launch {
+            pinMutex.withLock {
+                settings.setPinAttempts(0, 0)
+                _state.value = LockState.UNLOCKED
+            }
+        }
     }
 
     fun lockNow() {

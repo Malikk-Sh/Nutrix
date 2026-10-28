@@ -193,4 +193,5 @@
 
     <string name="chart_no_data">Недостаточно данных для графика</string>
     <string name="medical_disclaimer">NUTRIX — личный дневник. Приложение не ставит диагнозы и не заменяет консультацию врача.</string>
+    <string name="action_saving">Сохранение…</string>
 </resources>

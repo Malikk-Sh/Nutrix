@@ -3,26 +3,22 @@ package com.nutrix.app.feature.settings
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.WorkManager
 import com.nutrix.app.AppRestarter
+import com.nutrix.app.backup.DiaryDataEraser
 import com.nutrix.app.R
 import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.datastore.UserSettings
 import com.nutrix.app.core.model.ThemeMode
 import com.nutrix.app.core.model.WeightUnit
-import com.nutrix.app.core.photo.PhotoStorage
 import com.nutrix.app.core.security.AppLockManager
 import com.nutrix.app.data.repository.UserMessages
-import com.nutrix.app.database.NutrixDatabase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -30,9 +26,8 @@ class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settings: SettingsRepository,
     private val lock: AppLockManager,
-    private val db: NutrixDatabase,
-    private val photos: PhotoStorage,
     private val messages: UserMessages,
+    private val eraser: DiaryDataEraser,
 ) : ViewModel() {
     val state: StateFlow<UserSettings?> = settings.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     val hasPin = MutableStateFlow(false)
@@ -68,12 +63,11 @@ class SettingsViewModel @Inject constructor(
 
     /** Irreversibly wipes the diary, photos and settings, then restarts the app. */
     fun deleteAll() = viewModelScope.launch {
-        withContext(Dispatchers.IO) {
-            WorkManager.getInstance(context).cancelAllWork()
-            db.clearAllTables()
-            photos.deleteAll()
-            settings.clearAll()
+        try {
+            eraser.erase()
+            AppRestarter.restart(context)
+        } catch (e: Exception) {
+            messages.show(R.string.error_generic, context.getString(R.string.settings_delete_all_title))
         }
-        AppRestarter.restart(context)
     }
 }

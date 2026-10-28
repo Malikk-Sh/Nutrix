@@ -48,12 +48,21 @@ class AutoBackupScheduler @Inject constructor(
     suspend fun runNow(): Boolean {
         val s = settings.current()
         val tree = s.autoBackupFolderUri?.let(Uri::parse) ?: return false
-        val password = settings.backupPasswordBlob()?.let { runCatching { String(cipher.decrypt(it)).toCharArray() }.getOrNull() }
+        // A missing/unreadable key must never downgrade an encrypted backup to plaintext.
+        val password = settings.backupPasswordBlob()?.let { String(cipher.decrypt(it)).toCharArray() }
+        check(!settings.autoBackupRequiresPassword() || (password != null && password.isNotEmpty())) { "Backup password unavailable; set it again" }
         val resolver = context.contentResolver
         val parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
         val name = "$PREFIX${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm"))}.zip"
         val doc = DocumentsContract.createDocument(resolver, parent, "application/zip", name) ?: return false
-        resolver.openOutputStream(doc)?.use { backup.createBackup(it, password) } ?: return false
+        try {
+            resolver.openOutputStream(doc)?.use { backup.createBackup(it, password) } ?: error("Cannot write backup")
+        } catch (e: Exception) {
+            runCatching { DocumentsContract.deleteDocument(resolver, doc) }
+            throw e
+        } finally {
+            password?.fill('\u0000')
+        }
         prune(tree, s.autoBackupKeep)
         settings.setLastAutoBackup(System.currentTimeMillis())
         return true

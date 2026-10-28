@@ -46,6 +46,7 @@ data class DashboardState(
     val food: FoodCard = FoodCard(0, null, emptyList()),
     val water: WaterCard = WaterCard(0, null, emptyList()),
     val sleep: SleepEntity? = null,
+    val sleepSessions: List<SleepEntity> = emptyList(),
     val activity: ActivityCard = ActivityCard(false, null, null),
     val symptoms: List<SymptomEntity> = emptyList(),
     val todaySymptomCount: Int = 0,
@@ -95,8 +96,10 @@ class DashboardViewModel @Inject constructor(
             ActivityCard(s.healthConnectEnabled || s.samsungHealthEnabled, a, last)
         }
         val symptomFlow = combine(symptoms.observeRecent(3), symptoms.observeDay(day)) { recent, todayList -> recent to todayList.size }
-        val first = combine(weightCard, foodCard, waterAndSettings, health.observeLatestSleep()) { w, f, ws, sleep ->
-            DashboardState(epochDay = day, settings = ws.first, weight = w, food = f, water = ws.second, sleep = sleep)
+        val first = combine(weightCard, foodCard, waterAndSettings, health.observeLatestSleepDay()) { w, f, ws, sleeps ->
+            val sleep = sleeps.maxByOrNull { it.endMillis }
+            DashboardState(epochDay = day, settings = ws.first, weight = w, food = f, water = ws.second, sleep = sleep,
+                sleepSessions = sleeps.filter { it.localDate == sleep?.localDate })
         }
         return combine(first, activityCard, symptomFlow, timeline.observeDay(day)) { base, act, sym, tl ->
             base.copy(activity = act, symptoms = sym.first, todaySymptomCount = sym.second, timeline = tl, loaded = true)

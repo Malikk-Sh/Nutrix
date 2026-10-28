@@ -46,4 +46,5 @@
     <string name="exercise_elliptical">Эллипс</string>
     <string name="exercise_stairs">Подъём по лестнице</string>
     <string name="exercise_rowing">Гребля</string>
+    <string name="sleep_save_error">Не удалось сохранить изменения. Данные остались в форме. Попробуйте ещё раз.</string>
 </resources>

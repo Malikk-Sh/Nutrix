@@ -129,4 +129,7 @@ interface MealDao {
 
     @Query("SELECT * FROM drafts")
     suspend fun allDrafts(): List<DraftEntity>
+
+    @Query("DELETE FROM drafts WHERE substr(kind, 1, length(:prefix)) = :prefix AND updatedAt < :before")
+    suspend fun deleteOldSaveReceipts(prefix: String, before: Long)
 }

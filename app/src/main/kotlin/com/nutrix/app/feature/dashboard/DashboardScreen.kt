@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import com.nutrix.app.domain.SleepTotals
 import com.nutrix.app.core.ui.icons.Bedtime
 import com.nutrix.app.core.ui.icons.ChevronRight
 import com.nutrix.app.core.ui.icons.DirectionsRun
@@ -219,15 +220,16 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
                 if (sleep == null) {
                     Text(stringResource(R.string.card_sleep_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
-                    Text(Formatters.duration(sleep.durationMinutes.toLong(), h, m), style = MetricTextStyle)
-                    Text(
-                        stringResource(R.string.card_sleep_times, Formatters.time(sleep.startMillis, sleep.zoneId), Formatters.time(sleep.endMillis, sleep.zoneId)) +
-                            " · " + Formatters.dayMonthShort(LocalDate.ofEpochDay(sleep.localDate)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Pill(sourceLabel(sleep.source, sleep.sourceApp), colors.sleep)
+                    Text(Formatters.duration(SleepTotals.minutes(state.sleepSessions).toLong(), h, m), style = MetricTextStyle)
+                    Text(Formatters.dayMonthShort(LocalDate.ofEpochDay(sleep.localDate)), style = MaterialTheme.typography.bodySmall)
+                    state.sleepSessions.sortedBy { it.startMillis }.forEach { session ->
+                        Text(
+                            stringResource(R.string.card_sleep_times, Formatters.time(session.startMillis, session.zoneId), Formatters.time(session.endMillis, session.zoneId)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Pill(sourceLabel(session.source, session.sourceApp), colors.sleep)
+                    }
                 }
             }
         }

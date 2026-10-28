@@ -26,6 +26,7 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -306,7 +307,7 @@ fun NutrixNavHost(pendingAction: String?, onActionConsumed: () -> Unit) {
                         Modifier
                             .fillMaxSize()
                             .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
-                            .clickable(interactionSource = MutableInteractionSource(), indication = null) { fabExpanded = false },
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { fabExpanded = false },
                     )
                 }
                 if (isTopLevel) {

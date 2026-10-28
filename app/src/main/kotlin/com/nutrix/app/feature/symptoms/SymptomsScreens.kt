@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -84,7 +85,7 @@ fun SymptomsScreen(
     val meals by viewModel.recentMeals.collectAsStateWithLifecycle()
     val colors = LocalCategoryColors.current
     val haptic = LocalHapticFeedback.current
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
     var openedAdd by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(openAdd) {
@@ -93,11 +94,11 @@ fun SymptomsScreen(
             onAdd()
         }
     }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(resources) {
         viewModel.quickAdded.collect { (id, type) ->
             val result = snackbar.showSnackbar(
-                context.getString(R.string.symptoms_marked, context.getString(type.labelRes)),
-                actionLabel = context.getString(R.string.symptoms_add_details),
+                resources.getString(R.string.symptoms_marked, resources.getString(type.labelRes)),
+                actionLabel = resources.getString(R.string.symptoms_add_details),
                 withDismissAction = true,
             )
             if (result == SnackbarResult.ActionPerformed) onOpen(id)

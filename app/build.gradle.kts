@@ -15,6 +15,14 @@ plugins {
 val samsungSdkAar = fileTree("libs") { include("samsung-health-data-api*.aar") }
 val hasSamsungSdk = !samsungSdkAar.isEmpty
 
+// Release credentials are supplied locally or by CI, never committed to the repository.
+val releaseSigning = listOf("NUTRIX_KEYSTORE_PATH", "NUTRIX_KEYSTORE_PASSWORD", "NUTRIX_KEY_ALIAS", "NUTRIX_KEY_PASSWORD")
+    .associateWith { providers.environmentVariable(it).orNull }
+require(releaseSigning.values.all { it.isNullOrBlank() } || releaseSigning.values.all { !it.isNullOrBlank() }) {
+    "Set all four NUTRIX_KEYSTORE_PATH, NUTRIX_KEYSTORE_PASSWORD, NUTRIX_KEY_ALIAS and NUTRIX_KEY_PASSWORD variables"
+}
+val hasReleaseSigning = releaseSigning.values.all { !it.isNullOrBlank() }
+
 android {
     namespace = "com.nutrix.app"
     compileSdk = 36
@@ -39,6 +47,14 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        if (hasReleaseSigning) {
+            create("privateRelease") {
+                storeFile = file(releaseSigning.getValue("NUTRIX_KEYSTORE_PATH")!!)
+                storePassword = releaseSigning.getValue("NUTRIX_KEYSTORE_PASSWORD")
+                keyAlias = releaseSigning.getValue("NUTRIX_KEY_ALIAS")
+                keyPassword = releaseSigning.getValue("NUTRIX_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -49,7 +65,13 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = if (hasReleaseSigning) signingConfigs.getByName("privateRelease") else null
+        }
+        create("personal") {
+            initWith(getByName("release"))
             signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+            versionNameSuffix = "-personal"
         }
     }
 
@@ -94,8 +116,8 @@ android {
     }
 
     lint {
-        abortOnError = false
-        checkReleaseBuilds = false
+        abortOnError = true
+        checkReleaseBuilds = true
     }
 }
 

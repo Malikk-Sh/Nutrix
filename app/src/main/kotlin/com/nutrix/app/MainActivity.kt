@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -34,7 +35,6 @@ import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.datastore.UserSettings
 import com.nutrix.app.core.security.AppLockManager
 import com.nutrix.app.core.security.LockState
-import com.nutrix.app.core.ui.components.LocalExternalTransition
 import com.nutrix.app.core.ui.components.LocalSnackbarHost
 import com.nutrix.app.core.ui.components.showUndo
 import com.nutrix.app.core.ui.theme.NutrixTheme
@@ -104,21 +104,21 @@ fun NutrixRoot(vm: RootViewModel) {
     val lockState by vm.lock.state.collectAsStateWithLifecycle()
     val pendingAction by vm.pendingAction.collectAsStateWithLifecycle()
     val s = settings ?: return
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val snackbar = remember { SnackbarHostState() }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(resources) {
         vm.undo.pending.collect { p ->
             launch {
-                snackbar.showUndo(context.getString(p.message), context.getString(R.string.action_undo), onUndo = p.undo, onCommit = p.commit)
+                snackbar.showUndo(resources.getString(p.message), resources.getString(R.string.action_undo), onUndo = p.undo, onCommit = p.commit)
             }
         }
     }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(resources) {
         vm.messages.messages.collect { m ->
             launch {
                 snackbar.currentSnackbarData?.dismiss()
-                snackbar.showSnackbar(context.getString(m.res, *m.args.toTypedArray()))
+                snackbar.showSnackbar(resources.getString(m.res, *m.args.toTypedArray()))
             }
         }
     }
@@ -126,7 +126,6 @@ fun NutrixRoot(vm: RootViewModel) {
     NutrixTheme(s.themeMode) {
         CompositionLocalProvider(
             LocalSnackbarHost provides snackbar,
-            LocalExternalTransition provides { vm.lock.allowExternalTransition() },
         ) {
             // Surface supplies the theme's content color to screens that draw text outside cards/app bars.
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {

@@ -81,4 +81,6 @@
     <string name="crop_title">Обрезка фото</string>
     <string name="crop_rotate">Повернуть</string>
     <string name="crop_reset">Сбросить</string>
+    <string name="food_save_error">Не удалось сохранить запись. Данные остались в форме. Попробуйте ещё раз.</string>
+    <string name="food_draft_error">Не удалось сохранить черновик. Оставьте форму открытой и попробуйте ещё раз.</string>
 </resources>
