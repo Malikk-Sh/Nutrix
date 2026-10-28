@@ -73,6 +73,7 @@ import coil3.compose.AsyncImage
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -103,7 +104,6 @@ import com.nutrix.app.core.ui.labelRes
 import com.nutrix.app.core.ui.theme.LocalCategoryColors
 import com.nutrix.app.core.util.Units
 import com.nutrix.app.feature.ai.FoodAiCard
-import com.nutrix.app.feature.ai.FoodAiResultDialog
 import com.nutrix.app.feature.ai.NutritionTable
 import com.nutrix.app.feature.ai.FoodReference
 
@@ -346,10 +346,6 @@ fun FoodEditorScreen(
                 MoreCard(state, viewModel, onEstimateFailed = { kcalNotFound = true })
             }
         }
-    }
-
-    state.aiResult?.let { result ->
-        FoodAiResultDialog(result, form.title.isNotBlank() || form.items.isNotEmpty(), viewModel::applyAiResult, viewModel::dismissAiResult)
     }
 
     if (kcalNotFound) {
@@ -643,7 +639,7 @@ private fun MoreCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, o
                             label = stringResource(R.string.food_grams_label),
                             keyboardType = KeyboardType.Number,
                             suffix = stringResource(R.string.unit_g),
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).testTag("food-grams"),
                         )
                         NutrixTextField(
                             value = form.kcalText,
@@ -651,7 +647,7 @@ private fun MoreCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, o
                             label = stringResource(R.string.food_kcal_label),
                             keyboardType = KeyboardType.Number,
                             suffix = "≈ " + stringResource(R.string.unit_kcal),
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).testTag("food-kcal"),
                         )
                     }
                     TextButton(onClick = { if (!viewModel.estimateCalories()) onEstimateFailed() }) {
@@ -665,11 +661,11 @@ private fun MoreCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, o
                 Text(stringResource(R.string.ai_macros), style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NutrixTextField(form.proteinText, { value -> viewModel.update { it.copy(proteinText = value.take(8)) } },
-                        stringResource(R.string.ai_protein), keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f))
+                        stringResource(R.string.ai_protein), keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f).testTag("food-protein"))
                     NutrixTextField(form.fatText, { value -> viewModel.update { it.copy(fatText = value.take(8)) } },
-                        stringResource(R.string.ai_fat), keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f))
+                        stringResource(R.string.ai_fat), keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f).testTag("food-fat"))
                     NutrixTextField(form.carbsText, { value -> viewModel.update { it.copy(carbsText = value.take(8)) } },
-                        stringResource(R.string.ai_carbs), keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f))
+                        stringResource(R.string.ai_carbs), keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f).testTag("food-carbs"))
                 }
                 if (viewModel.isNutritionInvalid()) Text(stringResource(R.string.ai_invalid_macros), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 if (listOf(form.proteinText, form.fatText, form.carbsText).any(String::isNotBlank) || form.nutritionInfo != null) {

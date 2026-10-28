@@ -28,6 +28,7 @@ import com.nutrix.app.feature.ai.FoodPhotoAnalyzer
 import com.nutrix.app.feature.ai.FoodPhotoResult
 import com.nutrix.app.feature.ai.FoodAiError
 import com.nutrix.app.feature.ai.FoodAiException
+import com.nutrix.app.feature.ai.isTransient
 import kotlin.math.roundToInt
 import com.nutrix.app.feature.ai.FoodReference
 import com.nutrix.app.feature.ai.SmartSuggestions
@@ -108,6 +109,8 @@ data class FoodEditorUiState(
     val processingPhoto: Boolean = false,
     val isSaving: Boolean = false,
     val analyzingPhoto: Boolean = false,
+    val aiAttempt: Int = 0,
+    val aiRetrying: Boolean = false,
     val aiResult: FoodPhotoResult? = null,
     val aiError: FoodAiError? = null,
     val hasGeminiKey: Boolean = false,
@@ -470,19 +473,37 @@ class FoodEditorViewModel @Inject constructor(
         if (fileName !in s.form.photos) { _state.update { it.copy(aiError = FoodAiError.PHOTO_UNAVAILABLE) }; return }
         val request = ++aiRequest
         requestedPhoto = fileName
-        _state.update { it.copy(analyzingPhoto = true, aiResult = null, aiError = null) }
+        _state.update { it.copy(analyzingPhoto = true, aiAttempt = 1, aiRetrying = false, aiResult = null, aiError = null) }
         aiJob = viewModelScope.launch {
             try {
-                val result = foodAi.analyze(fileName, s.form.aiHint)
-                if (request == aiRequest && !finished) {
-                    if (result.photoFile !in _state.value.form.photos) throw FoodAiException(FoodAiError.PHOTO_CHANGED)
-                    _state.update { it.copy(aiResult = result) }
+                for (attempt in 1..MAX_AI_ATTEMPTS) {
+                    if (request != aiRequest || finished) return@launch
+                    _state.update { it.copy(aiAttempt = attempt, aiRetrying = false) }
+                    try {
+                        val result = foodAi.analyze(fileName, s.form.aiHint)
+                        if (request != aiRequest || finished) return@launch
+                        if (result.photoFile != fileName || result.photoFile !in _state.value.form.photos) {
+                            throw FoodAiException(FoodAiError.PHOTO_CHANGED)
+                        }
+                        fillAiFields(result, s.form)
+                        _state.update { it.copy(aiResult = result, aiError = null) }
+                        return@launch
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (error: Exception) {
+                        if (request != aiRequest || finished) return@launch
+                        val reason = (error as? FoodAiException)?.reason ?: FoodAiError.INVALID_RESPONSE
+                        if (attempt < MAX_AI_ATTEMPTS && reason.isTransient) {
+                            _state.update { it.copy(aiRetrying = true) }
+                            delay(AI_RETRY_DELAY_MS)
+                        } else {
+                            _state.update { it.copy(aiError = reason) }
+                            return@launch
+                        }
+                    }
                 }
             } catch (cancelled: CancellationException) { throw cancelled }
-            catch (error: Exception) {
-                if (request == aiRequest && !finished) _state.update { it.copy(aiError = (error as? FoodAiException)?.reason ?: FoodAiError.INVALID_RESPONSE) }
-            } finally {
-                if (request == aiRequest) _state.update { it.copy(analyzingPhoto = false) }
+            finally {
+                if (request == aiRequest) _state.update { it.copy(analyzingPhoto = false, aiRetrying = false) }
             }
         }
     }
@@ -492,27 +513,23 @@ class FoodEditorViewModel @Inject constructor(
         aiJob?.cancel()
         aiJob = null
         requestedPhoto = null
-        _state.update { it.copy(analyzingPhoto = false, aiResult = null, aiError = null) }
+        _state.update { it.copy(analyzingPhoto = false, aiAttempt = 0, aiRetrying = false, aiResult = null, aiError = null) }
     }
 
-    fun dismissAiResult() { _state.update { it.copy(aiResult = null) } }
-
-    fun applyAiResult() {
-        val state = _state.value
-        if (state.isSaving || state.analyzingPhoto || state.pendingDraft != null || finished) return
-        val result = state.aiResult ?: return
-        if (result.photoFile !in state.form.photos) { cancelAiAnalysis(); _state.update { it.copy(aiError = FoodAiError.PHOTO_CHANGED) }; return }
+    private fun fillAiFields(result: FoodPhotoResult, requestedForm: MealForm) {
         val e = result.estimate
+        // Inputs changed by the user while a request was in flight take precedence.
         update { it.copy(
-            title = e.dishName,
-            items = e.ingredients.map { ingredient -> ingredient.name }.distinct(),
-            gramsText = e.portionGrams?.roundToInt()?.coerceAtLeast(1)?.toString().orEmpty(),
-            kcalText = e.caloriesKcal?.roundToInt()?.toString().orEmpty(),
+            title = if (it.title == requestedForm.title) e.dishName else it.title,
+            items = if (it.items == requestedForm.items) e.ingredients.map { ingredient -> ingredient.name }.distinct() else it.items,
+            gramsText = if (it.gramsText == requestedForm.gramsText) e.portionGrams?.roundToInt()?.coerceAtLeast(1)?.toString().orEmpty() else it.gramsText,
+            kcalText = if (it.kcalText == requestedForm.kcalText) e.caloriesKcal?.roundToInt()?.toString().orEmpty() else it.kcalText,
             kcalFromReference = false,
-            proteinText = macroText(e.proteinGrams), fatText = macroText(e.fatGrams), carbsText = macroText(e.carbsGrams),
+            proteinText = if (it.proteinText == requestedForm.proteinText) macroText(e.proteinGrams) else it.proteinText,
+            fatText = if (it.fatText == requestedForm.fatText) macroText(e.fatGrams) else it.fatText,
+            carbsText = if (it.carbsText == requestedForm.carbsText) macroText(e.carbsGrams) else it.carbsText,
             nutritionInfo = MealNutrition(estimateModel = result.model, estimatedAt = System.currentTimeMillis(), uncertainty = e.uncertainty),
         ) }
-        dismissAiResult()
     }
 
     private fun macroText(value: Double?): String = value?.let { Units.roundTo(it, 1).toString().replace('.', ',') }.orEmpty()
@@ -611,6 +628,8 @@ class FoodEditorViewModel @Inject constructor(
     }
 
     companion object {
+        const val MAX_AI_ATTEMPTS = 2
+        const val AI_RETRY_DELAY_MS = 2_000L
         const val DRAFT_KIND = "meal"
         private const val EDITOR_FORM = "meal_editor_form"
         private const val EDITOR_PHOTOS = "meal_editor_photos"

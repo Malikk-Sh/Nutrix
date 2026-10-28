@@ -27,6 +27,9 @@ enum class FoodAiError {
     NO_FOOD, PHOTO_UNAVAILABLE, PHOTO_CHANGED,
 }
 
+/** Only transient failures may repeat an upload, at most once in the editor. */
+val FoodAiError.isTransient: Boolean get() = this in setOf(FoodAiError.NETWORK, FoodAiError.TIMEOUT, FoodAiError.SERVER)
+
 /** Deliberately contains no response body, key, photo bytes, or upstream exception text. */
 class FoodAiException(val reason: FoodAiError) : Exception(reason.name)
 

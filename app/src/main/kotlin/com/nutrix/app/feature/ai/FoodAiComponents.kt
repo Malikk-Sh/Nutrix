@@ -8,6 +8,10 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.nutrix.app.R
 import com.nutrix.app.core.ui.components.NutrixCard
@@ -20,7 +24,9 @@ import com.nutrix.app.feature.food.FoodEditorViewModel
 @Composable
 fun FoodAiCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onSettings: () -> Unit) {
     var selected by rememberSaveable { mutableStateOf(state.form.photos.firstOrNull()) }
+    var showDetails by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(state.form.photos) { if (selected !in state.form.photos) selected = state.form.photos.firstOrNull() }
+    LaunchedEffect(state.aiResult) { showDetails = false }
     val enabled = state.loaded && !state.isSaving && !state.processingPhoto && !state.analyzingPhoto && state.pendingDraft == null
     NutrixCard {
         Text(stringResource(R.string.ai_photo_title), style = MaterialTheme.typography.titleSmall)
@@ -39,20 +45,33 @@ fun FoodAiCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onSetti
         NutrixTextField(state.form.aiHint, { value -> viewModel.update { it.copy(aiHint = value.take(1000)) } },
             stringResource(R.string.ai_hint), singleLine = false, enabled = enabled)
         if (state.analyzingPhoto) {
-            LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text(stringResource(R.string.ai_analyzing))
+            LinearProgressIndicator(Modifier.fillMaxWidth().testTag("food-ai-progress"))
+            Text(stringResource(if (state.aiRetrying) R.string.ai_retry_wait else R.string.ai_analyzing),
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+            Text(stringResource(R.string.ai_attempt, state.aiAttempt, FoodEditorViewModel.MAX_AI_ATTEMPTS), style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = viewModel::cancelAiAnalysis) { Text(stringResource(R.string.action_cancel)) }
         } else {
-            Button(onClick = { selected?.let(viewModel::analyzePhoto) }, enabled = enabled && selected != null && state.hasGeminiKey) { Text(stringResource(R.string.ai_analyze)) }
+            Button(onClick = { selected?.let(viewModel::analyzePhoto) }, enabled = enabled && selected != null && state.hasGeminiKey,
+                modifier = Modifier.testTag("food-ai-action")) {
+                Text(stringResource(if (state.aiError != null) R.string.ai_retry else R.string.ai_analyze))
+            }
             if (!state.hasGeminiKey) Text(stringResource(R.string.ai_error_key_missing), style = MaterialTheme.typography.bodySmall)
         }
         TextButton(onClick = onSettings, enabled = enabled) { Text(stringResource(R.string.ai_settings)) }
-        state.aiError?.let { Text(stringResource(it.messageRes), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        state.aiError?.let { Text(stringResource(it.messageRes), color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.testTag("food-ai-error").semantics { liveRegion = LiveRegionMode.Polite }) }
+        if (!state.analyzingPhoto && state.aiError == null && state.aiResult != null) {
+            Text(stringResource(R.string.ai_autofilled), style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.testTag("food-ai-success").semantics { liveRegion = LiveRegionMode.Polite })
+            TextButton(onClick = { showDetails = true }) { Text(stringResource(R.string.ai_show_result)) }
+        }
     }
+    if (showDetails) state.aiResult?.let { FoodAiResultDialog(it, onDismiss = { showDetails = false }) }
 }
 
 @Composable
-fun FoodAiResultDialog(result: FoodPhotoResult, replacing: Boolean, onApply: () -> Unit, onDismiss: () -> Unit) {
+fun FoodAiResultDialog(result: FoodPhotoResult, onDismiss: () -> Unit) {
     val e = result.estimate
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -70,8 +89,7 @@ fun FoodAiResultDialog(result: FoodPhotoResult, replacing: Boolean, onApply: () 
                 Text(stringResource(R.string.ai_result_note), style = MaterialTheme.typography.bodySmall)
             }
         },
-        confirmButton = { TextButton(onClick = onApply) { Text(stringResource(if (replacing) R.string.ai_replace else R.string.ai_apply)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_ok)) } },
     )
 }
 

@@ -18,12 +18,14 @@ import com.nutrix.app.data.repository.MealRepository
 import com.nutrix.app.database.entity.MealEntity
 import dagger.hilt.android.testing.*
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.*
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 
 @HiltAndroidTest
@@ -34,7 +36,12 @@ import javax.inject.Inject
 class FoodAiUiTest {
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
     @get:Rule(order = 1) val compose = createEmptyComposeRule()
+    private val calls = AtomicInteger()
+    @Volatile private var pendingAnalysis: CompletableDeferred<Unit>? = null
+    @Volatile private var quotaFailures = 0
     @BindValue @JvmField val analyzer: FoodPhotoAnalyzer = FoodPhotoAnalyzer { file, _ ->
+        if (calls.incrementAndGet() <= quotaFailures) throw FoodAiException(FoodAiError.QUOTA)
+        pendingAnalysis?.await()
         FoodPhotoResult(FoodEstimate(true, "Гречка с курицей", listOf(FoodIngredient("Гречка", 180.0), FoodIngredient("Курица", 120.0)),
             300.0, 450.0, 35.0, 10.0, 50.0, "Оценка по фото"), GeminiProtocol.DEFAULT_MODEL, file)
     }
@@ -72,25 +79,66 @@ class FoodAiUiTest {
         compose.onAllNodesWithText(text).onFirst().assertIsEnabled().performClick()
     }
 
-    @Test fun `photo review apply and save work through the real editor UI`() {
+    private fun edit(tag: String, value: String) {
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasTestTag(tag))
+        compose.onNodeWithTag(tag).performTextReplacement(value)
+    }
+
+    @Test fun `analysis shows progress fills fields automatically and saves all manual corrections`() {
+        pendingAnalysis = CompletableDeferred()
         click("Питание")
         click("Исходное блюдо")
         click("Определить по фото")
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("Проверьте оценку").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("food-ai-progress").assertExists()
+        compose.onNodeWithText("Сохранить").assertIsNotEnabled()
+        pendingAnalysis!!.complete(Unit)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("food-ai-success").fetchSemanticsNodes().isNotEmpty() }
         runBlocking { assertThat(meals.get(mealId)!!.meal.title).isEqualTo("Исходное блюдо") }
-        click("Заменить данные блюда этой оценкой")
+        edit("food-grams", "320")
+        edit("food-kcal", "470")
+        edit("food-protein", "36,5")
+        edit("food-fat", "11,5")
+        edit("food-carbs", "51,5")
         click("Сохранить")
         compose.waitUntil(10_000) {
             // Room resumes the editor on Android's main looper after IO. A DB-only
             // predicate does not pump Robolectric/Compose and can strand that resume.
             compose.waitForIdle()
-            runBlocking { meals.get(mealId)?.meal?.nutrition?.proteinGrams == 35.0 }
+            runBlocking { meals.get(mealId)?.meal?.nutrition?.proteinGrams == 36.5 }
         }
         runBlocking {
             val meal = meals.get(mealId)!!.meal
             assertThat(meal.title).isEqualTo("Гречка с курицей")
-            assertThat(meal.portionGrams).isEqualTo(300)
-            assertThat(meal.caloriesEstimate).isEqualTo(450)
+            assertThat(meal.portionGrams).isEqualTo(320)
+            assertThat(meal.caloriesEstimate).isEqualTo(470)
+            assertThat(meal.nutrition!!.fatGrams).isEqualTo(11.5)
+            assertThat(meal.nutrition!!.carbsGrams).isEqualTo(51.5)
+        }
+    }
+
+    @Test fun `quota failure shows an error and the retry button can refill the same form`() {
+        quotaFailures = 1
+        click("Питание")
+        click("Исходное блюдо")
+        click("Определить по фото")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("food-ai-error").fetchSemanticsNodes().isNotEmpty() }
+        assertThat(calls.get()).isEqualTo(1)
+        compose.onNodeWithTag("food-ai-error").assertTextContains("Лимит запросов или квота исчерпаны", substring = true)
+        runBlocking { assertThat(meals.get(mealId)!!.meal.title).isEqualTo("Исходное блюдо") }
+        click("Повторить")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("food-ai-success").fetchSemanticsNodes().isNotEmpty() }
+        compose.onAllNodesWithTag("food-ai-error").assertCountEquals(0)
+        assertThat(calls.get()).isEqualTo(2)
+        click("Сохранить")
+        compose.waitUntil(10_000) {
+            compose.waitForIdle()
+            runBlocking { meals.get(mealId)?.meal?.caloriesEstimate == 450 }
+        }
+        runBlocking {
+            val saved = meals.get(mealId)!!.meal
+            assertThat(saved.title).isEqualTo("Гречка с курицей")
+            assertThat(saved.portionGrams).isEqualTo(300)
+            assertThat(saved.nutrition!!.proteinGrams).isEqualTo(35.0)
         }
     }
 }
