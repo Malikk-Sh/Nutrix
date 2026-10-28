@@ -173,9 +173,11 @@ fun NutrixTextField(
     supportingText: String? = null,
     isError: Boolean = false,
     capitalization: KeyboardCapitalization = KeyboardCapitalization.Sentences,
+    enabled: Boolean = true,
 ) {
     OutlinedTextField(
         value = value,
+        enabled = enabled,
         onValueChange = onValueChange,
         label = { Text(label) },
         placeholder = placeholder?.let { { Text(it) } },

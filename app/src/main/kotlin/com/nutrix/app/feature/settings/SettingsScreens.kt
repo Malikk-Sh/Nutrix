@@ -85,6 +85,7 @@ data class ProfileActions(
     val onBackup: () -> Unit,
     val onReports: () -> Unit,
     val onAbout: () -> Unit,
+    val onGeminiSettings: () -> Unit = {},
 )
 
 @Composable
@@ -154,9 +155,10 @@ fun ProfileScreen(contentPadding: PaddingValues, actions: ProfileActions, viewMo
                 }
             }
             item {
-                NutrixCard {
+                NutrixCard(onClick = actions.onGeminiSettings) {
                     Text(stringResource(R.string.settings_ai_title), style = MaterialTheme.typography.titleSmall)
                     Text(stringResource(R.string.settings_ai_text), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton(onClick = actions.onGeminiSettings) { Text(stringResource(R.string.ai_settings)) }
                 }
             }
             item {

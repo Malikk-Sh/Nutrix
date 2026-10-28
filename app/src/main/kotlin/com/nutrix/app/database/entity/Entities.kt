@@ -1,5 +1,6 @@
 package com.nutrix.app.database.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -11,6 +12,7 @@ import com.nutrix.app.core.model.BodyPosition
 import com.nutrix.app.core.model.DataSource
 import com.nutrix.app.core.model.DrinkType
 import com.nutrix.app.core.model.MealType
+import com.nutrix.app.core.model.MealNutrition
 import com.nutrix.app.core.model.PortionEaten
 import com.nutrix.app.core.model.Satiety
 import com.nutrix.app.core.model.SymptomType
@@ -46,6 +48,7 @@ data class MealEntity(
     val note: String? = null,
     val portionGrams: Int? = null,
     val caloriesEstimate: Int? = null,
+    @ColumnInfo(defaultValue = "NULL") val nutrition: MealNutrition? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
 ) {
@@ -261,6 +264,7 @@ data class FavoriteMealEntity(
     val mealType: MealType? = null,
     val portionGrams: Int? = null,
     val caloriesEstimate: Int? = null,
+    @ColumnInfo(defaultValue = "NULL") val nutrition: MealNutrition? = null,
     val note: String? = null,
     val photoFile: String? = null,
     val useCount: Int = 0,

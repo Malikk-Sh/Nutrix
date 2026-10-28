@@ -72,6 +72,8 @@ class SettingsRepository @Inject constructor(
         val autoBackupEncrypted = booleanPreferencesKey("auto_backup_encrypted")
         val lastAutoBackup = longPreferencesKey("last_auto_backup")
         val reportPhotos = booleanPreferencesKey("report_photos")
+        val geminiModel = stringPreferencesKey("gemini_model")
+        val geminiKeyBlob = stringPreferencesKey("gemini_api_key_blob")
 
         // Secrets (never exported in backups): Keystore-encrypted blobs.
         val pinBlob = stringPreferencesKey("pin_blob")
@@ -86,7 +88,7 @@ class SettingsRepository @Inject constructor(
         fun changesToken(source: DataSource, type: String) = stringPreferencesKey("token_${source.name}_$type")
     }
 
-    private val secretKeys = setOf("pin_blob", "backup_password_blob", "pin_failures", "pin_lockout_until")
+    private val secretKeys = setOf("pin_blob", "backup_password_blob", "pin_failures", "pin_lockout_until", "gemini_api_key_blob")
     private val backupTypes = mapOf(
         Keys.userName.name to "s", Keys.heightCm.name to "i", Keys.startWeight.name to "d", Keys.targetWeight.name to "d",
         Keys.weightUnit.name to "s", Keys.themeMode.name to "s", Keys.waterGoal.name to "i", Keys.quickVolumes.name to "s",
@@ -96,7 +98,7 @@ class SettingsRepository @Inject constructor(
         Keys.hcEnabled.name to "b", Keys.samsungEnabled.name to "b", Keys.autoSync.name to "b", Keys.syncInterval.name to "i",
         Keys.sourcePriority.name to "s", Keys.autoBackup.name to "b", Keys.autoBackupUri.name to "s",
         Keys.autoBackupInterval.name to "i", Keys.autoBackupKeep.name to "i", Keys.autoBackupEncrypted.name to "b",
-        Keys.lastAutoBackup.name to "l", Keys.reportPhotos.name to "b",
+        Keys.lastAutoBackup.name to "l", Keys.reportPhotos.name to "b", Keys.geminiModel.name to "s",
     )
 
     val settings: Flow<UserSettings> = store.data.map { it.toSettings() }
@@ -139,6 +141,7 @@ class SettingsRepository @Inject constructor(
             autoBackupKeep = this[Keys.autoBackupKeep] ?: d.autoBackupKeep,
             lastAutoBackupMillis = this[Keys.lastAutoBackup],
             includePhotosInReports = this[Keys.reportPhotos] ?: d.includePhotosInReports,
+            geminiModel = this[Keys.geminiModel] ?: d.geminiModel,
         )
     }
 
@@ -218,6 +221,14 @@ class SettingsRepository @Inject constructor(
     suspend fun setIncludePhotosInReports(enabled: Boolean) = edit { it[Keys.reportPhotos] = enabled }
 
     // Secrets
+    suspend fun geminiKeyBlob(): String? = store.data.first()[Keys.geminiKeyBlob]
+    val hasGeminiKey: Flow<Boolean> = store.data.map { !it[Keys.geminiKeyBlob].isNullOrBlank() }
+    suspend fun setGeminiKeyBlob(blob: String?) = edit { it.setOrRemove(Keys.geminiKeyBlob, blob) }
+    suspend fun setGeminiModel(model: String) {
+        require(com.nutrix.app.core.model.GeminiConfig.validModel(model))
+        edit { it[Keys.geminiModel] = model }
+    }
+
     suspend fun pinAttempts(): Pair<Int, Long> = store.data.first().let {
         (it[Keys.pinFailures] ?: 0) to (it[Keys.pinLockoutUntil] ?: 0L)
     }

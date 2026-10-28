@@ -14,3 +14,12 @@
 *.p12
 keystore.properties
 app/release.keystore
+
+# Personal API credentials and local live-test environments
+.env
+.env.*
+!.env.example
+.secrets/
+.venv-gemini/
+__pycache__/
+*.py[cod]

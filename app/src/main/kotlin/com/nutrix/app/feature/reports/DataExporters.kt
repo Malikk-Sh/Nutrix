@@ -109,6 +109,10 @@ class DataExporters @Inject constructor(@ApplicationContext private val context:
                 m.feelings.takeIf { it.isNotEmpty() }?.joinToString { s(it.labelRes) },
                 m.items.takeIf { it.isNotEmpty() }?.joinToString(),
                 m.caloriesEstimate?.let { "≈$it ${s(R.string.unit_kcal)}" },
+                m.portionGrams?.let { "$it ${s(R.string.unit_g)}" },
+                m.nutrition?.proteinGrams?.let { "${s(R.string.ai_protein)}: ≈$it" },
+                m.nutrition?.fatGrams?.let { "${s(R.string.ai_fat)}: ≈$it" },
+                m.nutrition?.carbsGrams?.let { "${s(R.string.ai_carbs)}: ≈$it" },
             ).joinToString("; ")
             rows += Row(m.epochMillis, listOf(d, t, z, s(R.string.category_meal), s(m.mealType.labelRes), m.title, mw.photos.size.takeIf { it > 0 }, "photos", details, m.note, s(R.string.source_manual)))
         }
@@ -159,13 +163,13 @@ class DataExporters @Inject constructor(@ApplicationContext private val context:
                 zip.closeEntry()
             }
             entry("meals.csv") { c ->
-                c.row("id", "date", "time", "timezone", "meal_type", "title", "items", "appetite_0_5", "portion", "satiety", "after_meal", "after_meal_other", "weight_kg", "portion_g", "kcal_approx", "note", "photos")
+                c.row("id", "date", "time", "timezone", "meal_type", "title", "items", "appetite_0_5", "portion", "satiety", "after_meal", "after_meal_other", "weight_kg", "portion_g", "kcal_approx", "note", "photos", "protein_g_approx", "fat_g_approx", "carbs_g_approx", "estimate_model")
                 data.meals.forEach { mw ->
                     val m = mw.meal
                     val (d, t, z) = dt(m.epochMillis, m.zoneId)
                     c.row(m.id, d, t, z, s(m.mealType.labelRes), m.title, m.items.joinToString("; "), m.appetite, m.portion?.let { s(it.labelRes) },
                         m.satiety?.let { s(it.labelRes) }, m.feelings.joinToString("; ") { s(it.labelRes) }, m.feelingOther, m.weightKg,
-                        m.portionGrams, m.caloriesEstimate, m.note, mw.photos.size)
+                        m.portionGrams, m.caloriesEstimate, m.note, mw.photos.size, m.nutrition?.proteinGrams, m.nutrition?.fatGrams, m.nutrition?.carbsGrams, m.nutrition?.estimateModel)
                 }
             }
             entry("drinks.csv") { c ->

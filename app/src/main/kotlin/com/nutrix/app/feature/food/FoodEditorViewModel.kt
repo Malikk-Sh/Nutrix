@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.model.AfterMealFeeling
+import com.nutrix.app.core.model.MealNutrition
 import com.nutrix.app.core.model.MealType
 import com.nutrix.app.core.model.PortionEaten
 import com.nutrix.app.core.model.Satiety
@@ -23,6 +24,12 @@ import com.nutrix.app.data.repository.WeightRepository
 import com.nutrix.app.database.entity.FavoriteMealEntity
 import com.nutrix.app.database.entity.MealEntity
 import com.nutrix.app.database.entity.WeightEntity
+import com.nutrix.app.feature.ai.FoodPhotoAnalyzer
+import com.nutrix.app.feature.ai.FoodPhotoResult
+import com.nutrix.app.feature.ai.FoodAiError
+import com.nutrix.app.feature.ai.FoodAiException
+import com.nutrix.app.feature.ai.isTransient
+import kotlin.math.roundToInt
 import com.nutrix.app.feature.ai.FoodReference
 import com.nutrix.app.feature.ai.SmartSuggestions
 import com.nutrix.app.navigation.FoodEditorRoute
@@ -74,6 +81,11 @@ data class MealForm(
     val gramsText: String = "",
     val kcalText: String = "",
     val kcalFromReference: Boolean = false,
+    val proteinText: String = "",
+    val fatText: String = "",
+    val carbsText: String = "",
+    val nutritionInfo: MealNutrition? = null,
+    val aiHint: String = "",
     val saveAsFavorite: Boolean = false,
     val createdAt: Long = 0,
 ) {
@@ -96,6 +108,12 @@ data class FoodEditorUiState(
     val pendingDraft: MealForm? = null,
     val processingPhoto: Boolean = false,
     val isSaving: Boolean = false,
+    val analyzingPhoto: Boolean = false,
+    val aiAttempt: Int = 0,
+    val aiRetrying: Boolean = false,
+    val aiResult: FoodPhotoResult? = null,
+    val aiError: FoodAiError? = null,
+    val hasGeminiKey: Boolean = false,
     val error: String? = null,
 )
 
@@ -114,6 +132,7 @@ class FoodEditorViewModel @Inject constructor(
     private val photoStorage: PhotoStorage,
     private val undo: UndoManager,
     private val messages: UserMessages,
+    private val foodAi: FoodPhotoAnalyzer,
 ) : ViewModel() {
 
     private val route = savedStateHandle.toRoute<FoodEditorRoute>()
@@ -122,6 +141,9 @@ class FoodEditorViewModel @Inject constructor(
     private val draftMutex = Mutex()
     private var draftJob: Job? = null
     private var finished = false
+    private var aiJob: Job? = null
+    private var aiRequest = 0L
+    private var requestedPhoto: String? = null
     private val draftKind = when {
         route.mealId != 0L -> "meal-edit-${route.mealId}"
         route.favoriteId != 0L -> "meal-favorite-${route.favoriteId}"
@@ -146,6 +168,7 @@ class FoodEditorViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { load() }
+        viewModelScope.launch { settings.hasGeminiKey.collect { key -> _state.update { it.copy(hasGeminiKey = key) } } }
         viewModelScope.launch {
             combine(settings.settings, weights.observeLatest()) { s, w -> s to w }.collect { (s, w) ->
                 _state.update { it.copy(weightUnit = s.weightUnit, lastWeight = w, calorieEstimatesEnabled = s.calorieEstimates) }
@@ -181,6 +204,10 @@ class FoodEditorViewModel @Inject constructor(
                         items = source.items,
                         gramsText = source.portionGrams?.toString().orEmpty(),
                         kcalText = source.caloriesEstimate?.toString().orEmpty(),
+                        proteinText = macroText(source.nutrition?.proteinGrams),
+                        fatText = macroText(source.nutrition?.fatGrams),
+                        carbsText = macroText(source.nutrition?.carbsGrams),
+                        nutritionInfo = source.nutrition,
                     )
                 }
             }
@@ -227,6 +254,10 @@ class FoodEditorViewModel @Inject constructor(
             photos = photos,
             gramsText = m.portionGrams?.toString().orEmpty(),
             kcalText = m.caloriesEstimate?.toString().orEmpty(),
+            proteinText = macroText(m.nutrition?.proteinGrams),
+            fatText = macroText(m.nutrition?.fatGrams),
+            carbsText = macroText(m.nutrition?.carbsGrams),
+            nutritionInfo = m.nutrition,
             createdAt = m.createdAt,
         )
     }
@@ -237,6 +268,10 @@ class FoodEditorViewModel @Inject constructor(
         mealType = fav.mealType ?: form.mealType,
         gramsText = fav.portionGrams?.toString() ?: form.gramsText,
         kcalText = fav.caloriesEstimate?.toString() ?: form.kcalText,
+        proteinText = macroText(fav.nutrition?.proteinGrams),
+        fatText = macroText(fav.nutrition?.fatGrams),
+        carbsText = macroText(fav.nutrition?.carbsGrams),
+        nutritionInfo = fav.nutrition,
     )
 
     fun formatWeightInput(kg: Double, unit: WeightUnit): String =
@@ -246,10 +281,12 @@ class FoodEditorViewModel @Inject constructor(
         val state = _state.value
         if (!state.loaded || state.isSaving || finished || state.pendingDraft != null) return
         val form = transform(state.form)
+        if (requestedPhoto != null && (requestedPhoto !in form.photos || form.aiHint != state.form.aiHint)) cancelAiAnalysis()
         val owned = ownedPhotos() + form.photos.filter { it !in initialForm?.photos.orEmpty() }
         savedStateHandle[EDITOR_PHOTOS] = ArrayList(owned.distinct())
         if (form == initialForm) savedStateHandle.remove<String>(EDITOR_FORM) else savedStateHandle[EDITOR_FORM] = encode(form)
-        _state.update { it.copy(form = form, dirty = form != initialForm, error = null) }
+        _state.update { it.copy(form = form, dirty = form != initialForm, error = null,
+            aiResult = it.aiResult?.takeIf { result -> result.photoFile in form.photos }) }
         scheduleDraft()
     }
 
@@ -395,6 +432,7 @@ class FoodEditorViewModel @Inject constructor(
     fun saveDraftAndClose() {
         val state = _state.value
         if (!state.loaded || state.isSaving || state.processingPhoto || state.pendingDraft != null || finished) return
+        cancelAiAnalysis()
         _state.update { it.copy(isSaving = true) }
         draftJob?.cancel()
         viewModelScope.launch {
@@ -411,6 +449,7 @@ class FoodEditorViewModel @Inject constructor(
 
     fun discardAndClose() {
         if (_state.value.isSaving || _state.value.processingPhoto || finished) return
+        cancelAiAnalysis()
         _state.update { it.copy(isSaving = true) }
         draftJob?.cancel()
         viewModelScope.launch {
@@ -428,6 +467,77 @@ class FoodEditorViewModel @Inject constructor(
         }
     }
 
+    fun analyzePhoto(fileName: String) {
+        val s = _state.value
+        if (!s.loaded || s.isSaving || s.processingPhoto || s.analyzingPhoto || s.pendingDraft != null || finished) return
+        if (fileName !in s.form.photos) { _state.update { it.copy(aiError = FoodAiError.PHOTO_UNAVAILABLE) }; return }
+        val request = ++aiRequest
+        requestedPhoto = fileName
+        _state.update { it.copy(analyzingPhoto = true, aiAttempt = 1, aiRetrying = false, aiResult = null, aiError = null) }
+        aiJob = viewModelScope.launch {
+            try {
+                for (attempt in 1..MAX_AI_ATTEMPTS) {
+                    if (request != aiRequest || finished) return@launch
+                    _state.update { it.copy(aiAttempt = attempt, aiRetrying = false) }
+                    try {
+                        val result = foodAi.analyze(fileName, s.form.aiHint)
+                        if (request != aiRequest || finished) return@launch
+                        if (result.photoFile != fileName || result.photoFile !in _state.value.form.photos) {
+                            throw FoodAiException(FoodAiError.PHOTO_CHANGED)
+                        }
+                        fillAiFields(result, s.form)
+                        _state.update { it.copy(aiResult = result, aiError = null) }
+                        return@launch
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (error: Exception) {
+                        if (request != aiRequest || finished) return@launch
+                        val reason = (error as? FoodAiException)?.reason ?: FoodAiError.INVALID_RESPONSE
+                        if (attempt < MAX_AI_ATTEMPTS && reason.isTransient) {
+                            _state.update { it.copy(aiRetrying = true) }
+                            delay(AI_RETRY_DELAY_MS)
+                        } else {
+                            _state.update { it.copy(aiError = reason) }
+                            return@launch
+                        }
+                    }
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            finally {
+                if (request == aiRequest) _state.update { it.copy(analyzingPhoto = false, aiRetrying = false) }
+            }
+        }
+    }
+
+    fun cancelAiAnalysis() {
+        aiRequest++
+        aiJob?.cancel()
+        aiJob = null
+        requestedPhoto = null
+        _state.update { it.copy(analyzingPhoto = false, aiAttempt = 0, aiRetrying = false, aiResult = null, aiError = null) }
+    }
+
+    private fun fillAiFields(result: FoodPhotoResult, requestedForm: MealForm) {
+        val e = result.estimate
+        // Inputs changed by the user while a request was in flight take precedence.
+        update { it.copy(
+            title = if (it.title == requestedForm.title) e.dishName else it.title,
+            items = if (it.items == requestedForm.items) e.ingredients.map { ingredient -> ingredient.name }.distinct() else it.items,
+            gramsText = if (it.gramsText == requestedForm.gramsText) e.portionGrams?.roundToInt()?.coerceAtLeast(1)?.toString().orEmpty() else it.gramsText,
+            kcalText = if (it.kcalText == requestedForm.kcalText) e.caloriesKcal?.roundToInt()?.toString().orEmpty() else it.kcalText,
+            kcalFromReference = false,
+            proteinText = if (it.proteinText == requestedForm.proteinText) macroText(e.proteinGrams) else it.proteinText,
+            fatText = if (it.fatText == requestedForm.fatText) macroText(e.fatGrams) else it.fatText,
+            carbsText = if (it.carbsText == requestedForm.carbsText) macroText(e.carbsGrams) else it.carbsText,
+            nutritionInfo = MealNutrition(estimateModel = result.model, estimatedAt = System.currentTimeMillis(), uncertainty = e.uncertainty),
+        ) }
+    }
+
+    private fun macroText(value: Double?): String = value?.let { Units.roundTo(it, 1).toString().replace('.', ',') }.orEmpty()
+    private fun macroValue(text: String): Double? = Units.parseDecimal(text)?.takeIf { it.isFinite() && it in 0.0..10_000.0 }
+    fun isNutritionInvalid(): Boolean = _state.value.form.let { form ->
+        listOf(form.proteinText, form.fatText, form.carbsText).any { it.isNotBlank() && macroValue(it) == null }
+    }
+
     fun parsedWeightKg(): Double? {
         val form = _state.value.form
         val v = Units.parseDecimal(form.weightText) ?: return null
@@ -439,7 +549,7 @@ class FoodEditorViewModel @Inject constructor(
     fun save() {
         val s = _state.value
         val form = s.form
-        if (!s.loaded || s.isSaving || s.processingPhoto || s.pendingDraft != null || finished || isWeightInvalid()) return
+        if (!s.loaded || s.isSaving || s.processingPhoto || s.pendingDraft != null || s.analyzingPhoto || finished || isWeightInvalid() || isNutritionInvalid()) return
         val weightKg = parsedWeightKg()
         _state.update { it.copy(isSaving = true, error = null) }
         draftJob?.cancel()
@@ -465,6 +575,9 @@ class FoodEditorViewModel @Inject constructor(
                             note = form.note.trim().ifBlank { null },
                             portionGrams = form.gramsText.toIntOrNull(),
                             caloriesEstimate = form.kcalText.toIntOrNull(),
+                            nutrition = (form.nutritionInfo ?: MealNutrition()).copy(
+                                proteinGrams = macroValue(form.proteinText), fatGrams = macroValue(form.fatText), carbsGrams = macroValue(form.carbsText),
+                            ).takeIf { form.nutritionInfo != null || listOf(form.proteinText, form.fatText, form.carbsText).any(String::isNotBlank) },
                             createdAt = if (form.createdAt > 0) form.createdAt else System.currentTimeMillis(),
                         )
                         meals.save(entity, form.photos, form.alsoSaveWeight, form.saveAsFavorite, draftKind, form.saveToken)
@@ -487,6 +600,7 @@ class FoodEditorViewModel @Inject constructor(
         val state = _state.value
         val id = state.form.mealId
         if (id == 0L || state.isSaving || state.processingPhoto || finished) return
+        cancelAiAnalysis()
         _state.update { it.copy(isSaving = true) }
         draftJob?.cancel()
         viewModelScope.launch {
@@ -514,6 +628,8 @@ class FoodEditorViewModel @Inject constructor(
     }
 
     companion object {
+        const val MAX_AI_ATTEMPTS = 2
+        const val AI_RETRY_DELAY_MS = 2_000L
         const val DRAFT_KIND = "meal"
         private const val EDITOR_FORM = "meal_editor_form"
         private const val EDITOR_PHOTOS = "meal_editor_photos"

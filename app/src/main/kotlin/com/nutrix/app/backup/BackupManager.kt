@@ -196,7 +196,11 @@ class BackupManager @Inject constructor(
             if (!dbCheck.first) return RestoreCheck.Invalid(RestoreCheck.Reason.DATABASE_CORRUPTED)
             if (dbCheck.second > db.openHelper.readableDatabase.version) return RestoreCheck.Invalid(RestoreCheck.Reason.NEWER_VERSION)
             if (dbCheck.second != manifest.dbVersion) return RestoreCheck.Invalid(RestoreCheck.Reason.DATABASE_CORRUPTED)
-            val candidate = NutrixDatabase.build(context, dbFile.path)
+            // Room may migrate an older backup. Validate a disposable copy so the checked
+            // archive bytes retain their original manifest checksum until durable staging.
+            val validationFile = File(context.cacheDir, "nutrix-schema-${UUID.randomUUID()}.db")
+            dbFile.copyTo(validationFile)
+            val candidate = NutrixDatabase.build(context, validationFile.path)
             try {
                 // Opening through Room validates the identity/schema and supported migrations.
                 if (DatabaseTransfer.tables(candidate.openHelper.writableDatabase) != DatabaseTransfer.tables(db.openHelper.readableDatabase)) {
@@ -206,7 +210,10 @@ class BackupManager @Inject constructor(
                 validatePhotoReferences(candidate, dir, paths.toSet())
             } catch (e: Exception) {
                 return RestoreCheck.Invalid(RestoreCheck.Reason.DATABASE_CORRUPTED)
-            } finally { candidate.close() }
+            } finally {
+                candidate.close()
+                listOf("", "-wal", "-shm", "-journal").forEach { File(validationFile.path + it).delete() }
+            }
             accepted = true
             checkedDirectories += dir
             return RestoreCheck.Ok(manifest, dir)

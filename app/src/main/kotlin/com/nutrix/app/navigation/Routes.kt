@@ -32,6 +32,7 @@ import kotlinx.serialization.Serializable
 @Serializable object IntegrationsRoute
 @Serializable object RemindersRoute
 @Serializable object SecurityRoute
+@Serializable object GeminiSettingsRoute
 @Serializable object AboutRoute
 
 /** Keys for results passed back through SavedStateHandle. */

@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.nutrix.app.database.dao.DrinkDao
 import com.nutrix.app.database.dao.HealthDao
 import com.nutrix.app.database.dao.MealDao
@@ -45,7 +47,7 @@ import javax.inject.Singleton
         FavoriteMealEntity::class,
         DraftEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -59,9 +61,16 @@ abstract class NutrixDatabase : RoomDatabase() {
 
     companion object {
         const val NAME = "nutrix.db"
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE meals ADD COLUMN nutrition TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE favorite_meals ADD COLUMN nutrition TEXT DEFAULT NULL")
+            }
+        }
 
         fun build(context: Context, name: String = NAME): NutrixDatabase =
             Room.databaseBuilder(context, NutrixDatabase::class.java, name)
+                .addMigrations(MIGRATION_1_2)
                 // Future schema changes must ship real migrations; never wipe user diaries.
                 .build()
     }

@@ -83,7 +83,7 @@ class MealRepository @Inject constructor(
                         previous?.photoFile?.let { removedFiles += it }
                         dao.upsertFavorite(FavoriteMealEntity(
                             id = previous?.id ?: 0, title = favoriteTitle, items = meal.items, mealType = meal.mealType,
-                            portionGrams = meal.portionGrams, caloriesEstimate = meal.caloriesEstimate,
+                            portionGrams = meal.portionGrams, caloriesEstimate = meal.caloriesEstimate, nutrition = meal.nutrition,
                             photoFile = favoritePhoto, useCount = previous?.useCount ?: 0,
                             createdAt = previous?.createdAt ?: now,
                         ))
@@ -175,6 +175,7 @@ class MealRepository @Inject constructor(
                 mealType = meal.mealType,
                 portionGrams = meal.portionGrams,
                 caloriesEstimate = meal.caloriesEstimate,
+                nutrition = meal.nutrition,
                 note = null,
                 photoFile = photoCopy,
             ),

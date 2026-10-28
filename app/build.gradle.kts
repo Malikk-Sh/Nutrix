@@ -31,8 +31,8 @@ android {
         applicationId = "com.nutrix.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "SAMSUNG_SDK_BUNDLED", hasSamsungSdk.toString())
         vectorDrawables.useSupportLibrary = true
@@ -140,6 +140,7 @@ room {
 }
 
 dependencies {
+    implementation(libs.okhttp)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.activity.compose)
@@ -189,6 +190,7 @@ dependencies {
         implementation(libs.gson) // required at runtime by the Samsung Health Data SDK
     }
 
+    testImplementation(libs.mockwebserver)
     testImplementation(libs.junit)
     testImplementation(libs.truth)
     testImplementation(libs.robolectric)
