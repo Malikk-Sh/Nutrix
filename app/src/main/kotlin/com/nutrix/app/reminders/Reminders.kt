@@ -74,10 +74,14 @@ class ReminderScheduler @Inject constructor(
 
     suspend fun rescheduleAll() {
         val s = settings.current()
-        val routine = routines.current()
+        val routine = routineFor(s.reminders)
         val ignores = settings.reminderIgnores.first()
         ReminderType.entries.forEach { schedule(it, s, routine, ignores[it] ?: 0) }
     }
+
+    /** The diary is read only when a reminder actually follows the routine. */
+    private suspend fun routineFor(configs: List<ReminderConfig>): Routine =
+        if (configs.any { it.enabled && it.adaptive && it.type.supportsAdaptive }) routines.current() else Routine()
 
     /** Next planned reminder: learned times for adaptive ones, quieter after reminders were ignored in a row. */
     fun nextFor(type: ReminderType, s: UserSettings, routine: Routine, ignoredInARow: Int, now: ZonedDateTime = ZonedDateTime.now()): ZonedDateTime? {
@@ -86,7 +90,8 @@ class ReminderScheduler @Inject constructor(
     }
 
     suspend fun schedule(type: ReminderType, s: UserSettings? = null) {
-        schedule(type, s ?: settings.current(), routines.current(), settings.reminderIgnores.first()[type] ?: 0)
+        val current = s ?: settings.current()
+        schedule(type, current, routineFor(current.reminders.filter { it.type == type }), settings.reminderIgnores.first()[type] ?: 0)
     }
 
     private fun schedule(type: ReminderType, s: UserSettings, routine: Routine, ignoredInARow: Int) {

@@ -15,8 +15,10 @@ import com.nutrix.app.data.repository.MealRepository
 import com.nutrix.app.data.repository.WeightRepository
 import com.nutrix.app.database.entity.MealEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filterNotNull
@@ -36,14 +38,21 @@ class RoutineRepository @Inject constructor(
     private val weights: WeightRepository,
     notifier: DataChangeNotifier,
 ) {
+    /** Empty when the diary cannot be read right now (e.g. while a backup is restored): configured times then apply. */
     suspend fun current(today: Long = TimeUtils.todayEpochDay()): Routine {
         val window = RoutineLearner.window(today)
-        return RoutineLearner.learn(
-            meals.getRange(window.first, window.last).map { it.meal },
-            drinks.getRange(window.first, window.last),
-            weights.getRange(window.first, window.last),
-            window,
-        )
+        return try {
+            RoutineLearner.learn(
+                meals.getRange(window.first, window.last).map { it.meal },
+                drinks.getRange(window.first, window.last),
+                weights.getRange(window.first, window.last),
+                window,
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            Routine()
+        }
     }
 
     val routine: Flow<Routine> = notifier.changes.onStart { emit(Unit) }.conflate().map { current() }
@@ -79,10 +88,20 @@ class AfterMealCheckIn @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settings: SettingsRepository,
     private val meals: MealRepository,
+    private val notifier: DataChangeNotifier,
 ) {
-    /** Meals are logged inside the app, so watching while the process lives catches every new one. */
+    /**
+     * Meals are logged inside the app, so following its diary writes while the process lives catches
+     * every new one; planned questions survive restarts in WorkManager. Nothing is read before a write.
+     */
     suspend fun watch() {
-        meals.observeLast().filterNotNull().distinctUntilChangedBy { it.id }.collect { plan(it) }
+        notifier.changes
+            .map { meals.observeLast().first() }
+            .filterNotNull()
+            .distinctUntilChangedBy { it.id }
+            // A diary that cannot be read (e.g. mid-restore) only pauses the question until the next start.
+            .catch { }
+            .collect { plan(it) }
     }
 
     /** When the question is switched on right after a meal was logged. */
