@@ -9,7 +9,11 @@ import com.nutrix.app.core.ui.components.InfoDisclosure
 import com.nutrix.app.core.ui.components.InfoBanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -41,6 +45,8 @@ data class GeminiSettingsState(
     val model: String = GeminiProtocol.DEFAULT_MODEL, val hasKey: Boolean = false,
     val loaded: Boolean = false, val busy: Boolean = false, val error: FoodAiError? = null,
     val models: List<String> = emptyList(), val keyRevision: Int = 0, val verified: Boolean = false,
+    /** The user confirmed the key belongs to a billed Cloud project, which allows the cloud weekly review. */
+    val paidProject: Boolean = false,
 )
 
 @HiltViewModel
@@ -51,7 +57,7 @@ class GeminiSettingsViewModel @Inject constructor(
 ) : ViewModel() {
     private val operation = MutableStateFlow(GeminiOperation())
     val state = combine(settings.settings, settings.hasGeminiKey, operation) { s, key, op ->
-        GeminiSettingsState(s.geminiModel, key, true, op.busy, op.error, op.models, op.keyRevision, op.verified)
+        GeminiSettingsState(s.geminiModel, key, true, op.busy, op.error, op.models, op.keyRevision, op.verified, s.aiPaidProject)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GeminiSettingsState())
 
     private fun run(block: suspend () -> Unit) {
@@ -71,12 +77,19 @@ class GeminiSettingsViewModel @Inject constructor(
         val bytes = key.toByteArray()
         try { settings.setGeminiKeyBlob(withContext(Dispatchers.IO) { cipher.encrypt(bytes) }) }
         finally { bytes.fill(0) }
+        // The billing confirmation belongs to the previous key; a new one starts as free.
+        settings.setAiPaidProject(false)
         operation.update { it.copy(keyRevision = it.keyRevision + 1, models = emptyList(), verified = false) }
     }
 
     fun removeKey() = run {
         settings.setGeminiKeyBlob(null)
+        settings.setAiPaidProject(false)
         operation.update { it.copy(models = emptyList(), verified = false) }
+    }
+
+    fun setPaidProject(paid: Boolean) {
+        viewModelScope.launch { settings.setAiPaidProject(paid) }
     }
 
     fun saveModel(model: String) = run {
@@ -96,6 +109,7 @@ fun GeminiSettingsScreen(onBack: () -> Unit, viewModel: GeminiSettingsViewModel 
     var key by remember { mutableStateOf("") } // Never saved in an Android instance-state bundle.
     var model by remember { mutableStateOf(state.model) }
     var showModels by remember { mutableStateOf(false) }
+    var paidDialog by remember { mutableStateOf(false) }
     val uri = LocalUriHandler.current
     LaunchedEffect(state.model) { model = state.model }
     LaunchedEffect(state.keyRevision) { key = "" }
@@ -145,8 +159,33 @@ fun GeminiSettingsScreen(onBack: () -> Unit, viewModel: GeminiSettingsViewModel 
                     }
                 }
             }
+            if (state.hasKey) {
+                item {
+                    NutrixCard(modifier = Modifier.testTag("gemini-paid")) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.ai_paid_switch), style = MaterialTheme.typography.titleSmall)
+                                Text(stringResource(if (state.paidProject) R.string.ai_paid_on else R.string.ai_paid_off),
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Switch(state.paidProject, { if (it) paidDialog = true else viewModel.setPaidProject(false) },
+                                enabled = state.loaded, modifier = Modifier.testTag("gemini-paid-switch"))
+                        }
+                        InfoDisclosure(stringResource(R.string.ai_paid_how), stringResource(R.string.ai_paid_how_text), Icons.Rounded.Info)
+                    }
+                }
+            }
             item { TextButton(onClick = { uri.openUri("https://aistudio.google.com/apikey") }) { Text(stringResource(R.string.ai_get_key)) } }
         }
+    }
+    if (paidDialog) {
+        AlertDialog(
+            onDismissRequest = { paidDialog = false },
+            title = { Text(stringResource(R.string.ai_review_paid_title)) },
+            text = { Text(stringResource(R.string.ai_review_paid_text), modifier = Modifier.verticalScroll(rememberScrollState())) },
+            confirmButton = { TextButton(onClick = { paidDialog = false; viewModel.setPaidProject(true) }) { Text(stringResource(R.string.ai_review_paid_confirm)) } },
+            dismissButton = { TextButton(onClick = { paidDialog = false }) { Text(stringResource(R.string.action_cancel)) } },
+        )
     }
 }
 

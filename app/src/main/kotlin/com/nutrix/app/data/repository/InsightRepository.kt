@@ -4,7 +4,11 @@ import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.model.DataSource
 import com.nutrix.app.core.time.TimeUtils
 import com.nutrix.app.domain.AnalyticsInput
+import com.nutrix.app.domain.insights.Coverage
 import com.nutrix.app.domain.insights.DataCoverage
+import com.nutrix.app.domain.insights.InsightComparison
+import com.nutrix.app.domain.insights.InsightHistory
+import com.nutrix.app.domain.insights.InsightTopic
 import com.nutrix.app.domain.insights.Insight
 import com.nutrix.app.domain.insights.WeeklyOverview
 import com.nutrix.app.domain.insights.InsightEngine
@@ -29,10 +33,17 @@ data class InsightReport(
     val hidden: Set<String>,
     val coverage: DataCoverage = DataCoverage(0, 0, 0, 0, 0, 0, 0, 0),
     val hasWaterGoal: Boolean = false,
+    /** Observations of the four weeks before [from], to tell repeating patterns from new ones. */
+    val previous: List<Insight> = emptyList(),
+    /** Topics the user chose: their observations come first, the engine's order is kept within each group. */
+    val interests: Set<InsightTopic> = emptySet(),
 ) {
     val overview: WeeklyOverview get() = WeeklyOverview.build(visible, coverage, hasWaterGoal)
-    val visible: List<Insight> get() = all.filterNot { it.id in hidden }
+    val visible: List<Insight> get() = all.filterNot { it.id in hidden }.sortedBy { if (it.topic in interests) 0 else 1 }
     val hiddenCount: Int get() = all.count { it.id in hidden }
+    fun history(insight: Insight): InsightHistory = InsightComparison.history(insight, previous)
+    /** Patterns of the previous weeks that did not show up again (hidden ones stay hidden). */
+    val faded: List<Insight> get() = InsightComparison.faded(all, previous, coverage).filterNot { it.id in hidden }
 }
 
 @Singleton
@@ -46,33 +57,38 @@ class InsightRepository @Inject constructor(
     private val settings: SettingsRepository,
     notifier: DataChangeNotifier,
 ) {
-    private data class Inputs(val goal: Int?, val target: Double?, val sources: List<DataSource>, val hidden: Set<String>)
+    private data class Inputs(val goal: Int?, val target: Double?, val sources: List<DataSource>, val hidden: Set<String>, val topics: Set<String>)
 
     /** Recomputed after any diary write and when the guideline, target or source priority changes. */
     @OptIn(ExperimentalCoroutinesApi::class)
     val reports: Flow<InsightReport> = combine(
         notifier.changes.onStart { emit(Unit) },
-        settings.settings.map { Inputs(it.waterGoalMl, it.targetWeightKg, it.sourcePriority, it.hiddenInsights) }.distinctUntilChanged(),
-    ) { _, inputs -> inputs }.mapLatest { compute(it.hidden) }
+        settings.settings.map { Inputs(it.waterGoalMl, it.targetWeightKg, it.sourcePriority, it.hiddenInsights, it.insightTopics) }.distinctUntilChanged(),
+    ) { _, inputs -> inputs }.mapLatest { compute(it.hidden, it.topics) }
 
-    suspend fun current(): InsightReport = compute(settings.current().hiddenInsights)
+    suspend fun current(): InsightReport = settings.current().let { compute(it.hiddenInsights, it.insightTopics) }
 
-    private suspend fun compute(hidden: Set<String>, today: Long = TimeUtils.todayEpochDay()): InsightReport = withContext(Dispatchers.Default) {
+    private suspend fun compute(hidden: Set<String>, topics: Set<String>, today: Long = TimeUtils.todayEpochDay()): InsightReport = withContext(Dispatchers.Default) {
         val window = InsightEngine.window(today)
+        val earlier = InsightComparison.previousWindow(window)
         val s = settings.current()
+        // One read for both windows; the engine and the coverage keep to their own days.
         val records = AnalyticsInput(
             from = window.first,
             to = window.last,
-            meals = meals.getRange(window.first, window.last).map { it.meal },
-            drinks = drinks.getRange(window.first, window.last),
-            weights = weights.getRange(window.first, window.last),
-            symptoms = symptoms.getRange(window.first, window.last),
+            meals = meals.getRange(earlier.first, window.last).map { it.meal },
+            drinks = drinks.getRange(earlier.first, window.last),
+            weights = weights.getRange(earlier.first, window.last),
+            symptoms = symptoms.getRange(earlier.first, window.last),
             // A night belongs to the morning it ends on, so the window's last evening ends today.
-            sleeps = health.getSleepRange(window.first, window.last + 1),
-            activity = health.getActivityRange(window.first, window.last),
-            notes = notes.getRange(window.first, window.last),
+            sleeps = health.getSleepRange(earlier.first, window.last + 1),
+            activity = health.getActivityRange(earlier.first, window.last),
+            notes = notes.getRange(earlier.first, window.last),
         )
         val insights = InsightEngine.analyze(InsightInput(records, s.waterGoalMl, s.targetWeightKg))
-        InsightReport(window.first, window.last, insights, hidden, DataCoverage.of(records), s.waterGoalMl != null)
+        val previous = InsightEngine.analyze(InsightInput(records.copy(from = earlier.first, to = earlier.last), s.waterGoalMl, s.targetWeightKg))
+            .filterNot { it is Coverage }
+        val interests = InsightTopic.entries.filter { it.name in topics }.toSet()
+        InsightReport(window.first, window.last, insights, hidden, DataCoverage.of(records), s.waterGoalMl != null, previous, interests)
     }
 }

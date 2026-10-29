@@ -40,6 +40,8 @@ data class UserSettings(
     val geminiModel: String = com.nutrix.app.core.model.GeminiConfig.DEFAULT_MODEL,
     /** Observation ids the user chose to hide on the insights screen. */
     val hiddenInsights: Set<String> = emptySet(),
+    /** Observation topics the user chose to see first (names of InsightTopic). */
+    val insightTopics: Set<String> = emptySet(),
     /** Consent to send aggregated observation facts to Gemini; asked again after a restore. */
     val aiReviewConsent: Boolean = false,
     /**

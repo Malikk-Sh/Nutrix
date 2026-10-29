@@ -75,6 +75,7 @@ class SettingsRepository @Inject constructor(
         val geminiModel = stringPreferencesKey("gemini_model")
         val geminiKeyBlob = stringPreferencesKey("gemini_api_key_blob")
         val hiddenInsights = stringPreferencesKey("hidden_insights")
+        val insightTopics = stringPreferencesKey("insight_topics")
         val aiReviewConsent = booleanPreferencesKey("ai_review_consent")
         val aiPaidProject = booleanPreferencesKey("ai_paid_project")
         // Regenerable caches start with "cache_" and are left out of backups.
@@ -104,7 +105,7 @@ class SettingsRepository @Inject constructor(
         Keys.sourcePriority.name to "s", Keys.autoBackup.name to "b", Keys.autoBackupUri.name to "s",
         Keys.autoBackupInterval.name to "i", Keys.autoBackupKeep.name to "i", Keys.autoBackupEncrypted.name to "b",
         Keys.lastAutoBackup.name to "l", Keys.reportPhotos.name to "b", Keys.geminiModel.name to "s",
-        Keys.hiddenInsights.name to "s",
+        Keys.hiddenInsights.name to "s", Keys.insightTopics.name to "s",
     )
 
     val settings: Flow<UserSettings> = store.data.map { it.toSettings() }
@@ -149,6 +150,7 @@ class SettingsRepository @Inject constructor(
             includePhotosInReports = this[Keys.reportPhotos] ?: d.includePhotosInReports,
             geminiModel = this[Keys.geminiModel] ?: d.geminiModel,
             hiddenInsights = this[Keys.hiddenInsights]?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet() ?: d.hiddenInsights,
+            insightTopics = this[Keys.insightTopics]?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet() ?: d.insightTopics,
             aiReviewConsent = this[Keys.aiReviewConsent] ?: d.aiReviewConsent,
             aiPaidProject = this[Keys.aiPaidProject] ?: d.aiPaidProject,
         )
@@ -233,6 +235,12 @@ class SettingsRepository @Inject constructor(
         val current = it[Keys.hiddenInsights]?.split(',')?.filter { s -> s.isNotBlank() }?.toSet().orEmpty()
         val next = if (hidden) current + id else current - id
         if (next.isEmpty()) it.remove(Keys.hiddenInsights) else it[Keys.hiddenInsights] = next.sorted().joinToString(",")
+    }
+
+    suspend fun setInsightTopic(topic: String, chosen: Boolean) = edit {
+        val current = it[Keys.insightTopics]?.split(',')?.filter { s -> s.isNotBlank() }?.toSet().orEmpty()
+        val next = if (chosen) current + topic else current - topic
+        if (next.isEmpty()) it.remove(Keys.insightTopics) else it[Keys.insightTopics] = next.sorted().joinToString(",")
     }
 
     suspend fun setAiPaidProject(paid: Boolean) = edit {
