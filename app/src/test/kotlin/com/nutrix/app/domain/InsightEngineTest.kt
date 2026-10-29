@@ -11,6 +11,8 @@ import com.nutrix.app.database.entity.SleepEntity
 import com.nutrix.app.database.entity.SymptomEntity
 import com.nutrix.app.database.entity.WeightEntity
 import com.nutrix.app.domain.insights.Coverage
+import com.nutrix.app.domain.insights.EvidenceGroup
+import com.nutrix.app.domain.insights.RecordType
 import com.nutrix.app.domain.insights.FluidSummary
 import com.nutrix.app.domain.insights.Insight
 import com.nutrix.app.domain.insights.InsightEngine
@@ -100,12 +102,18 @@ class InsightEngineTest {
         assertThat(late.lateDays).isEqualTo(14)
         assertThat(late.sleepDifferenceMinutes).isEqualTo(-90)
         assertThat(late.isLink).isTrue()
-        // Each late evening can be opened: newest first, with the meal time and how long before sleep.
-        assertThat(late.evidence).hasSize(14)
+        // Each evening can be opened, the late ones and the ones they are compared with: newest first,
+        // with the meal time, how long before sleep and the night's sleep.
+        val (match, other) = late.evidence.partition { it.group == EvidenceGroup.MATCH }
+        assertThat(match).hasSize(14)
+        assertThat(other).hasSize(14)
         assertThat(late.evidence.map { it.day }).isInOrder(Comparator.reverseOrder<Long>())
-        assertThat(late.evidence.first().clock).isEqualTo(22 * 60)
-        assertThat(late.evidence.first().minutes).isEqualTo(60)
-        assertThat(late.evidence.map { it.day }.toSet()).isEqualTo(days.filterIndexed { i, _ -> i % 2 == 0 }.toSet())
+        assertThat(match.first().clock).isEqualTo(22 * 60)
+        assertThat(match.first().minutes).isEqualTo(60)
+        assertThat(match.first().value).isEqualTo(6 * 60)
+        assertThat(other.first().value).isEqualTo(7 * 60 + 30)
+        assertThat(match.map { it.day }.toSet()).isEqualTo(days.filterIndexed { i, _ -> i % 2 == 0 }.toSet())
+        assertThat(late.evidence.all { it.record?.type == RecordType.MEAL }).isTrue()
         assertThat(late.facts().toString()).doesNotContain(LocalDate.ofEpochDay(late.evidence.first().day).toString())
     }
 
@@ -114,8 +122,10 @@ class InsightEngineTest {
         val late = run(meals = days.mapIndexed { i, d -> meal(d, if (i < 10) 22 else 19, 30) }).find<LateMeals>()!!
         assertThat(late.beforeSleep).isFalse()
         assertThat(late.lateDays).isEqualTo(10)
-        assertThat(late.evidence.map { it.day }.toSet()).isEqualTo(days.take(10).toSet())
-        assertThat(late.evidence.all { it.clock == 22 * 60 + 30 }).isTrue()
+        val match = late.evidence.filter { it.group == EvidenceGroup.MATCH }
+        assertThat(match.map { it.day }.toSet()).isEqualTo(days.take(10).toSet())
+        assertThat(match.all { it.clock == 22 * 60 + 30 }).isTrue()
+        assertThat(late.evidence.filter { it.group == EvidenceGroup.OTHER }.map { it.day }.toSet()).isEqualTo(days.drop(10).toSet())
     }
 
     @Test
@@ -143,8 +153,12 @@ class InsightEngineTest {
         assertThat(caffeine.bedtimeShiftMinutes).isEqualTo(120)
         assertThat(caffeine.sleepDifferenceMinutes).isEqualTo(-120)
         assertThat(caffeine.lateDays).isEqualTo(14)
-        assertThat(caffeine.evidence).hasSize(14)
-        assertThat(caffeine.evidence.all { it.clock == 17 * 60 && it.minutes == 6 * 60 }).isTrue()
+        val (match, other) = caffeine.evidence.partition { it.group == EvidenceGroup.MATCH }
+        assertThat(match).hasSize(14)
+        assertThat(match.all { it.clock == 17 * 60 && it.minutes == 6 * 60 && it.record?.type == RecordType.DRINK }).isTrue()
+        // Nights without late coffee are listed too, with their sleep and nothing to open but the day.
+        assertThat(other).hasSize(14)
+        assertThat(other.all { it.clock == null && it.minutes == 8 * 60 && it.record == null }).isTrue()
     }
 
     @Test

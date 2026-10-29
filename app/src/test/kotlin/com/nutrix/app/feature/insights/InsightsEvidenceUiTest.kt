@@ -105,18 +105,41 @@ class InsightsEvidenceUiTest {
         scrollTo("insight-faded")
         assertThat(compose.onAllNodesWithTag("insight-long_gaps").fetchSemanticsNodes()).isEmpty()
 
-        // Every counted evening can be opened.
-        scrollTo("insight-days-late_meals")
-        compose.onNodeWithTag("insight-days-late_meals").performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithTag("insight-evidence").fetchSemanticsNodes().isNotEmpty() }
+        // Every counted evening can be opened, the late ones and the ones they are compared with.
+        fun openEvidence(button: String) {
+            scrollTo(button)
+            compose.onNodeWithTag(button).performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("insight-evidence").fetchSemanticsNodes().isNotEmpty() }
+        }
+        openEvidence("insight-days-late_meals")
+        compose.onNodeWithTag("insight-evidence-match").assertExists()
+        compose.waitUntil(10_000) {
+            runCatching { compose.onNodeWithTag("insight-evidence").performScrollToNode(hasTestTag("insight-evidence-other")) }.isSuccess
+        }
         repeat(10) { Thread.sleep(50); compose.mainClock.advanceTimeBy(100); compose.waitForIdle() }
         scenario.onActivity { UiScreenshot.capture(it, "47-insights-evidence") }
+        // A line opens the meal itself: the latest late dinner.
+        compose.onNodeWithTag("insight-evidence").performScrollToNode(hasTestTag("insight-evidence-record"))
+        compose.onAllNodesWithTag("insight-evidence-record").onFirst().performClick()
+        waitFor("Поздний ужин")
+        scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        // The date opens the whole day.
+        openEvidence("insight-days-late_meals")
         val latest = LocalDate.now().minusDays(2)
         compose.onAllNodesWithText(com.nutrix.app.core.time.Formatters.dayMonthShort(latest), substring = true).onFirst().performClick()
         waitFor("Поздний ужин")
+        scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+
+        // A pattern that did not come back shows the earlier weeks it was based on.
+        openEvidence("insight-faded-days-long_gaps")
+        compose.onNodeWithTag("insight-evidence-match").assertExists()
+        // Its days open like any other (the sheet closes with the jump).
+        compose.onAllNodesWithTag("insight-evidence-day").onFirst().performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("insight-evidence").fetchSemanticsNodes().isEmpty() }
+        waitFor("Обед")
+        scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
 
         // Choosing a topic is remembered and moves its observations up.
-        scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         scrollTo("insight-topics-toggle")
         compose.onNodeWithTag("insight-topics-toggle").performClick()
         waitFor("Режим питания")

@@ -14,7 +14,29 @@ enum class Recurrence {
     OTHER_BASIS,
 }
 
-data class InsightHistory(val recurrence: Recurrence, val previous: Insight?, val previousBasis: String? = null)
+/** One value in both windows. */
+data class Change(val key: String, val kind: MeasureKind, val before: Double, val after: Double) {
+    /** after − before; times of day take the short way round midnight. */
+    val delta: Double get() = (after - before).let { d -> if (kind == MeasureKind.CLOCK) ((d + 720).mod(1440.0)) - 720 else d }
+
+    /** Small wobbles of an estimate are not worth a sentence. */
+    val noticeable: Boolean get() = kotlin.math.abs(delta) >= when (kind) {
+        MeasureKind.STEPS, MeasureKind.KCAL, MeasureKind.GRAMS -> maxOf(kind.noticeable, kotlin.math.abs(before) * 0.1)
+        else -> kind.noticeable
+    } - 1e-9
+}
+
+data class InsightHistory(
+    val recurrence: Recurrence,
+    val previous: Insight?,
+    val previousBasis: String? = null,
+    /** Values of comparable observations in both windows, most telling first. */
+    val changes: List<Change> = emptyList(),
+    /** Thresholds derived from the data that moved noticeably, such as where a large portion starts. */
+    val paramChanges: List<Change> = emptyList(),
+) {
+    val noticeableChanges: List<Change> get() = changes.filter { it.noticeable }
+}
 
 /**
  * Splits history into the analysis window and the window before it, so an observation found once is
@@ -32,9 +54,17 @@ object InsightComparison {
             check.state == RuleState.NOT_ENOUGH_DATA -> InsightHistory(Recurrence.NO_BASELINE, null)
             check.basis != current.basis -> InsightHistory(Recurrence.OTHER_BASIS, null, check.basis)
             before == null -> InsightHistory(Recurrence.NEW, null)
-            before.tone == current.tone -> InsightHistory(Recurrence.REPEATS, before)
-            else -> InsightHistory(Recurrence.CHANGED, before)
+            else -> InsightHistory(
+                if (before.tone == current.tone) Recurrence.REPEATS else Recurrence.CHANGED,
+                before,
+                changes = pair(before.measures(), current.measures()),
+                paramChanges = pair(before.params(), current.params()).filter { it.noticeable },
+            )
         }
+    }
+
+    private fun pair(before: List<Measure>, after: List<Measure>): List<Change> = after.mapNotNull { a ->
+        before.firstOrNull { it.key == a.key && it.kind == a.kind }?.let { b -> Change(a.key, a.kind, b.value, a.value) }
     }
 
     /** Patterns of the earlier weeks that the latest weeks checked on the same basis and did not find. */

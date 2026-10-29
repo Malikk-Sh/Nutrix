@@ -9,6 +9,24 @@ enum class InsightTone { POSITIVE, NEUTRAL, ATTENTION }
 
 enum class EvidenceKind { LATE_BEFORE_SLEEP, LATE_CLOCK, LONG_GAP, SHORT_NIGHT, LATE_COFFEE, LARGE_DISCOMFORT, SYMPTOM_AFTER_GAP }
 
+/** How a measured value is read and when a difference between two windows is worth saying. */
+enum class MeasureKind(val noticeable: Double) {
+    /** Minute of the day; differences wrap around midnight. */
+    CLOCK(30.0),
+    MINUTES(20.0),
+    /** 0..1; differences in percentage points. */
+    SHARE(0.10),
+    ML(200.0),
+    KCAL(150.0),
+    GRAMS(10.0),
+    STEPS(1000.0),
+    KG_PER_WEEK(0.1),
+    COUNT(0.5),
+}
+
+/** A value of an observation that can be compared with the same value of the earlier weeks. */
+data class Measure(val key: String, val kind: MeasureKind, val value: Double)
+
 /**
  * One diary day behind a pattern, so the user can open it and check the claim. Stays on the phone:
  * it is never part of [Insight.facts].
@@ -20,9 +38,22 @@ data class EvidenceDay(
     val clock: Int? = null,
     /** A duration in minutes: before sleep, the gap, the night. */
     val minutes: Int? = null,
-    /** A size: kcal of the day, grams or kcal of the portion. */
+    /** A size: kcal of the day, grams or kcal of the portion, minutes of sleep. */
     val value: Int? = null,
+    /** The days the pattern is about, or the days it is compared with. */
+    val group: EvidenceGroup = EvidenceGroup.MATCH,
+    /** The outcome where it is a yes/no, such as an unpleasant feeling after the meal. */
+    val flag: Boolean? = null,
+    /** The record to open: a meal or a symptom; null opens the day. */
+    val record: RecordRef? = null,
 )
+
+enum class EvidenceGroup { MATCH, OTHER }
+
+/** A local record behind an evidence line; only its id, never its text. */
+data class RecordRef(val type: RecordType, val id: Long)
+
+enum class RecordType { MEAL, SYMPTOM, DRINK }
 
 /**
  * A local observation about the user's own records over the analysis window.
@@ -45,6 +76,10 @@ sealed interface Insight {
     val evidence: List<EvidenceDay> get() = emptyList()
     /** Which variant of the rule produced it; two windows are comparable only on the same basis. */
     val basis: String get() = DEFAULT_BASIS
+    /** Comparable values, most telling first. */
+    fun measures(): List<Measure> = emptyList()
+    /** Thresholds the rule derived from the user's own data; they may move between windows. */
+    fun params(): List<Measure> = emptyList()
 
     /** Compact, language-neutral facts for the optional AI review. Never includes free text from the diary. */
     fun facts(): Map<String, Any>
@@ -55,7 +90,7 @@ sealed interface Insight {
 }
 
 /** Distinct days behind a pattern: several episodes of one day count once. */
-val Insight.evidenceDays: List<Long> get() = evidence.map { it.day }.distinct()
+val Insight.evidenceDays: List<Long> get() = evidence.filter { it.group == EvidenceGroup.MATCH }.map { it.day }.distinct()
 
 enum class RuleState { FOUND, NOT_FOUND, NOT_ENOUGH_DATA }
 
@@ -88,6 +123,13 @@ data class MealRhythm(
         firstSpreadMinutes <= 60 -> InsightTone.POSITIVE
         else -> InsightTone.NEUTRAL
     }
+    override fun measures() = listOf(
+        Measure("first_meal", MeasureKind.CLOCK, (firstMedian).toDouble()),
+        Measure("last_meal", MeasureKind.CLOCK, (lastMedian).toDouble()),
+        Measure("eating_window", MeasureKind.MINUTES, (windowMedianMinutes).toDouble()),
+        Measure("first_meal_spread", MeasureKind.MINUTES, (firstSpreadMinutes).toDouble()),
+        Measure("meals_per_day", MeasureKind.COUNT, (mealsPerDay).toDouble()),
+    )
     override fun facts() = mapOf(
         "days" to days, "first_meal_median" to clock(firstMedian), "last_meal_median" to clock(lastMedian),
         "eating_window_median_min" to windowMedianMinutes, "first_meal_spread_min" to firstSpreadMinutes,
@@ -117,6 +159,9 @@ data class LateMeals(
         const val AFTER_22 = "after_22_00"
     }
 
+    override fun measures() = listOf(
+        Measure("late_share", MeasureKind.SHARE, (lateDays / days.toDouble()).toDouble()),
+    ) + sleepDifferenceMinutes?.let { listOf(Measure("sleep_difference", MeasureKind.MINUTES, (it).toDouble())) }.orEmpty()
     override fun facts() = buildMap<String, Any> {
         put("days", days); put("late_days", lateDays)
         put("rule", if (beforeSleep) "last_meal_less_than_2h_before_sleep" else "last_meal_after_22_00")
@@ -134,6 +179,10 @@ data class LongGaps(
     override val id = "long_gaps"
     override val topic = InsightTopic.MEALS
     override val tone = InsightTone.NEUTRAL
+    override fun measures() = listOf(
+        Measure("gap_share", MeasureKind.SHARE, (gapDays / days.toDouble()).toDouble()),
+        Measure("longest_gap", MeasureKind.MINUTES, (longestGapMedianMinutes).toDouble()),
+    )
     override fun facts() = mapOf("days" to days, "days_with_gap_over_6h" to gapDays, "longest_gap_median_min" to longestGapMedianMinutes)
 }
 
@@ -150,6 +199,10 @@ data class NutritionSummary(
     override val id = "nutrition"
     override val topic = InsightTopic.NUTRITION
     override val tone = if (eveningShare >= 0.5) InsightTone.ATTENTION else InsightTone.NEUTRAL
+    override fun measures() = listOf(
+        Measure("kcal", MeasureKind.KCAL, (kcal).toDouble()),
+        Measure("evening_share", MeasureKind.SHARE, (eveningShare).toDouble()),
+    ) + listOfNotNull(protein?.let { Measure("protein", MeasureKind.GRAMS, (it).toDouble()) }, fat?.let { Measure("fat", MeasureKind.GRAMS, (it).toDouble()) }, carbs?.let { Measure("carbs", MeasureKind.GRAMS, (it).toDouble()) })
     override fun facts() = buildMap<String, Any> {
         put("days_with_estimates", days); put("kcal_per_day_avg", kcal)
         protein?.let { put("protein_g_per_day_avg", it) }
@@ -172,6 +225,10 @@ data class SleepAndEating(
     override val topic = InsightTopic.NUTRITION
     override val tone = if (kcalDifference > 0) InsightTone.ATTENTION else InsightTone.NEUTRAL
     override val isLink = true
+    override fun measures() = listOf(
+        Measure("kcal_difference", MeasureKind.KCAL, (kcalDifference).toDouble()),
+    )
+    override fun params() = listOf(Measure("short_night_below", MeasureKind.MINUTES, (shortThresholdMinutes).toDouble()))
     override fun facts() = mapOf(
         "days" to days, "short_nights" to shortNights, "short_night_below_min" to shortThresholdMinutes,
         "kcal_next_day_after_short_vs_other" to kcalDifference,
@@ -195,6 +252,10 @@ data class FluidSummary(
         goalDays < days * 0.4 -> InsightTone.ATTENTION
         else -> InsightTone.NEUTRAL
     }
+    override fun measures() = listOf(
+        Measure("fluid", MeasureKind.ML, (medianMl).toDouble()),
+        Measure("morning_share", MeasureKind.SHARE, (morningShare).toDouble()),
+    ) + if (goalMl != null) listOf(Measure("goal_share", MeasureKind.SHARE, (goalDays / days.toDouble()).toDouble())) else emptyList()
     override fun facts() = buildMap<String, Any> {
         put("days", days); put("fluid_ml_median", medianMl); put("share_before_14_00_median", round2(morningShare))
         goalMl?.let { put("user_guideline_ml", it); put("days_guideline_reached", goalDays) }
@@ -214,6 +275,11 @@ data class LateCaffeine(
     override val topic = InsightTopic.SLEEP
     override val tone = InsightTone.ATTENTION
     override val isLink = true
+    override fun measures() = listOf(
+        Measure("bedtime_shift", MeasureKind.MINUTES, (bedtimeShiftMinutes).toDouble()),
+        Measure("sleep_difference", MeasureKind.MINUTES, (sleepDifferenceMinutes).toDouble()),
+        Measure("late_coffee_share", MeasureKind.SHARE, (lateDays / days.toDouble()).toDouble()),
+    )
     override fun facts() = mapOf(
         "nights" to days, "nights_after_coffee_after_16_00" to lateDays,
         "bedtime_later_by_min" to bedtimeShiftMinutes, "sleep_vs_other_nights_min" to sleepDifferenceMinutes,
@@ -236,6 +302,11 @@ data class SleepRhythm(
         bedtimeSpreadMinutes <= 45 && (weekendShiftMinutes ?: 0) < 60 -> InsightTone.POSITIVE
         else -> InsightTone.NEUTRAL
     }
+    override fun measures() = listOf(
+        Measure("sleep", MeasureKind.MINUTES, (durationMedianMinutes).toDouble()),
+        Measure("bedtime", MeasureKind.CLOCK, (bedtimeMedian).toDouble()),
+        Measure("bedtime_spread", MeasureKind.MINUTES, (bedtimeSpreadMinutes).toDouble()),
+    ) + weekendShiftMinutes?.let { listOf(Measure("weekend_shift", MeasureKind.MINUTES, (it).toDouble())) }.orEmpty()
     override fun facts() = buildMap<String, Any> {
         put("nights", days); put("sleep_median_min", durationMedianMinutes); put("bedtime_median", clock(bedtimeMedian))
         put("bedtime_spread_min", bedtimeSpreadMinutes)
@@ -258,6 +329,9 @@ data class WeightTrend(
         (toTargetKg < 0) == (kgPerWeek < 0) -> InsightTone.POSITIVE
         else -> InsightTone.ATTENTION
     }
+    override fun measures() = listOf(
+        Measure("trend", MeasureKind.KG_PER_WEEK, (kgPerWeek).toDouble()),
+    )
     override fun facts() = buildMap<String, Any> {
         put("measurement_days", days); put("span_days", spanDays); put("trend_kg_per_week", round2(kgPerWeek))
         toTargetKg?.let { put("user_target_minus_current_kg", round1(it)) }
@@ -279,6 +353,9 @@ data class StepsTrend(
         change >= 0.2 -> InsightTone.POSITIVE
         else -> InsightTone.NEUTRAL
     }
+    override fun measures() = listOf(
+        Measure("steps", MeasureKind.STEPS, (medianSteps).toDouble()),
+    )
     override fun facts() = mapOf(
         "days" to days, "steps_median" to medianSteps, "last_7_days_avg" to recentAverage, "earlier_days_avg" to earlierAverage,
     )
@@ -306,6 +383,11 @@ data class MealDiscomfort(
         const val BY_KCAL = "portion_kcal"
     }
 
+    override fun measures() = listOf(
+        Measure("large_share", MeasureKind.SHARE, (largeWith / largeTotal.toDouble()).toDouble()),
+        Measure("other_share", MeasureKind.SHARE, (otherWith / otherTotal.toDouble()).toDouble()),
+    )
+    override fun params() = listOfNotNull(largeFromGrams?.let { Measure("large_from", MeasureKind.GRAMS, (it).toDouble()) }, largeFromKcal?.let { Measure("large_from", MeasureKind.KCAL, (it).toDouble()) })
     override fun facts() = buildMap<String, Any> {
         put("large_portions_with_discomfort", largeWith); put("large_portions", largeTotal)
         put("other_meals_with_discomfort", otherWith); put("other_meals", otherTotal)
@@ -327,6 +409,10 @@ data class SymptomsAfterGaps(
     override val topic = InsightTopic.WELLBEING
     override val tone = InsightTone.ATTENTION
     override val isLink = true
+    override fun measures() = listOf(
+        Measure("after_gap_share", MeasureKind.SHARE, (afterGap / episodes.toDouble()).toDouble()),
+        Measure("baseline", MeasureKind.SHARE, (baselineShare).toDouble()),
+    )
     override fun facts() = mapOf(
         "episodes_weakness_dizziness_tremor_sweating" to episodes, "episodes_over_5h_after_meal" to afterGap,
         "share_of_daytime_over_5h_after_meal" to round2(baselineShare),

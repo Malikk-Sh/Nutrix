@@ -63,7 +63,7 @@ class InsightsViewModel @Inject constructor(
             consent = s.aiReviewConsent,
             paidProject = s.aiPaidProject,
             review = cached,
-            reviewStale = cached != null && cached.payloadHash != InsightReviewPayload.fingerprint(payload),
+            reviewStale = cached != null && cached.payloadHash != InsightReviewPayload.fingerprint(payload, s.geminiModel),
             reviewing = r.running,
             error = r.error,
             payloadPreview = InsightReviewPayload.pretty(payload),
@@ -100,7 +100,7 @@ class InsightsViewModel @Inject constructor(
                 val report = insights.current()
                 val payload = InsightReviewPayload.build(report)
                 val (review, model) = reviewer.review(payload, InsightReviewPayload.ids(report))
-                val cached = CachedReview(InsightReviewPayload.fingerprint(payload), System.currentTimeMillis(), model, review)
+                val cached = CachedReview(InsightReviewPayload.fingerprint(payload, model), System.currentTimeMillis(), model, review)
                 settings.setAiReviewCache(json.encodeToString(CachedReview.serializer(), cached))
                 run.value = ReviewRun()
             } catch (cancelled: CancellationException) {

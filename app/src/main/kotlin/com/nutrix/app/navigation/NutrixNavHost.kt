@@ -1,5 +1,7 @@
 package com.nutrix.app.navigation
 
+import com.nutrix.app.domain.insights.RecordType
+
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -255,7 +257,14 @@ fun NutrixNavHost(
                     composable<AnalyticsRoute> { AnalyticsScreen(bottomPadding, onOpenInsights = { nav.navigate(InsightsRoute) }) }
                     composable<InsightsRoute> {
                         InsightsScreen(onBack = nav::popBackStack, onOpenGeminiSettings = { nav.navigate(GeminiSettingsRoute) },
-                            onOpenDay = { nav.navigate(DayRoute(it)) })
+                            onOpenDay = { nav.navigate(DayRoute(it)) },
+                            onOpenRecord = { ref ->
+                                when (ref.type) {
+                                    RecordType.MEAL -> nav.navigate(FoodEditorRoute(mealId = ref.id))
+                                    RecordType.SYMPTOM -> nav.navigate(SymptomEditorRoute(symptomId = ref.id))
+                                    RecordType.DRINK -> nav.navigate(DrinkEditorRoute(drinkId = ref.id))
+                                }
+                            })
                     }
                     composable<ProfileRoute> {
                         ProfileScreen(

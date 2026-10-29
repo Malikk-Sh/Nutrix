@@ -128,11 +128,11 @@ object InsightEngine {
 
     private fun lateMeals(byDay: Map<Long, List<MealEntity>>, nights: Map<Long, List<SleepEntity>>): Outcome {
         if (byDay.size < MIN_DAYS) return Outcome.NoData
-        data class Evening(val day: Long, val gap: Int, val sleep: Int, val last: Int) { val late get() = gap < BEFORE_SLEEP_MINUTES }
+        data class Evening(val day: Long, val gap: Int, val sleep: Int, val last: Int, val meal: Long) { val late get() = gap < BEFORE_SLEEP_MINUTES }
         val withSleep = byDay.mapNotNull { (day, list) ->
             val start = sleepStart(day, nights) ?: return@mapNotNull null
             val gap = ((start - list.last().epochMillis) / 60_000).toInt()
-            if (gap <= 0) null else Evening(day, gap, SleepTotals.minutes(nights.getValue(day + 1)), list.last().minute())
+            if (gap <= 0) null else Evening(day, gap, SleepTotals.minutes(nights.getValue(day + 1)), list.last().minute(), list.last().id)
         }
         if (withSleep.size >= MIN_DAYS) {
             val late = withSleep.filter { it.late }
@@ -141,26 +141,37 @@ object InsightEngine {
             val diff = if (late.size >= MIN_GROUP && other.size >= MIN_GROUP)
                 (late.map { it.sleep }.average() - other.map { it.sleep }.average()).roundToInt().takeIf { abs(it) >= 20 } else null
             return Outcome.Found(LateMeals(withSleep.size, late.size, beforeSleep = true, sleepDifferenceMinutes = diff,
-                evidence = late.map { EvidenceDay(it.day, EvidenceKind.LATE_BEFORE_SLEEP, clock = it.last, minutes = it.gap) }.newestFirst()))
+                // Both groups, so "shorter sleep after late evenings" can be checked against the other evenings.
+                evidence = withSleep.map {
+                    EvidenceDay(it.day, EvidenceKind.LATE_BEFORE_SLEEP, clock = it.last, minutes = it.gap, value = it.sleep,
+                        group = if (it.late) EvidenceGroup.MATCH else EvidenceGroup.OTHER, record = RecordRef(RecordType.MEAL, it.meal))
+                }.newestFirst()))
         }
         val late = byDay.filterValues { it.last().minute() >= LATE_MEAL }
         if (late.size < 3 || late.size < byDay.size * 0.3) return Outcome.Absent(LateMeals.AFTER_22)
         return Outcome.Found(LateMeals(byDay.size, late.size, beforeSleep = false, sleepDifferenceMinutes = null,
-            evidence = late.map { (day, l) -> EvidenceDay(day, EvidenceKind.LATE_CLOCK, clock = l.last().minute()) }.newestFirst()))
+            evidence = byDay.map { (day, l) ->
+                EvidenceDay(day, EvidenceKind.LATE_CLOCK, clock = l.last().minute(),
+                    group = if (day in late) EvidenceGroup.MATCH else EvidenceGroup.OTHER, record = RecordRef(RecordType.MEAL, l.last().id))
+            }.newestFirst()))
     }
 
     private fun longGaps(byDay: Map<Long, List<MealEntity>>): Outcome {
         val multi = byDay.filterValues { it.size >= 2 }
         if (multi.size < MIN_DAYS) return Outcome.NoData
         // The longest gap of each day and the meal it starts after.
+        data class Gap(val day: Long, val from: MealEntity, val minutes: Int)
         val longest = multi.map { (day, list) ->
             val (from, to) = list.zipWithNext().maxBy { (a, b) -> b.epochMillis - a.epochMillis }
-            Triple(day, from.minute(), ((to.epochMillis - from.epochMillis) / 60_000).toInt())
+            Gap(day, from, ((to.epochMillis - from.epochMillis) / 60_000).toInt())
         }
-        val gaps = longest.filter { it.third > LONG_GAP_MINUTES }
+        val gaps = longest.filter { it.minutes > LONG_GAP_MINUTES }
         if (gaps.size < 3 || gaps.size < multi.size * 0.25) return Outcome.Absent()
-        return Outcome.Found(LongGaps(multi.size, gaps.size, median(longest.map { it.third }).roundToInt(),
-            evidence = gaps.map { (day, from, gap) -> EvidenceDay(day, EvidenceKind.LONG_GAP, clock = from, minutes = gap) }.newestFirst()))
+        return Outcome.Found(LongGaps(multi.size, gaps.size, median(longest.map { it.minutes }).roundToInt(),
+            evidence = longest.map {
+                EvidenceDay(it.day, EvidenceKind.LONG_GAP, clock = it.from.minute(), minutes = it.minutes,
+                    group = if (it.minutes > LONG_GAP_MINUTES) EvidenceGroup.MATCH else EvidenceGroup.OTHER, record = RecordRef(RecordType.MEAL, it.from.id))
+            }.newestFirst()))
     }
 
     /** Days where at least two meals and most of the day's meals carry a calorie estimate. */
@@ -207,7 +218,10 @@ object InsightEngine {
         val diff = (short.map { it.third }.average() - other.map { it.third }.average()).roundToInt()
         if (abs(diff) < 200) return Outcome.Absent()
         return Outcome.Found(SleepAndEating(pairs.size, short.size, threshold, diff,
-            evidence = short.map { (day, sleep, kcal) -> EvidenceDay(day, EvidenceKind.SHORT_NIGHT, minutes = sleep, value = kcal) }.newestFirst()))
+            evidence = pairs.map { (day, sleep, kcal) ->
+                EvidenceDay(day, EvidenceKind.SHORT_NIGHT, minutes = sleep, value = kcal,
+                    group = if (sleep < threshold) EvidenceGroup.MATCH else EvidenceGroup.OTHER)
+            }.newestFirst()))
     }
 
     private fun fluid(input: InsightInput, range: LongRange): Outcome {
@@ -231,13 +245,13 @@ object InsightEngine {
 
     private fun lateCaffeine(input: InsightInput, range: LongRange, nights: Map<Long, List<SleepEntity>>): Outcome {
         val drinkDays = input.records.drinks.filter { it.localDate in range }.groupBy { it.localDate }
-        data class Night(val day: Long, val coffee: Int?, val bedtime: Int, val sleep: Int)
+        data class Night(val day: Long, val coffee: Int?, val drink: Long?, val bedtime: Int, val sleep: Int)
         val rows = drinkDays.mapNotNull { (day, list) ->
             val night = nights[day + 1] ?: return@mapNotNull null
             val main = night.maxBy { it.durationMinutes }
-            val coffee = list.filter { it.drinkType == DrinkType.COFFEE }.map { minuteOf(it.epochMillis, it.zoneId) }.filter { it >= LATE_COFFEE }.maxOrNull()
+            val coffee = list.filter { it.drinkType == DrinkType.COFFEE && minuteOf(it.epochMillis, it.zoneId) >= LATE_COFFEE }.maxByOrNull { it.epochMillis }
             val bedtime = TimeUtils.bedtimeMinutesFromEvening(TimeUtils.localDateTime(main.startMillis, main.zoneId).toLocalTime())
-            Night(day, coffee, bedtime, SleepTotals.minutes(night))
+            Night(day, coffee?.let { minuteOf(it.epochMillis, it.zoneId) }, coffee?.id, bedtime, SleepTotals.minutes(night))
         }
         val late = rows.filter { it.coffee != null }
         val other = rows.filter { it.coffee == null }
@@ -246,7 +260,10 @@ object InsightEngine {
         val sleep = (late.map { it.sleep }.average() - other.map { it.sleep }.average()).roundToInt()
         if (shift < 20 && sleep > -20) return Outcome.Absent()
         return Outcome.Found(LateCaffeine(rows.size, late.size, shift, sleep,
-            evidence = late.map { EvidenceDay(it.day, EvidenceKind.LATE_COFFEE, clock = it.coffee, minutes = it.sleep) }.newestFirst()))
+            evidence = rows.map {
+                EvidenceDay(it.day, EvidenceKind.LATE_COFFEE, clock = it.coffee, minutes = it.sleep,
+                    group = if (it.coffee != null) EvidenceGroup.MATCH else EvidenceGroup.OTHER, record = it.drink?.let { id -> RecordRef(RecordType.DRINK, id) })
+            }.newestFirst()))
     }
 
     private fun sleepRhythm(nights: Map<Long, List<SleepEntity>>): Outcome {
@@ -323,8 +340,11 @@ object InsightEngine {
             largeWith = largeWith, largeTotal = large.size, otherWith = otherWith, otherTotal = other.size,
             largeFromGrams = if (byGrams) largeFrom else null,
             largeFromKcal = if (byGrams) null else largeFrom,
-            evidence = sized.filter { (m, size) -> size >= threshold && bad(m) }
-                .map { (m, size) -> EvidenceDay(m.localDate, EvidenceKind.LARGE_DISCOMFORT, clock = m.minute(), value = size.roundToInt()) }.newestFirst(),
+            // Every rated, sized meal: large and other portions, with and without an unpleasant feeling.
+            evidence = sized.map { (m, size) ->
+                EvidenceDay(m.localDate, EvidenceKind.LARGE_DISCOMFORT, clock = m.minute(), value = size.roundToInt(),
+                    group = if (size >= threshold) EvidenceGroup.MATCH else EvidenceGroup.OTHER, flag = bad(m), record = RecordRef(RecordType.MEAL, m.id))
+            }.newestFirst(),
         ))
     }
 
@@ -348,8 +368,9 @@ object InsightEngine {
         val baseline = if (samples.isEmpty()) 0.0 else gapSamples / samples.size.toDouble()
         if (afterGap < 3 || afterGap / episodes.size.toDouble() < baseline + 0.3) return Outcome.Absent()
         return Outcome.Found(SymptomsAfterGaps(episodes.map { it.localDate }.distinct().size, episodes.size, afterGap, baseline,
-            evidence = afterGapEpisodes.map { s ->
-                EvidenceDay(s.localDate, EvidenceKind.SYMPTOM_AFTER_GAP, clock = minuteOf(s.epochMillis, s.zoneId), minutes = sinceMeal(s.epochMillis)?.toInt())
+            evidence = episodes.map { s ->
+                EvidenceDay(s.localDate, EvidenceKind.SYMPTOM_AFTER_GAP, clock = minuteOf(s.epochMillis, s.zoneId), minutes = sinceMeal(s.epochMillis)?.toInt(),
+                    group = if (s in afterGapEpisodes) EvidenceGroup.MATCH else EvidenceGroup.OTHER, record = RecordRef(RecordType.SYMPTOM, s.id))
             }.newestFirst()))
     }
 

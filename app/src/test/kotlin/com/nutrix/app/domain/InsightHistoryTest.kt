@@ -6,7 +6,11 @@ import com.nutrix.app.core.model.MealType
 import com.nutrix.app.data.repository.InsightReport
 import com.nutrix.app.database.entity.MealEntity
 import com.nutrix.app.database.entity.SleepEntity
+import com.nutrix.app.domain.insights.Change
 import com.nutrix.app.domain.insights.DataCoverage
+import com.nutrix.app.domain.insights.EvidenceGroup
+import com.nutrix.app.domain.insights.MeasureKind
+import com.nutrix.app.domain.insights.RecordType
 import com.nutrix.app.domain.insights.FluidSummary
 import com.nutrix.app.domain.insights.Insight
 import com.nutrix.app.domain.insights.InsightComparison
@@ -135,11 +139,63 @@ class InsightHistoryTest {
         // Large uncomfortable portions four times on the same day, other meals small and fine.
         val same = window.last
         val meals = List(4) { i -> meal(same, 8 + i * 3, grams = 600, feelings = listOf(AfterMealFeeling.HEAVINESS)) } +
-            days(window.first..window.first + 5).flatMap { d -> listOf(meal(d, 9, grams = 200, feelings = listOf(AfterMealFeeling.NORMAL)),
+            days(window.first..window.first + 3).flatMap { d -> listOf(meal(d, 9, grams = 200, feelings = listOf(AfterMealFeeling.NORMAL)),
                 meal(d, 19, grams = 250, feelings = listOf(AfterMealFeeling.NORMAL))) }
         val discomfort = report(meals).all.filterIsInstance<MealDiscomfort>().single()
-        assertThat(discomfort.evidence).hasSize(4)
+        val large = discomfort.evidence.filter { it.group == EvidenceGroup.MATCH }
+        assertThat(large).hasSize(4)
+        assertThat(large.all { it.flag == true }).isTrue()
         assertThat(discomfort.evidenceDays).containsExactly(same)
+        // The comparison group is there too: eight other meals, none uncomfortable.
+        val rest = discomfort.evidence.filter { it.group == EvidenceGroup.OTHER }
+        assertThat(rest).hasSize(8)
+        assertThat(rest.none { it.flag == true }).isTrue()
+        assertThat(discomfort.evidence.all { it.record?.type == RecordType.MEAL }).isTrue()
+    }
+
+    @Test fun `what changed is measured and small wobbles are not reported`() {
+        // Earlier weeks: first meal at 9:00, about 1500 ml. Latest weeks: first meal at 8:00, about 1600 ml.
+        val before = days(earlier).flatMap { d -> listOf(meal(d, 9), meal(d, 19)) }
+        val after = days(window).flatMap { d -> listOf(meal(d, 8), meal(d, 19)) }
+        val r = report(before + after)
+        val rhythm = r.all.filterIsInstance<MealRhythm>().single()
+        val history = r.history(rhythm)
+        assertThat(history.recurrence).isEqualTo(Recurrence.REPEATS)
+        val first = history.changes.single { it.key == "first_meal" }
+        assertThat(first.delta).isEqualTo(-60.0)
+        assertThat(first.noticeable).isTrue()
+        // The last meal did not move, so it is not reported as a change.
+        assertThat(history.changes.single { it.key == "last_meal" }.noticeable).isFalse()
+        assertThat(history.noticeableChanges.map { it.key }).doesNotContain("last_meal")
+        // Times of day take the short way round midnight.
+        assertThat(Change("bedtime", MeasureKind.CLOCK, 23 * 60 + 50.0, 10.0).delta).isEqualTo(20.0)
+        // A cloud request gets the numbers computed here, not words to derive them from.
+        val sent = InsightReviewPayload.build(r).getValue("observations").jsonArray.map { it.jsonObject }
+            .single { it.getValue("id").jsonPrimitive.content == "meal_rhythm" }
+        val change = sent.getValue("changes").jsonArray.map { it.jsonObject }.single { it.getValue("metric").jsonPrimitive.content == "first_meal" }
+        assertThat(change.getValue("before").jsonPrimitive.content).isEqualTo("09:00")
+        assertThat(change.getValue("after").jsonPrimitive.content).isEqualTo("08:00")
+        assertThat(change.getValue("difference").jsonPrimitive.content).isEqualTo("-60")
+        assertThat(sent.getValue("previous_facts").jsonObject.getValue("first_meal_median").jsonPrimitive.content).isEqualTo("09:00")
+    }
+
+    @Test fun `a link that repeats with a moved threshold says so`() {
+        // Large portions are uncomfortable in both windows, but "large" starts at 500 g earlier and at 1000 g now.
+        fun window(range: LongRange, small: Int, large: Int) = days(range).flatMap { d ->
+            listOf(meal(d, 9, grams = small, feelings = listOf(AfterMealFeeling.NORMAL)), meal(d, 13, grams = small, feelings = listOf(AfterMealFeeling.NORMAL)),
+                meal(d, 19, grams = large, feelings = listOf(AfterMealFeeling.HEAVINESS)))
+        }
+        val r = report(window(earlier, 200, 500) + window(this.window, 400, 1000))
+        val discomfort = r.all.filterIsInstance<MealDiscomfort>().single()
+        val history = r.history(discomfort)
+        assertThat(history.recurrence).isEqualTo(Recurrence.REPEATS)
+        val moved = history.paramChanges.single()
+        assertThat(moved.key).isEqualTo("large_from")
+        assertThat(moved.before).isEqualTo(500.0)
+        assertThat(moved.after).isEqualTo(1000.0)
+        val sent = InsightReviewPayload.build(r).getValue("observations").jsonArray.map { it.jsonObject }
+            .single { it.getValue("id").jsonPrimitive.content == "meal_discomfort" }
+        assertThat(sent.getValue("param_changes").jsonArray.single().jsonObject.getValue("after").jsonPrimitive.content).isEqualTo("1000")
     }
 
     @Test fun `chosen topics come first and keep the engine order inside`() {
