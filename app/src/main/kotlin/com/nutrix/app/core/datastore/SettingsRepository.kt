@@ -278,6 +278,20 @@ class SettingsRepository @Inject constructor(
     suspend fun geminiKeyBlob(): String? = store.data.first()[Keys.geminiKeyBlob]
     val hasGeminiKey: Flow<Boolean> = store.data.map { !it[Keys.geminiKeyBlob].isNullOrBlank() }
     suspend fun setGeminiKeyBlob(blob: String?) = edit { it.setOrRemove(Keys.geminiKeyBlob, blob) }
+
+    /**
+     * Stores or removes the key together with what belonged to the previous one, in one write: the
+     * billing confirmation, the review consent and the cached review never sit next to a new key.
+     */
+    suspend fun replaceGeminiKey(blob: String?) = edit {
+        it.setOrRemove(Keys.geminiKeyBlob, blob)
+        it[Keys.aiPaidProject] = false
+        it[Keys.aiReviewConsent] = false
+        it.remove(Keys.aiReviewCache)
+    }
+
+    /** The key and its billing confirmation read from one snapshot. */
+    internal val geminiKeyState: Flow<Pair<String?, Boolean>> = store.data.map { it[Keys.geminiKeyBlob] to (it[Keys.aiPaidProject] ?: false) }
     suspend fun setGeminiModel(model: String) {
         require(com.nutrix.app.core.model.GeminiConfig.validModel(model))
         edit { it[Keys.geminiModel] = model }

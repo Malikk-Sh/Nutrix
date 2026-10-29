@@ -12,6 +12,7 @@ import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.security.SecretCipher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
@@ -61,7 +62,10 @@ class GeminiSettingsTest {
                 override fun decrypt(blob: String): ByteArray = error("not needed")
             }
             val vm = GeminiSettingsViewModel(settings, cipher, GeminiClient(GeminiProtocol(buildJsonObject { }, "")))
+            // Subscribed before any action, like the open screen.
+            val screen = launch(Dispatchers.Unconfined) { vm.state.collect { } }
             suspend fun idle(check: (GeminiSettingsState) -> Boolean) = withTimeout(10_000) { vm.state.first { it.loaded && !it.busy && check(it) } }
+            idle { !it.hasKey }
             vm.saveKey("AIza" + "x".repeat(35))
             idle { it.hasKey && !it.paidProject }
             vm.setPaidProject(true)
@@ -75,6 +79,57 @@ class GeminiSettingsTest {
             idle { it.paidProject }
             vm.removeKey()
             idle { !it.hasKey && !it.paidProject }
+            screen.cancel()
+            settings.clearAll()
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test fun `a new key never appears next to the previous key's billing confirmation`() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val settings = SettingsRepository(context).also { it.clearAll() }
+        settings.replaceGeminiKey("old-key")
+        settings.setAiPaidProject(true)
+        settings.setAiReviewConsent(true)
+        settings.setAiReviewCache("{}")
+        // Every snapshot the store publishes while the key is replaced.
+        val seen = java.util.concurrent.CopyOnWriteArrayList<Pair<String?, Boolean>>()
+        val watcher = launch(Dispatchers.Unconfined) { settings.geminiKeyState.collect { seen += it } }
+        settings.replaceGeminiKey("new-key")
+        withTimeout(10_000) { settings.geminiKeyState.first { it.first == "new-key" } }
+        watcher.cancel()
+        assertThat(seen).doesNotContain("new-key" to true)
+        val after = settings.current()
+        assertThat(after.aiPaidProject).isFalse()
+        assertThat(after.aiReviewConsent).isFalse()
+        assertThat(settings.aiReviewCache.first()).isNull()
+        settings.clearAll()
+    }
+
+    @Test fun `paid switch waits for a running key operation`() = runBlocking {
+        Dispatchers.setMain(Dispatchers.Unconfined)
+        try {
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            val settings = SettingsRepository(context).also { it.clearAll() }
+            val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+            val cipher = object : SecretCipher {
+                // The key write is held until the test lets it go.
+                override fun encrypt(plain: ByteArray): String = runBlocking { gate.await(); "sealed-" + plain.size }
+                override fun decrypt(blob: String): ByteArray = error("not needed")
+            }
+            val vm = GeminiSettingsViewModel(settings, cipher, GeminiClient(GeminiProtocol(buildJsonObject { }, "")))
+            val screen = launch(Dispatchers.Unconfined) { vm.state.collect { } }
+            withTimeout(10_000) { vm.state.first { it.loaded } }
+            vm.saveKey("AIza" + "z".repeat(35))
+            withTimeout(10_000) { vm.state.first { it.busy } }
+            // A confirmation given mid-operation (a dialog opened for the previous key) is not written at all.
+            vm.setPaidProject(true)
+            assertThat(settings.current().aiPaidProject).isFalse()
+            gate.complete(Unit)
+            withTimeout(10_000) { vm.state.first { it.loaded && !it.busy && it.hasKey } }
+            assertThat(settings.current().aiPaidProject).isFalse()
+            screen.cancel()
             settings.clearAll()
         } finally {
             Dispatchers.resetMain()

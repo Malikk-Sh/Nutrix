@@ -43,9 +43,32 @@ sealed interface Insight {
     val isPattern: Boolean get() = false
     /** The days behind a pattern, newest first. */
     val evidence: List<EvidenceDay> get() = emptyList()
+    /** Which variant of the rule produced it; two windows are comparable only on the same basis. */
+    val basis: String get() = DEFAULT_BASIS
 
     /** Compact, language-neutral facts for the optional AI review. Never includes free text from the diary. */
     fun facts(): Map<String, Any>
+
+    companion object {
+        const val DEFAULT_BASIS = "default"
+    }
+}
+
+/** Distinct days behind a pattern: several episodes of one day count once. */
+val Insight.evidenceDays: List<Long> get() = evidence.map { it.day }.distinct()
+
+enum class RuleState { FOUND, NOT_FOUND, NOT_ENOUGH_DATA }
+
+/** Whether a rule could be evaluated in a window and on which [basis] (null without enough data). */
+data class RuleCheck(val state: RuleState, val basis: String?)
+
+/** Everything one window says: what was found and how every rule fared. */
+data class Analysis(val insights: List<Insight>, val checks: Map<String, RuleCheck>) {
+    fun check(id: String): RuleCheck = checks[id] ?: RuleCheck(RuleState.NOT_ENOUGH_DATA, null)
+
+    companion object {
+        val EMPTY = Analysis(emptyList(), emptyMap())
+    }
 }
 
 data class MealRhythm(
@@ -85,7 +108,15 @@ data class LateMeals(
     override val topic = InsightTopic.MEALS
     override val tone = InsightTone.ATTENTION
     override val isPattern = true
+    override val basis get() = if (beforeSleep) BEFORE_SLEEP else AFTER_22
     override val isLink get() = sleepDifferenceMinutes != null
+    companion object {
+        /** With sleep data: less than two hours between the last meal and sleep. */
+        const val BEFORE_SLEEP = "before_sleep_2h"
+        /** Without sleep data: the last meal after 22:00. */
+        const val AFTER_22 = "after_22_00"
+    }
+
     override fun facts() = buildMap<String, Any> {
         put("days", days); put("late_days", lateDays)
         put("rule", if (beforeSleep) "last_meal_less_than_2h_before_sleep" else "last_meal_after_22_00")
@@ -266,9 +297,15 @@ data class MealDiscomfort(
 ) : Insight {
     override val isPattern = true
     override val id = "meal_discomfort"
+    override val basis get() = if (largeFromGrams != null) BY_GRAMS else BY_KCAL
     override val topic = InsightTopic.WELLBEING
     override val tone = InsightTone.ATTENTION
     override val isLink = true
+    companion object {
+        const val BY_GRAMS = "portion_grams"
+        const val BY_KCAL = "portion_kcal"
+    }
+
     override fun facts() = buildMap<String, Any> {
         put("large_portions_with_discomfort", largeWith); put("large_portions", largeTotal)
         put("other_meals_with_discomfort", otherWith); put("other_meals", otherTotal)

@@ -9,7 +9,7 @@
     <string name="insights_hide">Скрыть</string>
     <string name="insights_topics_title">Что мне интересно</string>
     <string name="insights_topics_none">Темы не выбраны: наблюдения идут по значимости</string>
-    <string name="insights_topics_hint">Выбранные темы показываются первыми — здесь, в обзоре недели и на главной. Остальные наблюдения не пропадают.</string>
+    <string name="insights_topics_hint">Выбранные темы показываются первыми — здесь, в обзоре за 4 недели и на главной. Остальные наблюдения не пропадают.</string>
     <string name="topic_meals">Режим питания</string>
     <string name="topic_nutrition">Питание</string>
     <string name="topic_fluid">Напитки</string>
@@ -20,7 +20,14 @@
     <string name="insights_new">Новое</string>
     <string name="insights_repeats">Повторяется</string>
     <string name="insights_changed">Изменилось</string>
-    <string name="insights_new_note">Предварительно: появилось только за последние 4 недели. Посмотрим, повторится ли.</string>
+    <string name="insights_new_note">Предварительно: в предыдущие 4 недели этого не было, хотя записей хватало. Посмотрим, повторится ли.</string>
+    <string name="insights_no_baseline">За предыдущие 4 недели данных для сравнения мало.</string>
+    <string name="insights_other_basis">4 недели назад это считалось иначе (%1$s), поэтому напрямую не сравнивается.</string>
+    <string name="basis_before_sleep">по сну: меньше 2 ч до сна</string>
+    <string name="basis_after_22">по времени: после 22:00</string>
+    <string name="basis_grams">по граммам порции</string>
+    <string name="basis_kcal">по калориям порции</string>
+    <string name="basis_other">по другому правилу</string>
     <string name="insights_previously">4 недели назад: %1$s</string>
     <string name="insights_repeats_same">Так же было и в предыдущие 4 недели.</string>
     <string name="insights_faded_title">Пока не повторилось</string>
@@ -123,7 +130,7 @@
     <!-- Gemini weekly review -->
     <string name="ai_review_title">Разбор недели с Gemini</string>
     <string name="ai_review_text">Gemini коротко объяснит наблюдения и предложит, на что обратить внимание в режиме. Отправляются только числа из карточек ниже — без записей, заметок, фото и имени.</string>
-    <string name="ai_review_unpaid">Облачный разбор доступен только для ключа из Cloud-проекта с подключённой оплатой. Условия бесплатного Gemini API запрещают отправлять личные сведения, поэтому с бесплатным ключом наблюдения остаются на телефоне. Обзор выше считается без интернета.</string>
+    <string name="ai_review_unpaid">Облачный разбор доступен только для ключа из Cloud-проекта с подключённой оплатой. Условия бесплатного Gemini API запрещают отправлять личные сведения, поэтому с бесплатным ключом наблюдения остаются на телефоне. Обзор за 4 недели считается без интернета.</string>
     <string name="ai_review_paid_action">Мой ключ — из платного проекта</string>
     <string name="ai_review_paid_title">Ключ из платного проекта?</string>
     <string name="ai_review_paid_text">Платным считается доступ к Gemini API через Cloud-проект с активным платёжным аккаунтом. Ключ из Google AI Studio без подключённой оплаты использует бесплатную квоту: по её условиям Google может использовать запросы для улучшения продуктов, а отправлять личные сведения запрещено.\n\nПодтвердите, только если оплата для проекта этого ключа действительно подключена.</string>
@@ -144,8 +151,8 @@
     <string name="ai_review_quota_hint">Один разбор — один запрос к Gemini; повторный запрос по тем же данным не нужен.</string>
 
     <!-- Offline weekly overview -->
-    <string name="overview_title">Обзор недели</string>
-    <string name="overview_offline">Считается на телефоне, без интернета.</string>
+    <string name="overview_title">Обзор за 4 недели</string>
+    <string name="overview_offline">%1$s — %2$s, обновляется каждый день. Считается на телефоне, без интернета.</string>
     <string name="overview_highlights">Заметное</string>
     <string name="overview_limitation">Ограничение данных</string>
     <string name="overview_action">Что можно сделать в дневнике</string>

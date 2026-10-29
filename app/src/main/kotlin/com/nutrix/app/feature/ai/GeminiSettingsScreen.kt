@@ -75,22 +75,19 @@ class GeminiSettingsViewModel @Inject constructor(
         val key = text.trim()
         if (!GeminiProtocol.validKey(key)) throw FoodAiException(FoodAiError.KEY_INVALID)
         val bytes = key.toByteArray()
-        try { settings.setGeminiKeyBlob(withContext(Dispatchers.IO) { cipher.encrypt(bytes) }) }
+        // The billing confirmation belongs to the previous key: a new one starts as free, in the same write.
+        try { settings.replaceGeminiKey(withContext(Dispatchers.IO) { cipher.encrypt(bytes) }) }
         finally { bytes.fill(0) }
-        // The billing confirmation belongs to the previous key; a new one starts as free.
-        settings.setAiPaidProject(false)
         operation.update { it.copy(keyRevision = it.keyRevision + 1, models = emptyList(), verified = false) }
     }
 
     fun removeKey() = run {
-        settings.setGeminiKeyBlob(null)
-        settings.setAiPaidProject(false)
-        operation.update { it.copy(models = emptyList(), verified = false) }
+        settings.replaceGeminiKey(null)
+        operation.update { it.copy(keyRevision = it.keyRevision + 1, models = emptyList(), verified = false) }
     }
 
-    fun setPaidProject(paid: Boolean) {
-        viewModelScope.launch { settings.setAiPaidProject(paid) }
-    }
+    /** Refused while a key is being saved or removed, so a confirmation never lands on the wrong key. */
+    fun setPaidProject(paid: Boolean) = run { settings.setAiPaidProject(paid) }
 
     fun saveModel(model: String) = run {
         if (!GeminiProtocol.validModel(model.trim())) throw FoodAiException(FoodAiError.MODEL_UNAVAILABLE)
@@ -112,7 +109,8 @@ fun GeminiSettingsScreen(onBack: () -> Unit, viewModel: GeminiSettingsViewModel 
     var paidDialog by remember { mutableStateOf(false) }
     val uri = LocalUriHandler.current
     LaunchedEffect(state.model) { model = state.model }
-    LaunchedEffect(state.keyRevision) { key = "" }
+    // A dialog opened for the previous key must not confirm the new one.
+    LaunchedEffect(state.keyRevision) { key = ""; paidDialog = false }
     NutrixScreen(title = stringResource(R.string.alignment_gemini_title), onBack = onBack) { padding ->
         ScreenList(padding) {
             item {
@@ -169,7 +167,7 @@ fun GeminiSettingsScreen(onBack: () -> Unit, viewModel: GeminiSettingsViewModel 
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Switch(state.paidProject, { if (it) paidDialog = true else viewModel.setPaidProject(false) },
-                                enabled = state.loaded, modifier = Modifier.testTag("gemini-paid-switch"))
+                                enabled = state.loaded && !state.busy, modifier = Modifier.testTag("gemini-paid-switch"))
                         }
                         InfoDisclosure(stringResource(R.string.ai_paid_how), stringResource(R.string.ai_paid_how_text), Icons.Rounded.Info)
                     }
