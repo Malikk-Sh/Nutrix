@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+
 package com.nutrix.app.core.ui.theme
 
 import android.app.Activity
@@ -18,18 +20,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import com.nutrix.app.core.model.ThemeMode
+import com.nutrix.app.R
 
 // Brand palette: deep graphite with teal, green and soft blue accents.
-private val Teal = Color(0xFF2DD4BF)
-private val TealDeep = Color(0xFF0F9C8C)
-private val Green = Color(0xFF4ADE80)
-private val GreenDeep = Color(0xFF16A34A)
-private val SoftBlue = Color(0xFF7AB4FF)
-private val BlueDeep = Color(0xFF2F6FDB)
+private val Teal = Color(0xFF54D9BA)
+private val TealDeep = Color(0xFF087F70)
+private val Green = Color(0xFF72D9A3)
+private val GreenDeep = Color(0xFF147A4C)
+private val SoftBlue = Color(0xFF80BFFF)
+private val BlueDeep = Color(0xFF2563AA)
 
 private val DarkScheme = darkColorScheme(
     primary = Teal,
@@ -44,24 +50,24 @@ private val DarkScheme = darkColorScheme(
     onTertiary = Color(0xFF04203F),
     tertiaryContainer = Color(0xFF15304F),
     onTertiaryContainer = Color(0xFFD3E4FF),
-    background = Color(0xFF0E1012),
-    onBackground = Color(0xFFE7E9EB),
-    surface = Color(0xFF0E1012),
-    onSurface = Color(0xFFE7E9EB),
-    surfaceVariant = Color(0xFF22272B),
-    onSurfaceVariant = Color(0xFFA9B0B6),
-    surfaceContainerLowest = Color(0xFF0A0C0D),
-    surfaceContainerLow = Color(0xFF14171A),
-    surfaceContainer = Color(0xFF181C1F),
-    surfaceContainerHigh = Color(0xFF1E2226),
-    surfaceContainerHighest = Color(0xFF262B30),
-    outline = Color(0xFF3A4147),
-    outlineVariant = Color(0xFF2A3035),
-    error = Color(0xFFFF8A80),
+    background = Color(0xFF101619),
+    onBackground = Color(0xFFF2F5F3),
+    surface = Color(0xFF101619),
+    onSurface = Color(0xFFF2F5F3),
+    surfaceVariant = Color(0xFF263238),
+    onSurfaceVariant = Color(0xFFACBBC0),
+    surfaceContainerLowest = Color(0xFF0C1215),
+    surfaceContainerLow = Color(0xFF141D21),
+    surfaceContainer = Color(0xFF1A2327),
+    surfaceContainerHigh = Color(0xFF222D32),
+    surfaceContainerHighest = Color(0xFF2B373D),
+    outline = Color(0xFF52656E),
+    outlineVariant = Color(0xFF334047),
+    error = Color(0xFFFF958E),
     onError = Color(0xFF3B0907),
     errorContainer = Color(0xFF4A1A17),
     onErrorContainer = Color(0xFFFFDAD6),
-    inverseSurface = Color(0xFFE7E9EB),
+    inverseSurface = Color(0xFFF2F5F3),
     inverseOnSurface = Color(0xFF1A1D20),
     scrim = Color(0xFF000000),
 )
@@ -79,19 +85,19 @@ private val LightScheme = lightColorScheme(
     onTertiary = Color.White,
     tertiaryContainer = Color(0xFFDCE8FF),
     onTertiaryContainer = Color(0xFF04203F),
-    background = Color(0xFFF4F6F7),
-    onBackground = Color(0xFF15191C),
-    surface = Color(0xFFF4F6F7),
-    onSurface = Color(0xFF15191C),
+    background = Color(0xFFF2F5F3),
+    onBackground = Color(0xFF15211F),
+    surface = Color(0xFFF2F5F3),
+    onSurface = Color(0xFF15211F),
     surfaceVariant = Color(0xFFE2E7EA),
-    onSurfaceVariant = Color(0xFF545D64),
+    onSurfaceVariant = Color(0xFF52635E),
     surfaceContainerLowest = Color.White,
-    surfaceContainerLow = Color(0xFFFAFBFB),
+    surfaceContainerLow = Color(0xFFFAFCFA),
     surfaceContainer = Color.White,
-    surfaceContainerHigh = Color(0xFFEFF2F4),
-    surfaceContainerHighest = Color(0xFFE6EAED),
-    outline = Color(0xFFBCC4CA),
-    outlineVariant = Color(0xFFDCE1E5),
+    surfaceContainerHigh = Color(0xFFEDF3EF),
+    surfaceContainerHighest = Color(0xFFE5EEE9),
+    outline = Color(0xFFB5C9BF),
+    outlineVariant = Color(0xFFD7E2DE),
     error = Color(0xFFBA1A1A),
     onError = Color.White,
     errorContainer = Color(0xFFFFDAD6),
@@ -112,20 +118,20 @@ data class CategoryColors(
 )
 
 private val DarkCategories = CategoryColors(
-    meal = Color(0xFF4ADE80),
-    water = Color(0xFF7AB4FF),
-    weight = Color(0xFF2DD4BF),
-    sleep = Color(0xFFA5A6F6),
-    activity = Color(0xFFF7C35F),
-    symptom = Color(0xFFFF9F7A),
-    note = Color(0xFFB8C0C6),
-    heart = Color(0xFFFF7A90),
+    meal = Color(0xFF72D9A3),
+    water = Color(0xFF80BFFF),
+    weight = Color(0xFF54D9BA),
+    sleep = Color(0xFFB5A8F5),
+    activity = Color(0xFFF0C36A),
+    symptom = Color(0xFFF7AB91),
+    note = Color(0xFFB9C7CD),
+    heart = Color(0xFFF58EA7),
 )
 
 private val LightCategories = CategoryColors(
-    meal = Color(0xFF16A34A),
-    water = Color(0xFF2F6FDB),
-    weight = Color(0xFF0F9C8C),
+    meal = Color(0xFF147A4C),
+    water = Color(0xFF2563AA),
+    weight = Color(0xFF087F70),
     sleep = Color(0xFF5B5BD6),
     activity = Color(0xFFB7791F),
     symptom = Color(0xFFD9541E),
@@ -135,28 +141,42 @@ private val LightCategories = CategoryColors(
 
 val LocalCategoryColors = staticCompositionLocalOf { DarkCategories }
 
+private val NutrixFont = FontFamily(
+    Font(R.font.golos_text, weight = FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
+    Font(R.font.golos_text, weight = FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
+    Font(R.font.golos_text, weight = FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
+    Font(R.font.golos_text, weight = FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
+)
+
 private val NutrixTypography = Typography().run {
     copy(
-        displaySmall = displaySmall.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp),
-        headlineLarge = headlineLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp),
-        headlineMedium = headlineMedium.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.25).sp),
-        headlineSmall = headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-        titleLarge = titleLarge.copy(fontWeight = FontWeight.SemiBold),
-        titleMedium = titleMedium.copy(fontWeight = FontWeight.SemiBold),
-        titleSmall = titleSmall.copy(fontWeight = FontWeight.Medium),
-        labelLarge = labelLarge.copy(fontWeight = FontWeight.Medium),
+        displayLarge = displayLarge.copy(fontFamily = NutrixFont, fontWeight = FontWeight.SemiBold, letterSpacing = (-1).sp),
+        displayMedium = displayMedium.copy(fontFamily = NutrixFont, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.8).sp),
+        displaySmall = displaySmall.copy(fontFamily = NutrixFont, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.6).sp),
+        headlineLarge = headlineLarge.copy(fontFamily = NutrixFont, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.6).sp),
+        headlineMedium = headlineMedium.copy(fontFamily = NutrixFont, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp),
+        headlineSmall = headlineSmall.copy(fontFamily = NutrixFont, fontSize = 23.sp, lineHeight = 29.sp, fontWeight = FontWeight.SemiBold),
+        titleLarge = titleLarge.copy(fontFamily = NutrixFont, fontSize = 21.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold),
+        titleMedium = titleMedium.copy(fontFamily = NutrixFont, fontWeight = FontWeight.SemiBold),
+        titleSmall = titleSmall.copy(fontFamily = NutrixFont, fontWeight = FontWeight.Medium),
+        bodyLarge = bodyLarge.copy(fontFamily = NutrixFont),
+        bodyMedium = bodyMedium.copy(fontFamily = NutrixFont, lineHeight = 21.sp),
+        bodySmall = bodySmall.copy(fontFamily = NutrixFont, lineHeight = 18.sp),
+        labelLarge = labelLarge.copy(fontFamily = NutrixFont, fontWeight = FontWeight.Medium),
+        labelMedium = labelMedium.copy(fontFamily = NutrixFont, fontWeight = FontWeight.Medium),
+        labelSmall = labelSmall.copy(fontFamily = NutrixFont, fontWeight = FontWeight.Medium),
     )
 }
 
 /** Large numbers on cards. */
-val MetricTextStyle = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp)
+val MetricTextStyle = TextStyle(fontFamily = NutrixFont, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.7).sp, fontFeatureSettings = "tnum")
 
 private val NutrixShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(18.dp),
-    large = RoundedCornerShape(24.dp),
-    extraLarge = RoundedCornerShape(32.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(28.dp),
 )
 
 @Composable
@@ -192,6 +212,6 @@ fun NutrixTheme(themeMode: ThemeMode = ThemeMode.DARK, content: @Composable () -
 
 object NutrixTokens {
     val ScreenPadding = 16.dp
-    val CardPadding = 18.dp
-    val CardSpacing = 12.dp
+    val CardPadding = 14.dp
+    val CardSpacing = 10.dp
 }

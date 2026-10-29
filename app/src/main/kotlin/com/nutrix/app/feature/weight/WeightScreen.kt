@@ -1,5 +1,6 @@
 package com.nutrix.app.feature.weight
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -47,9 +48,14 @@ import com.nutrix.app.core.ui.charts.DailyLineChart
 import com.nutrix.app.core.ui.components.ConfirmDialog
 import com.nutrix.app.core.ui.components.DateTimeRow
 import com.nutrix.app.core.ui.components.EmptyState
+import com.nutrix.app.core.ui.components.SegmentedChoices
+import com.nutrix.app.core.ui.components.IconBadge
+import com.nutrix.app.core.ui.components.InfoDisclosure
+import androidx.compose.foundation.layout.width
 import com.nutrix.app.core.ui.components.InfoBanner
 import com.nutrix.app.core.ui.components.LabeledValue
 import com.nutrix.app.core.ui.components.NutrixCard
+import com.nutrix.app.core.ui.components.NutrixBottomAction
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.NutrixTextField
 import com.nutrix.app.core.ui.components.Pill
@@ -83,9 +89,7 @@ fun WeightScreen(openAdd: Boolean, onBack: () -> Unit, viewModel: WeightViewMode
     NutrixScreen(
         title = stringResource(R.string.weight_title),
         onBack = onBack,
-        floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = viewModel::startAdd, icon = { Icon(Icons.Rounded.Add, null) }, text = { Text(stringResource(R.string.weight_add)) })
-        },
+        bottomBar = { NutrixBottomAction(stringResource(R.string.weight_add), viewModel::startAdd) },
     ) { padding ->
         ScreenList(padding) {
             val stats = state.stats
@@ -102,7 +106,27 @@ fun WeightScreen(openAdd: Boolean, onBack: () -> Unit, viewModel: WeightViewMode
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Spacer(Modifier.height(14.dp))
+
+                    }
+                }
+                item(key = "chart") {
+                    NutrixCard {
+                        Text(stringResource(R.string.weight_chart), style = MaterialTheme.typography.titleSmall)
+                        Spacer(Modifier.height(6.dp))
+                        SegmentedChoices(WeightPeriod.entries, state.period,
+                            label = { p -> stringResource(when (p) { WeightPeriod.D30 -> R.string.weight_period_30; WeightPeriod.D90 -> R.string.weight_period_90; WeightPeriod.Y1 -> R.string.weight_period_365; WeightPeriod.ALL -> R.string.weight_period_all }) },
+                            onSelect = viewModel::setPeriod)
+                        Spacer(Modifier.height(8.dp))
+                        DailyLineChart(
+                            points = state.chart,
+                            height = 170.dp,
+                            color = colors.weight,
+                            valueText = { "${Formatters.decimal(it)} $unitLabel" },
+                        )
+                    }
+                }
+                item(key = "statistics") {
+                    NutrixCard {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             LabeledValue(stringResource(R.string.weight_week_change), stats.weekChangeKg?.let(::fmtDelta) ?: "—")
                             LabeledValue(stringResource(R.string.weight_month_change), stats.monthChangeKg?.let(::fmtDelta) ?: "—")
@@ -132,42 +156,10 @@ fun WeightScreen(openAdd: Boolean, onBack: () -> Unit, viewModel: WeightViewMode
                         }
                     }
                 }
-                item(key = "chart") {
-                    NutrixCard {
-                        Text(stringResource(R.string.weight_chart), style = MaterialTheme.typography.titleSmall)
-                        Spacer(Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            WeightPeriod.entries.forEach { p ->
-                                FilterChip(
-                                    selected = state.period == p,
-                                    onClick = { viewModel.setPeriod(p) },
-                                    label = {
-                                        Text(
-                                            stringResource(
-                                                when (p) {
-                                                    WeightPeriod.D30 -> R.string.weight_period_30
-                                                    WeightPeriod.D90 -> R.string.weight_period_90
-                                                    WeightPeriod.Y1 -> R.string.weight_period_365
-                                                    WeightPeriod.ALL -> R.string.weight_period_all
-                                                },
-                                            ),
-                                        )
-                                    },
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        DailyLineChart(
-                            points = state.chart,
-                            color = colors.weight,
-                            valueText = { "${Formatters.decimal(it)} $unitLabel" },
-                        )
-                    }
-                }
-                item(key = "note") { InfoBanner(stringResource(R.string.weight_fluctuation_note), Icons.Rounded.Info, tint = colors.weight) }
+                item(key = "note") { InfoDisclosure(stringResource(R.string.weight_chart), stringResource(R.string.weight_fluctuation_note), Icons.Rounded.Info, tint = colors.weight) }
                 item(key = "history-h") { SectionHeader(stringResource(R.string.weight_history)) }
                 items(state.all.take(300), key = { it.id }) { w ->
-                    WeightRow(w, fmt(w.weightKg), onClick = { viewModel.startEdit(w) })
+                    Box(Modifier.animateItem()) { WeightRow(w, fmt(w.weightKg), onClick = { viewModel.startEdit(w) }) }
                 }
             }
         }
@@ -267,12 +259,10 @@ private fun WeightSheet(
             DateTimeRow(form.date, form.time, { d -> onChange { it.copy(date = d) } }, { t -> onChange { it.copy(time = t) } })
             NutrixTextField(form.note, { v -> onChange { it.copy(note = v) } }, stringResource(R.string.label_note))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (onDelete != null) {
-                    OutlinedButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.action_delete)) }
-                }
-                Spacer(Modifier.weight(1f))
-                Button(onClick = onSave, enabled = valid) { Text(stringResource(R.string.action_save)) }
+                OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.medium) { Text(stringResource(R.string.action_cancel)) }
+                Button(onClick = onSave, enabled = valid, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.medium) { Text(stringResource(R.string.action_save)) }
             }
+            if (onDelete != null) TextButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
             Spacer(Modifier.height(8.dp))
         }
     }

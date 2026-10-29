@@ -1,6 +1,23 @@
 package com.nutrix.app.feature.dashboard
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.remember
+import com.nutrix.app.core.ui.motion.CelebrationBurst
+import com.nutrix.app.core.ui.motion.FloatingDeltaState
+import com.nutrix.app.core.ui.motion.FloatingDeltas
+import com.nutrix.app.core.ui.motion.NutrixMotion
+import com.nutrix.app.core.ui.motion.animatedInt
+import com.nutrix.app.core.ui.motion.entrance
+import com.nutrix.app.core.ui.motion.rememberEntranceState
+import com.nutrix.app.core.ui.motion.rememberGoalCelebration
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -32,6 +49,9 @@ import androidx.compose.material.icons.rounded.Search
 import com.nutrix.app.core.ui.icons.Today
 import com.nutrix.app.core.ui.icons.WaterDrop
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,15 +65,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nutrix.app.R
 import com.nutrix.app.core.model.WeightUnit
 import com.nutrix.app.core.time.Formatters
+import com.nutrix.app.core.ui.components.IconBadge
 import com.nutrix.app.core.ui.components.CardHeader
 import com.nutrix.app.core.ui.components.NutrixCard
 import com.nutrix.app.core.ui.components.PhotoThumb
@@ -99,10 +122,20 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
     val h = stringResource(R.string.unit_hour_short)
     val m = stringResource(R.string.unit_minute_short)
     LaunchedEffect(Unit) { viewModel.refreshHealth() }
+    val entrance = rememberEntranceState(ready = state.loaded)
+    val waterDeltas = remember { FloatingDeltaState() }
+    val celebration = rememberGoalCelebration(state.water.totalMl, state.water.goalMl) {
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+    }
+    val ml = stringResource(R.string.unit_ml)
 
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val compactMetrics = maxWidth >= 360.dp && maxWidth < 600.dp && LocalDensity.current.fontScale <= 1.2f
     LazyVerticalStaggeredGrid(
-        columns = StaggeredGridCells.Adaptive(minSize = 340.dp),
+        columns = if (compactMetrics) StaggeredGridCells.Fixed(2) else StaggeredGridCells.Adaptive(minSize = 340.dp),
         modifier = Modifier
+            .widthIn(max = 1100.dp)
+            .align(Alignment.TopCenter)
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.statusBars),
         contentPadding = PaddingValues(
@@ -115,76 +148,89 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
         horizontalArrangement = Arrangement.spacedBy(NutrixTokens.CardSpacing),
     ) {
         item(key = "header", span = StaggeredGridItemSpan.FullLine) {
-            Header(state, onSearch = actions.onSearch)
+            Header(state, onSearch = actions.onSearch, modifier = Modifier.entrance(entrance, 0))
         }
 
-        item(key = "food") {
-            NutrixCard(onClick = actions.onFoodDiary) {
-                CardHeader(Icons.Rounded.Restaurant, stringResource(R.string.card_food), colors.meal) {
-                    Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Spacer(Modifier.height(10.dp))
-                Text(pluralStringResource(R.plurals.meals_count, state.food.count, state.food.count), style = MaterialTheme.typography.titleLarge)
-                val last = state.food.last
-                Text(
-                    if (last != null && last.meal.localDate == state.epochDay) stringResource(R.string.card_food_last, Formatters.time(last.meal.time))
-                    else stringResource(R.string.card_food_empty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (state.food.photos.isNotEmpty()) {
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        state.food.photos.forEach { PhotoThumb(it, size = 56.dp) }
+        item(key = "food", span = if (compactMetrics) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane) {
+            NutrixCard(modifier = Modifier.entrance(entrance, 1), onClick = actions.onFoodDiary) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            IconBadge(Icons.Rounded.Restaurant, colors.meal, size = 30.dp)
+                            Text(stringResource(R.string.card_food), style = MaterialTheme.typography.titleSmall)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(pluralStringResource(R.plurals.meals_count, state.food.count, state.food.count), style = MaterialTheme.typography.titleLarge)
+                        val last = state.food.last
+                        Text(if (last != null && last.meal.localDate == state.epochDay) stringResource(R.string.card_food_last, Formatters.time(last.meal.time))
+                            else stringResource(R.string.card_food_empty), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                    state.food.photos.firstOrNull()?.let { PhotoThumb(it, size = 88.dp, shape = androidx.compose.foundation.shape.CircleShape) }
                 }
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = { actions.onAddFood(true) }) {
+                Spacer(Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    OutlinedButton(onClick = { actions.onAddFood(true) }, shape = MaterialTheme.shapes.small) {
                         Icon(Icons.Rounded.PhotoCamera, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.card_food_photo))
                     }
-                    TextButton(onClick = { actions.onAddFood(false) }) { Text(stringResource(R.string.card_food_add)) }
+                    Button(onClick = { actions.onAddFood(false) }, shape = MaterialTheme.shapes.small) {
+                        Icon(Icons.Rounded.Add, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.card_food_add))
+                    }
                 }
             }
         }
 
-        item(key = "water") {
-            NutrixCard(onClick = actions.onWater) {
-                CardHeader(Icons.Rounded.WaterDrop, stringResource(R.string.card_water), colors.water) {
-                    Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Spacer(Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text("${Formatters.integer(state.water.totalMl.toLong())}", style = MetricTextStyle)
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        state.water.goalMl?.let { "/ ${Formatters.integer(it.toLong())} ${stringResource(R.string.unit_ml)}" } ?: stringResource(R.string.unit_ml),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                    )
-                }
-                state.water.goalMl?.let { goal ->
-                    Spacer(Modifier.height(8.dp))
-                    ProgressBar(state.water.totalMl / goal.toFloat(), colors.water, Modifier.fillMaxWidth().height(10.dp))
-                }
-                Spacer(Modifier.height(12.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    state.water.quickVolumes.forEach { v ->
-                        FilledTonalButton(onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            viewModel.addWater(v)
-                        }, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("+$v") }
+        item(key = "water", span = if (compactMetrics) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane) {
+            Box(Modifier.entrance(entrance, 2)) {
+                NutrixCard(onClick = actions.onWater) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        IconBadge(Icons.Rounded.WaterDrop, colors.water, size = 36.dp)
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(stringResource(R.string.card_water), style = MaterialTheme.typography.titleSmall)
+                                val goal = state.water.goalMl
+                                AnimatedVisibility(goal != null && state.water.totalMl >= goal,
+                                    enter = scaleIn(NutrixMotion.bouncy(), initialScale = 0.6f) + fadeIn(), exit = fadeOut()) {
+                                    Pill(stringResource(R.string.water_goal_reached), colors.water)
+                                }
+                            }
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(Formatters.integer(animatedInt(state.water.totalMl).toLong()), style = MetricTextStyle.copy(fontSize = 26.sp, lineHeight = 32.sp))
+                                Text(state.water.goalMl?.let { " / ${Formatters.integer(it.toLong())} ${stringResource(R.string.unit_ml)}" } ?: " ${stringResource(R.string.unit_ml)}",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 3.dp))
+                            }
+                        }
+                        Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    FilledTonalIconButton(onClick = actions.onAddDrink) { Icon(Icons.Rounded.Add, stringResource(R.string.card_water_custom)) }
+                    state.water.goalMl?.let { goal ->
+                        Spacer(Modifier.height(8.dp))
+                        ProgressBar(state.water.totalMl / goal.toFloat(), colors.water, Modifier.fillMaxWidth().height(10.dp))
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        state.water.quickVolumes.forEach { v ->
+                            FilledTonalButton(onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                celebration.arm()
+                                waterDeltas.emit("+$v $ml")
+                                viewModel.addWater(v)
+                            }, shape = MaterialTheme.shapes.small,
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = colors.water.copy(alpha = 0.12f), contentColor = colors.water),
+                                contentPadding = PaddingValues(horizontal = 10.dp)) { Text("+$v", style = MaterialTheme.typography.labelMedium) }
+                        }
+                        FilledTonalIconButton(onClick = actions.onAddDrink) { Icon(Icons.Rounded.Add, stringResource(R.string.card_water_custom)) }
+                    }
                 }
+                FloatingDeltas(waterDeltas, colors.water)
+                CelebrationBurst(celebration.bursts, listOf(colors.water, colors.meal, colors.weight, colors.activity, colors.sleep), Modifier.matchParentSize())
             }
         }
 
         item(key = "weight") {
-            NutrixCard(onClick = { actions.onWeight(false) }) {
+            NutrixCard(modifier = Modifier.entrance(entrance, 3).then(if (compactMetrics) Modifier.heightIn(min = 148.dp) else Modifier), onClick = { actions.onWeight(false) }) {
                 CardHeader(Icons.Rounded.MonitorWeight, stringResource(R.string.card_weight), colors.weight) {
                     FilledTonalIconButton(onClick = { actions.onWeight(true) }) { Icon(Icons.Rounded.Add, stringResource(R.string.weight_add)) }
                 }
@@ -193,25 +239,32 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
                 if (latest == null) {
                     Text(stringResource(R.string.card_weight_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(Units.formatWeight(latest.weightKg, unit, unitLabel), style = MetricTextStyle)
-                            state.weight.weekChangeKg?.let {
-                                Text(
-                                    stringResource(R.string.card_weight_week, "${Formatters.signedDecimal(Units.toDisplay(it, unit))} $unitLabel"),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+                    if (compactMetrics) {
+                        Text(Units.formatWeight(latest.weightKg, unit, unitLabel), style = MetricTextStyle.copy(fontSize = 26.sp, lineHeight = 32.sp))
+                        state.weight.weekChangeKg?.let {
+                            Text(stringResource(R.string.card_weight_week, Formatters.signedDecimal(Units.toDisplay(it, unit)) + " " + unitLabel),
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Sparkline(state.weight.spark, colors.weight, Modifier.width(110.dp).height(48.dp))
+                        Spacer(Modifier.height(8.dp))
+                        Sparkline(state.weight.spark, colors.weight, Modifier.fillMaxWidth().height(28.dp))
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(Units.formatWeight(latest.weightKg, unit, unitLabel), style = MetricTextStyle)
+                                state.weight.weekChangeKg?.let {
+                                    Text(stringResource(R.string.card_weight_week, Formatters.signedDecimal(Units.toDisplay(it, unit)) + " " + unitLabel),
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            Sparkline(state.weight.spark, colors.weight, Modifier.width(110.dp).height(48.dp))
+                        }
                     }
                 }
             }
         }
 
         item(key = "sleep") {
-            NutrixCard(onClick = actions.onSleepActivity) {
+            NutrixCard(modifier = Modifier.entrance(entrance, 4).then(if (compactMetrics) Modifier.heightIn(min = 148.dp) else Modifier), onClick = actions.onSleepActivity) {
                 CardHeader(Icons.Rounded.Bedtime, stringResource(R.string.card_sleep), colors.sleep) {
                     Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -220,9 +273,9 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
                 if (sleep == null) {
                     Text(stringResource(R.string.card_sleep_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
-                    Text(Formatters.duration(SleepTotals.minutes(state.sleepSessions).toLong(), h, m), style = MetricTextStyle)
+                    Text(Formatters.duration(SleepTotals.minutes(state.sleepSessions).toLong(), h, m), style = if (compactMetrics) MetricTextStyle.copy(fontSize = 22.sp, lineHeight = 29.sp) else MetricTextStyle)
                     Text(Formatters.dayMonthShort(LocalDate.ofEpochDay(sleep.localDate)), style = MaterialTheme.typography.bodySmall)
-                    state.sleepSessions.sortedBy { it.startMillis }.forEach { session ->
+                    state.sleepSessions.sortedBy { it.startMillis }.let { if (compactMetrics) it.take(1) else it }.forEach { session ->
                         Text(
                             stringResource(R.string.card_sleep_times, Formatters.time(session.startMillis, session.zoneId), Formatters.time(session.endMillis, session.zoneId)),
                             style = MaterialTheme.typography.bodySmall,
@@ -230,12 +283,14 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
                         )
                         Pill(sourceLabel(session.source, session.sourceApp), colors.sleep)
                     }
+                    if (compactMetrics && state.sleepSessions.size > 1) Text(stringResource(R.string.sleep_session_count, state.sleepSessions.size),
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
 
-        item(key = "activity") {
-            NutrixCard(onClick = if (state.activity.enabled) actions.onSleepActivity else actions.onIntegrations) {
+        item(key = "activity", span = if (compactMetrics) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane) {
+            NutrixCard(modifier = Modifier.entrance(entrance, 5), onClick = if (state.activity.enabled) actions.onSleepActivity else actions.onIntegrations) {
                 CardHeader(Icons.Rounded.DirectionsRun, stringResource(R.string.card_activity), colors.activity) {
                     Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -260,8 +315,8 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
             }
         }
 
-        item(key = "wellbeing") {
-            NutrixCard(onClick = { actions.onSymptoms(false) }) {
+        item(key = "wellbeing", span = if (compactMetrics) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane) {
+            NutrixCard(modifier = Modifier.entrance(entrance, 6), onClick = { actions.onSymptoms(false) }) {
                 CardHeader(Icons.Rounded.Healing, stringResource(R.string.card_wellbeing), colors.symptom) {
                     FilledTonalIconButton(onClick = { actions.onSymptoms(true) }) { Icon(Icons.Rounded.Add, stringResource(R.string.card_wellbeing_add)) }
                 }
@@ -290,15 +345,16 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
         }
 
         item(key = "timeline-h", span = StaggeredGridItemSpan.FullLine) {
-            SectionHeader(stringResource(R.string.timeline_today), actionLabel = stringResource(R.string.calendar_open_day), onAction = actions.onOpenToday)
+            SectionHeader(stringResource(R.string.timeline_today), modifier = Modifier.entrance(entrance, 7), actionLabel = stringResource(R.string.calendar_open_day), onAction = actions.onOpenToday)
         }
         if (state.loaded && state.timeline.isEmpty()) {
             item(key = "timeline-empty", span = StaggeredGridItemSpan.FullLine) {
-                Text(stringResource(R.string.timeline_empty), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.timeline_empty), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.entrance(entrance, 8))
             }
         } else {
             item(key = "timeline", span = StaggeredGridItemSpan.FullLine) {
-                NutrixCard(contentPadding = 8.dp) {
+                Column(Modifier.entrance(entrance, 8)) {
                     state.timeline.forEachIndexed { i, item ->
                         TimelineRow(item, unit, isLast = i == state.timeline.lastIndex, onClick = { actions.onTimeline(item.target()) })
                     }
@@ -307,9 +363,10 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
         }
     }
 }
+}
 
 @Composable
-private fun Header(state: DashboardState, onSearch: () -> Unit) {
+private fun Header(state: DashboardState, onSearch: () -> Unit, modifier: Modifier = Modifier) {
     val hour = LocalTime.now().hour
     val greeting = stringResource(
         when (hour) {
@@ -320,33 +377,22 @@ private fun Header(state: DashboardState, onSearch: () -> Unit) {
         },
     )
     val name = state.settings.userName.trim()
-    val summaryParts = buildList {
-        if (state.food.count > 0) add(pluralStringResource(R.plurals.meals_count, state.food.count, state.food.count))
-        if (state.water.totalMl > 0) add(stringResource(R.string.dashboard_summary_water, Formatters.integer(state.water.totalMl.toLong())))
-        if (state.todaySymptomCount > 0) add(pluralStringResource(R.plurals.symptoms_count, state.todaySymptomCount, state.todaySymptomCount))
-        else if (isNotEmpty()) add(stringResource(R.string.dashboard_summary_no_symptoms))
-    }
-    Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.Top) {
+    Row(modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f)) {
             Text(
                 if (name.isNotEmpty()) stringResource(R.string.greeting_name, greeting, name) else greeting,
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleLarge,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.Today, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(
                     Formatters.weekdayDayMonth(LocalDate.ofEpochDay(state.epochDay)).replaceFirstChar { it.titlecase() },
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                if (summaryParts.isEmpty()) stringResource(R.string.dashboard_nothing_today) else summaryParts.joinToString(" · "),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+
         }
         IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, stringResource(R.string.action_search)) }
     }

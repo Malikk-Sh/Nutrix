@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,6 +43,10 @@ import com.nutrix.app.core.time.Formatters
 import com.nutrix.app.core.time.TimeUtils
 import com.nutrix.app.core.ui.charts.DailyColumnChart
 import com.nutrix.app.core.ui.charts.DailyLineChart
+import com.nutrix.app.core.ui.components.InfoDisclosure
+import com.nutrix.app.core.ui.components.SegmentedChoices
+import com.nutrix.app.core.ui.components.IconBadge
+import com.nutrix.app.core.ui.icons.*
 import com.nutrix.app.core.ui.components.InfoBanner
 import com.nutrix.app.core.ui.components.NutrixCard
 import com.nutrix.app.core.ui.components.NutrixScreen
@@ -66,25 +71,10 @@ fun AnalyticsScreen(contentPadding: PaddingValues, viewModel: AnalyticsViewModel
     NutrixScreen(title = stringResource(R.string.analytics_title), onBack = null) { padding ->
         ScreenList(PaddingValues(top = padding.calculateTopPadding(), bottom = contentPadding.calculateBottomPadding())) {
             item(key = "periods") {
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(7 to R.string.period_7, 14 to R.string.period_14, 30 to R.string.period_30, 90 to R.string.period_90).forEach { (d, label) ->
-                        FilterChip(
-                            selected = period == AnalyticsPeriod.LastDays(d),
-                            onClick = { viewModel.setPeriod(AnalyticsPeriod.LastDays(d)) },
-                            label = { Text(stringResource(label)) },
-                        )
-                    }
-                    FilterChip(
-                        selected = period is AnalyticsPeriod.Custom,
-                        onClick = { customDialog = true },
-                        label = {
-                            Text(
-                                (period as? AnalyticsPeriod.Custom)?.let { stringResource(R.string.period_range, Formatters.dayMonthShort(it.from), Formatters.dayMonthShort(it.to)) }
-                                    ?: stringResource(R.string.period_custom),
-                            )
-                        },
-                    )
-                }
+                val days = listOf(7, 14, 30, 90, 0)
+                SegmentedChoices(days, (period as? AnalyticsPeriod.LastDays)?.days ?: 0,
+                    label = { d -> stringResource(when (d) { 7 -> R.string.period_7; 14 -> R.string.period_14; 30 -> R.string.period_30; 90 -> R.string.period_90; else -> R.string.alignment_custom_period }) },
+                    onSelect = { d -> if (d == 0) customDialog = true else viewModel.setPeriod(AnalyticsPeriod.LastDays(d)) })
             }
             if (state.loading) {
                 item { CircularProgressIndicator() }
@@ -94,11 +84,11 @@ fun AnalyticsScreen(contentPadding: PaddingValues, viewModel: AnalyticsViewModel
                 Column {
                     Text(stringResource(R.string.analytics_tracked_days, state.trackedDays, state.totalDays), style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(6.dp))
-                    InfoBanner(stringResource(R.string.analytics_untracked_note), Icons.Rounded.Info)
+                    InfoDisclosure(stringResource(R.string.alignment_analytics_note), stringResource(R.string.analytics_untracked_note), Icons.Rounded.Info)
                 }
             }
             item(key = "charts-h") { SectionHeader(stringResource(R.string.analytics_section_charts)) }
-            Metric.entries.forEach { metric ->
+            (listOf(Metric.WEIGHT, Metric.FLUID, Metric.SLEEP_DURATION) + Metric.entries.filterNot { it in listOf(Metric.WEIGHT, Metric.FLUID, Metric.SLEEP_DURATION) }).forEach { metric ->
                 item(key = "m-$metric") { MetricCard(metric, state.series[metric]?.points.orEmpty(), state.unit) }
             }
             item(key = "cmp-h") { SectionHeader(stringResource(R.string.analytics_section_compare)) }
@@ -164,11 +154,17 @@ private fun MetricCard(metric: Metric, points: List<ChartPoint>, unit: WeightUni
         Metric.HEART_RATE -> { v -> "${v.toInt()} $bpm" }
     }
     NutrixCard {
-        Text(title, style = MaterialTheme.typography.titleSmall)
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            IconBadge(when (metric) { Metric.WEIGHT -> Icons.Rounded.MonitorWeight; Metric.FLUID -> Icons.Rounded.WaterDrop;
+                Metric.SLEEP_DURATION, Metric.BEDTIME -> Icons.Rounded.Bedtime; Metric.STEPS -> Icons.Rounded.DirectionsRun;
+                Metric.HEART_RATE -> Icons.Rounded.Favorite; else -> Icons.Rounded.Restaurant }, color, size = 28.dp)
+            Text(title, style = MaterialTheme.typography.titleSmall)
+        }
         if (display.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(format(display.map { it.value }.average()), style = MaterialTheme.typography.headlineSmall)
             Text(
-                stringResource(R.string.analytics_average, format(display.map { it.value }.average())) + " · " +
-                    stringResource(R.string.analytics_days, display.size),
+                stringResource(R.string.alignment_metric_average) + " · " + stringResource(R.string.analytics_days, display.size),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -176,10 +172,10 @@ private fun MetricCard(metric: Metric, points: List<ChartPoint>, unit: WeightUni
         Spacer(Modifier.height(8.dp))
         when (metric) {
             Metric.MEALS, Metric.FLUID, Metric.EARLY_SATIETY, Metric.NAUSEA, Metric.STEPS ->
-                DailyColumnChart(display, color, format)
-            Metric.APPETITE -> DailyLineChart(display, color, format, minY = 0.0, maxY = 5.0)
-            Metric.SLEEP_DURATION -> DailyLineChart(display, color, format, zeroBased = true)
-            else -> DailyLineChart(display, color, format)
+                DailyColumnChart(display, color, format, height = 160.dp)
+            Metric.APPETITE -> DailyLineChart(display, color, format, height = 170.dp, minY = 0.0, maxY = 5.0)
+            Metric.SLEEP_DURATION -> DailyLineChart(display, color, format, height = 170.dp, zeroBased = true)
+            else -> DailyLineChart(display, color, format, height = 170.dp)
         }
     }
 }

@@ -20,6 +20,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Snackbar
+import androidx.compose.foundation.border
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -27,8 +29,11 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -37,6 +42,18 @@ import com.nutrix.app.core.ui.theme.NutrixTokens
 
 /** App-wide snackbar host so screens can offer "Undo" after deletions. */
 val LocalSnackbarHost = staticCompositionLocalOf { SnackbarHostState() }
+
+@Composable
+fun NutrixSnackbarHost(state: SnackbarHostState, modifier: Modifier = Modifier) {
+    SnackbarHost(state, modifier) { data ->
+        Snackbar(data, shape = MaterialTheme.shapes.medium,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            actionColor = MaterialTheme.colorScheme.primary,
+            dismissActionContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp).border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium))
+    }
+}
 
 /**
  * Shows an undo snackbar. [onUndo] runs when the user taps "Undo"; otherwise [onCommit] runs
@@ -63,15 +80,17 @@ fun NutrixScreen(
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     if (onBack != null) {
-                        IconButton(onClick = onBack) {
+                        IconButton(onClick = { focus.clearFocus(); keyboard?.hide(); onBack() }) {
                             Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.action_back))
                         }
                     }
@@ -86,7 +105,7 @@ fun NutrixScreen(
         },
         floatingActionButton = floatingActionButton,
         bottomBar = bottomBar,
-        snackbarHost = { if (snackbarHost != null) SnackbarHost(snackbarHost) },
+        snackbarHost = { if (snackbarHost != null) NutrixSnackbarHost(snackbarHost) },
         content = content,
     )
 }
@@ -100,17 +119,17 @@ fun ScreenList(
     bottomExtra: androidx.compose.ui.unit.Dp = 96.dp,
     content: LazyListScope.() -> Unit,
 ) {
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+    Box(modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
             state = state,
             modifier = Modifier
                 .widthIn(max = 720.dp)
-                .fillMaxWidth(),
+                .fillMaxWidth().clipToBounds(),
             contentPadding = PaddingValues(
                 start = NutrixTokens.ScreenPadding,
                 end = NutrixTokens.ScreenPadding,
-                top = padding.calculateTopPadding() + 4.dp,
-                bottom = padding.calculateBottomPadding() + bottomExtra,
+                top = 8.dp,
+                bottom = bottomExtra,
             ),
             verticalArrangement = Arrangement.spacedBy(NutrixTokens.CardSpacing),
             content = content,

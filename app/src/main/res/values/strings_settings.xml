@@ -44,7 +44,7 @@
 
     <string name="security_title">Защита приложения</string>
     <string name="security_lock">Блокировка PIN-кодом</string>
-    <string name="security_lock_desc">PIN не хранится в открытом виде: сохраняется только хэш PBKDF2 с солью, дополнительно зашифрованный ключом Android Keystore.</string>
+    <string name="security_lock_desc">PIN потребуется для входа в дневник. Его можно дополнить разблокировкой по отпечатку пальца.</string>
     <string name="security_set_pin">Задать PIN</string>
     <string name="security_change_pin">Изменить PIN</string>
     <string name="security_pin_new">Новый PIN (4–8 цифр)</string>

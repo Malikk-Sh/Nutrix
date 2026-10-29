@@ -1,93 +1,99 @@
 package com.nutrix.app.navigation
 
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import com.nutrix.app.core.ui.icons.Healing
-import com.nutrix.app.core.ui.icons.MonitorWeight
-import com.nutrix.app.core.ui.icons.PhotoCamera
-import com.nutrix.app.core.ui.icons.StickyNote2
-import com.nutrix.app.core.ui.icons.WaterDrop
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.rotate
+import com.nutrix.app.core.ui.motion.NutrixMotion
+import com.nutrix.app.core.ui.motion.entrance
+import com.nutrix.app.core.ui.motion.pressScale
+import com.nutrix.app.core.ui.motion.rememberEntranceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.nutrix.app.R
+import com.nutrix.app.core.ui.components.IconBadge
+import com.nutrix.app.core.ui.icons.*
 import com.nutrix.app.core.ui.theme.LocalCategoryColors
 
 enum class QuickAction { FOOD, WATER, WEIGHT, SYMPTOM, NOTE }
 
-/** "+" button that expands into quick actions (food, water, weight, symptom, note). */
+/** A discoverable, scrollable action sheet rather than a stack of small floating buttons. */
 @Composable
 fun QuickAddFab(expanded: Boolean, onExpandedChange: (Boolean) -> Unit, onAction: (QuickAction) -> Unit) {
     val haptic = LocalHapticFeedback.current
-    val rotation by animateFloatAsState(if (expanded) 45f else 0f, label = "fab")
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     val colors = LocalCategoryColors.current
-    BackHandler(enabled = expanded) { onExpandedChange(false) }
-    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        AnimatedVisibility(
-            visible = expanded,
-            enter = fadeIn() + slideInVertically { it / 3 } + scaleIn(initialScale = 0.9f),
-            exit = fadeOut() + slideOutVertically { it / 3 } + scaleOut(targetScale = 0.9f),
+    val interaction = remember { MutableInteractionSource() }
+    // "+" turns into "×" while the sheet is open, so the button reads as its own close action.
+    val turn by animateFloatAsState(if (expanded) 135f else 0f, NutrixMotion.bouncy(), label = "fabTurn")
+    FloatingActionButton(
+        onClick = { focus.clearFocus(); keyboard?.hide(); haptic.performHapticFeedback(HapticFeedbackType.LongPress); onExpandedChange(!expanded) },
+        modifier = Modifier.pressScale(interaction, pressedScale = 0.9f),
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        shape = androidx.compose.foundation.shape.CircleShape,
+        interactionSource = interaction,
+    ) { Icon(Icons.Rounded.Add, stringResource(R.string.quick_add), Modifier.rotate(turn)) }
+    if (expanded) {
+        ModalBottomSheet(
+            onDismissRequest = { onExpandedChange(false) },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
         ) {
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                QuickItem(stringResource(R.string.quick_add_note), Icons.Rounded.StickyNote2, colors.note) { onAction(QuickAction.NOTE) }
-                QuickItem(stringResource(R.string.quick_add_symptom), Icons.Rounded.Healing, colors.symptom) { onAction(QuickAction.SYMPTOM) }
-                QuickItem(stringResource(R.string.quick_add_weight), Icons.Rounded.MonitorWeight, colors.weight) { onAction(QuickAction.WEIGHT) }
-                QuickItem(stringResource(R.string.quick_add_water), Icons.Rounded.WaterDrop, colors.water) { onAction(QuickAction.WATER) }
-                QuickItem(stringResource(R.string.quick_add_food), Icons.Rounded.PhotoCamera, colors.meal) { onAction(QuickAction.FOOD) }
+            val entrance = rememberEntranceState()
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.quick_add_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { onExpandedChange(false) }) { Icon(Icons.Rounded.Close, stringResource(R.string.action_close)) }
+                }
+                Spacer(Modifier.height(12.dp))
+                QuickItem(Modifier.entrance(entrance, 0), QuickAction.FOOD, stringResource(R.string.quick_add_food), stringResource(R.string.quick_food_hint), Icons.Rounded.Restaurant, colors.meal, onAction)
+                QuickItem(Modifier.entrance(entrance, 1), QuickAction.WATER, stringResource(R.string.quick_add_water), stringResource(R.string.quick_water_hint), Icons.Rounded.WaterDrop, colors.water, onAction)
+                QuickItem(Modifier.entrance(entrance, 2), QuickAction.WEIGHT, stringResource(R.string.quick_add_weight), stringResource(R.string.quick_weight_hint), Icons.Rounded.MonitorWeight, colors.weight, onAction)
+                QuickItem(Modifier.entrance(entrance, 3), QuickAction.SYMPTOM, stringResource(R.string.quick_add_symptom), stringResource(R.string.quick_symptom_hint), Icons.Rounded.Healing, colors.symptom, onAction)
+                QuickItem(Modifier.entrance(entrance, 4), QuickAction.NOTE, stringResource(R.string.quick_add_note), stringResource(R.string.quick_note_hint), Icons.Rounded.StickyNote2, colors.note, onAction)
             }
-        }
-        FloatingActionButton(
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                onExpandedChange(!expanded)
-            },
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-        ) {
-            Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.quick_add), modifier = Modifier.rotate(rotation))
         }
     }
 }
 
 @Composable
-private fun QuickItem(label: String, icon: ImageVector, tint: Color, onClick: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHighest, tonalElevation = 2.dp, onClick = onClick) {
-            Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
-        }
-        Spacer(Modifier.width(10.dp))
-        SmallFloatingActionButton(onClick = onClick, containerColor = tint, contentColor = Color(0xFF0E1012)) {
-            Icon(icon, contentDescription = label)
+private fun QuickItem(modifier: Modifier, action: QuickAction, title: String, hint: String, icon: ImageVector, tint: Color, onAction: (QuickAction) -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    Surface(
+        modifier = modifier.padding(bottom = 8.dp).pressScale(interaction).fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = MaterialTheme.shapes.medium,
+    ) {
+        Row(Modifier.testTag("quick-action-" + action.name).clickable(interaction, ripple(), role = Role.Button) { onAction(action) }.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            IconBadge(icon, tint, 36.dp)
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
         }
     }
 }
-

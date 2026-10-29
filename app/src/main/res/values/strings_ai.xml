@@ -15,16 +15,16 @@
     <string name="ai_photo_title">Определить еду по фото</string>
     <string name="ai_choose_photo">Выберите один снимок порции</string>
     <string name="ai_photo_number">Фото %1$d</string>
-    <string name="ai_hint">Уточнение: состав, размер тарелки, способ приготовления</string>
+    <string name="ai_hint">Подсказка для Gemini</string>
     <string name="ai_analyze">Определить по фото</string>
     <string name="ai_retry">Повторить</string>
     <string name="ai_retry_wait">Временный сбой. Повторим запрос через 2 секунды…</string>
     <string name="ai_attempt">Попытка %1$d из %2$d</string>
-    <string name="ai_autofilled">Распознанные данные внесены в форму. Вес порции, ккал и БЖУ можно исправить ниже перед сохранением.</string>
+    <string name="ai_autofilled">Данные заполнены. Их можно исправить перед сохранением.</string>
     <string name="ai_show_result">Посмотреть исходную оценку</string>
     <string name="ai_analyzing">Определяем блюдо и состав…</string>
     <string name="ai_settings">Настроить Gemini</string>
-    <string name="ai_disclosure">Выбранное фото и подсказка будут отправлены Google. При временном сбое возможен один автоматический повтор, который тоже расходует квоту. Успешная оценка заполнит поля формы; значения можно исправить.</string>
+    <string name="ai_disclosure">Фото и подсказка отправятся в Google. Оценка заполнит редактируемые поля. При временном сбое возможен один повтор.</string>
     <string name="ai_result_title">Исходная оценка Gemini</string>
     <string name="ai_result_note">Данные уже внесены в форму. Окончательные значения можно исправить в редакторе перед сохранением. Вес тела и остальные поля не изменяются.</string>
     <string name="ai_portion">На всю порцию</string>
@@ -53,4 +53,5 @@
     <string name="ai_error_no_food">На снимке не удалось распознать еду. Выберите другое фото.</string>
     <string name="ai_error_photo">Не удалось подготовить выбранное фото. Попробуйте прикрепить его заново.</string>
     <string name="ai_error_changed">Фото изменилось или удалено. Повторите распознавание выбранного снимка.</string>
+    <string name="ai_hint_example">Например: гречка с курицей, сметана 10 г</string>
 </resources>

@@ -8,6 +8,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.google.common.truth.Truth.assertThat
+import com.nutrix.app.UiScreenshot
 import com.nutrix.app.MainActivity
 import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.model.MealType
@@ -42,7 +43,7 @@ class FoodAiUiTest {
     @BindValue @JvmField val analyzer: FoodPhotoAnalyzer = FoodPhotoAnalyzer { file, _ ->
         if (calls.incrementAndGet() <= quotaFailures) throw FoodAiException(FoodAiError.QUOTA)
         pendingAnalysis?.await()
-        FoodPhotoResult(FoodEstimate(true, "Гречка с курицей", listOf(FoodIngredient("Гречка", 180.0), FoodIngredient("Курица", 120.0)),
+        FoodPhotoResult(FoodEstimate(true, "Курица с овощами", listOf(FoodIngredient("Овощи", 180.0), FoodIngredient("Курица", 120.0)),
             300.0, 450.0, 35.0, 10.0, 50.0, "Оценка по фото"), GeminiProtocol.DEFAULT_MODEL, file)
     }
     @Inject lateinit var settings: SettingsRepository
@@ -59,10 +60,7 @@ class FoodAiUiTest {
             settings.clearAll()
             settings.setGeminiKeyBlob("fixture-analyzer-does-not-read-key")
             val photo = photos.file("ai-ui.jpg")
-            val bitmap = Bitmap.createBitmap(48, 48, Bitmap.Config.ARGB_8888)
-            bitmap.eraseColor(android.graphics.Color.GREEN)
-            photo.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) }
-            bitmap.recycle()
+            requireNotNull(javaClass.getResourceAsStream("/photos/chicken-vegetables.jpg")).use { input -> photo.outputStream().use { input.copyTo(it) } }
             mealId = meals.save(MealEntity(epochMillis = System.currentTimeMillis(), localDate = TimeUtils.todayEpochDay(),
                 zoneId = ZoneId.systemDefault().id, mealType = MealType.LUNCH, title = "Исходное блюдо"), listOf(photo.name))
         }
@@ -76,7 +74,13 @@ class FoodAiUiTest {
             compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() ||
                 runCatching { compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(text)) }.isSuccess
         }
+        runCatching { compose.onAllNodesWithText(text).onFirst().performScrollTo() }
         compose.onAllNodesWithText(text).onFirst().assertIsEnabled().performClick()
+    }
+
+    private fun shot(name: String) {
+        repeat(15) { Thread.sleep(100); compose.mainClock.advanceTimeBy(100); compose.waitForIdle() }
+        scenario.onActivity { UiScreenshot.capture(it, name) }
     }
 
     private fun edit(tag: String, value: String) {
@@ -91,9 +95,15 @@ class FoodAiUiTest {
         click("Определить по фото")
         compose.onNodeWithTag("food-ai-progress").assertExists()
         compose.onNodeWithText("Сохранить").assertIsNotEnabled()
+        shot("38-ai-progress")
         pendingAnalysis!!.complete(Unit)
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("food-ai-success").fetchSemanticsNodes().isNotEmpty() }
         runBlocking { assertThat(meals.get(mealId)!!.meal.title).isEqualTo("Исходное блюдо") }
+        click("Проверить значения")
+        shot("39-ai-filled-fields")
+        click("Посмотреть исходную оценку")
+        shot("40-ai-source")
+        click("Закрыть")
         edit("food-grams", "320")
         edit("food-kcal", "470")
         edit("food-protein", "36,5")
@@ -108,7 +118,7 @@ class FoodAiUiTest {
         }
         runBlocking {
             val meal = meals.get(mealId)!!.meal
-            assertThat(meal.title).isEqualTo("Гречка с курицей")
+            assertThat(meal.title).isEqualTo("Курица с овощами")
             assertThat(meal.portionGrams).isEqualTo(320)
             assertThat(meal.caloriesEstimate).isEqualTo(470)
             assertThat(meal.nutrition!!.fatGrams).isEqualTo(11.5)
@@ -123,6 +133,7 @@ class FoodAiUiTest {
         click("Определить по фото")
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("food-ai-error").fetchSemanticsNodes().isNotEmpty() }
         assertThat(calls.get()).isEqualTo(1)
+        shot("41-ai-quota-error")
         compose.onNodeWithTag("food-ai-error").assertTextContains("Лимит запросов или квота исчерпаны", substring = true)
         runBlocking { assertThat(meals.get(mealId)!!.meal.title).isEqualTo("Исходное блюдо") }
         click("Повторить")
@@ -136,7 +147,7 @@ class FoodAiUiTest {
         }
         runBlocking {
             val saved = meals.get(mealId)!!.meal
-            assertThat(saved.title).isEqualTo("Гречка с курицей")
+            assertThat(saved.title).isEqualTo("Курица с овощами")
             assertThat(saved.portionGrams).isEqualTo(300)
             assertThat(saved.nutrition!!.proteinGrams).isEqualTo(35.0)
         }

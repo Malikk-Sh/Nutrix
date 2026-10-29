@@ -1,6 +1,12 @@
 package com.nutrix.app.feature.ai
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Info
+import com.nutrix.app.core.ui.icons.AutoAwesome
+import com.nutrix.app.core.ui.components.CardHeader
+import com.nutrix.app.core.ui.components.InfoDisclosure
+import com.nutrix.app.core.ui.components.InfoBanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -89,21 +95,25 @@ fun GeminiSettingsScreen(onBack: () -> Unit, viewModel: GeminiSettingsViewModel 
     val state by viewModel.state.collectAsStateWithLifecycle()
     var key by remember { mutableStateOf("") } // Never saved in an Android instance-state bundle.
     var model by remember { mutableStateOf(state.model) }
+    var showModels by remember { mutableStateOf(false) }
     val uri = LocalUriHandler.current
     LaunchedEffect(state.model) { model = state.model }
     LaunchedEffect(state.keyRevision) { key = "" }
-    NutrixScreen(title = stringResource(R.string.ai_settings_title), onBack = onBack) { padding ->
+    NutrixScreen(title = stringResource(R.string.alignment_gemini_title), onBack = onBack) { padding ->
         ScreenList(padding) {
             item {
                 NutrixCard {
-                    Text(stringResource(R.string.ai_privacy), style = MaterialTheme.typography.bodyMedium)
-                    Text(stringResource(R.string.ai_key_storage), style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { uri.openUri("https://aistudio.google.com/apikey") }) { Text(stringResource(R.string.ai_get_key)) }
+                    CardHeader(Icons.Rounded.AutoAwesome, stringResource(R.string.alignment_gemini_title), MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(8.dp))
+                    Text(stringResource(R.string.alignment_ai_disclosure), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    InfoDisclosure(stringResource(R.string.alignment_ai_privacy), stringResource(R.string.ai_privacy) + "\n\n" + stringResource(R.string.ai_key_storage), Icons.Rounded.Info)
                 }
             }
             item {
                 NutrixCard {
-                    Text(stringResource(if (state.hasKey) R.string.ai_key_saved else R.string.ai_key_missing))
+                    Text(stringResource(if (state.hasKey) R.string.ai_key_saved else R.string.ai_key_missing), style = MaterialTheme.typography.titleSmall,
+                        color = if (state.hasKey) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
                     OutlinedTextField(key, { key = it }, label = { Text(stringResource(R.string.ai_key_label)) },
                         visualTransformation = PasswordVisualTransformation(), singleLine = true,
                         enabled = state.loaded && !state.busy, modifier = Modifier.fillMaxWidth())
@@ -112,27 +122,30 @@ fun GeminiSettingsScreen(onBack: () -> Unit, viewModel: GeminiSettingsViewModel 
                         if (state.hasKey) TextButton(onClick = viewModel::removeKey, enabled = !state.busy) { Text(stringResource(R.string.ai_delete_key)) }
                     }
                     OutlinedButton(onClick = viewModel::verify, enabled = state.hasKey && !state.busy && key.isBlank()) { Text(stringResource(R.string.ai_check_key)) }
-                    if (state.verified) Text(stringResource(R.string.ai_key_verified, state.models.size), style = MaterialTheme.typography.bodySmall)
+                    if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                    if (state.verified) InfoBanner(stringResource(R.string.ai_key_verified, state.models.size), Icons.Rounded.Info, tint = MaterialTheme.colorScheme.primary)
+                    state.error?.let { InfoBanner(stringResource(it.messageRes), Icons.Rounded.Info, tint = MaterialTheme.colorScheme.error) }
                 }
             }
             item {
                 NutrixCard {
                     OutlinedTextField(model, { model = it }, label = { Text(stringResource(R.string.ai_model)) }, singleLine = true,
                         enabled = state.loaded && !state.busy, modifier = Modifier.fillMaxWidth())
-                    Text(stringResource(R.string.ai_model_hint), style = MaterialTheme.typography.bodySmall)
+                    InfoDisclosure(stringResource(R.string.alignment_ai_model_help), stringResource(R.string.ai_model_hint), Icons.Rounded.Info)
                     Button(onClick = { viewModel.saveModel(model) }, enabled = state.loaded && !state.busy && GeminiProtocol.validModel(model.trim()) && model.trim() != state.model) { Text(stringResource(R.string.action_save)) }
                     if (state.models.isNotEmpty()) {
-                        // Common image-capable families first; the complete API list is available via the CLI.
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            state.models.filter { "flash" in it || "pro" in it }.filterNot { "tts" in it || "image" in it || "live" in it }.take(16).forEach { name ->
-                                SuggestionChip(onClick = { model = name }, label = { Text(name) }, enabled = !state.busy)
+                        Box {
+                            TextButton(onClick = { showModels = true }) { Text(stringResource(R.string.alignment_available_models)) }
+                            DropdownMenu(showModels, onDismissRequest = { showModels = false }) {
+                                state.models.filter { "flash" in it || "pro" in it }.filterNot { "tts" in it || "image" in it || "live" in it }.take(16).forEach { name ->
+                                    DropdownMenuItem(text = { Text(name) }, onClick = { model = name; showModels = false }, enabled = !state.busy)
+                                }
                             }
                         }
                     }
                 }
             }
-            if (state.busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-            state.error?.let { error -> item { Text(stringResource(error.messageRes), color = MaterialTheme.colorScheme.error) } }
+            item { TextButton(onClick = { uri.openUri("https://aistudio.google.com/apikey") }) { Text(stringResource(R.string.ai_get_key)) } }
         }
     }
 }

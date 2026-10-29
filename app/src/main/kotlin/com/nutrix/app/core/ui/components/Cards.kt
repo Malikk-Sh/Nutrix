@@ -1,6 +1,8 @@
 package com.nutrix.app.core.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,10 +23,32 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material3.ripple
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.rotate
+import com.nutrix.app.core.ui.motion.NutrixMotion
+import com.nutrix.app.core.ui.motion.gentleFloat
+import com.nutrix.app.core.ui.motion.pressScale
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
@@ -43,16 +67,24 @@ fun NutrixCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = MaterialTheme.shapes.large
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         modifier = modifier
+            .then(if (onClick != null) Modifier.pressScale(interaction, pressedScale = 0.98f) else Modifier)
             .fillMaxWidth()
             .clip(shape)
-            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier),
+            .then(if (onClick != null) Modifier.clickable(interaction, ripple(), role = Role.Button, onClick = onClick) else Modifier),
         shape = shape,
         color = color,
         tonalElevation = 0.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
+        shadowElevation = if (MaterialTheme.colorScheme.background.luminance() > 0.5f) 1.dp else 0.dp,
     ) {
-        Column(Modifier.padding(contentPadding), content = content)
+        Column(
+            Modifier.background(Brush.verticalGradient(listOf(color, lerp(color, MaterialTheme.colorScheme.surfaceContainerHigh, 0.14f))))
+                .padding(contentPadding),
+            content = content,
+        )
     }
 }
 
@@ -66,7 +98,7 @@ fun CardHeader(
     trailing: @Composable (() -> Unit)? = null,
 ) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconBadge(icon = icon, tint = tint)
+        IconBadge(icon = icon, tint = tint, size = 30.dp)
         Spacer(Modifier.width(10.dp))
         Text(
             title,
@@ -80,12 +112,14 @@ fun CardHeader(
 }
 
 @Composable
-fun IconBadge(icon: ImageVector, tint: Color, size: Dp = 34.dp, modifier: Modifier = Modifier) {
+fun IconBadge(icon: ImageVector, tint: Color, size: Dp = 38.dp, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(size * 0.28f)
     Box(
         modifier
             .size(size)
-            .clip(RoundedCornerShape(size / 3))
-            .background(tint.copy(alpha = 0.16f)),
+            .clip(shape)
+            .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.26f), tint.copy(alpha = 0.10f))))
+            .border(1.dp, tint.copy(alpha = 0.18f), shape),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(size * 0.56f))
@@ -129,12 +163,13 @@ fun EmptyState(
     ) {
         Box(
             Modifier
-                .size(64.dp)
+                .gentleFloat()
+                .size(88.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                .background(Brush.radialGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f), MaterialTheme.colorScheme.primary.copy(alpha = 0.04f)))),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(30.dp))
+            Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(38.dp))
         }
         Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
         if (text != null) {
@@ -160,6 +195,7 @@ fun InfoBanner(text: String, icon: ImageVector, modifier: Modifier = Modifier, t
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
             .background(tint.copy(alpha = 0.10f))
+            .border(1.dp, tint.copy(alpha = 0.16f), MaterialTheme.shapes.medium)
             .padding(14.dp),
         verticalAlignment = Alignment.Top,
     ) {
@@ -180,6 +216,7 @@ fun Pill(text: String, color: Color, modifier: Modifier = Modifier) {
         style = MaterialTheme.typography.labelSmall,
         color = color,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 
@@ -188,5 +225,27 @@ fun LabeledValue(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.titleMedium)
+    }
+}
+
+/** Keep guidance available without pushing the user's records below a paragraph of help. */
+@Composable
+fun InfoDisclosure(summary: String, details: String, icon: ImageVector, modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.tertiary) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    Column(modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small)
+            .clickable(role = Role.Button) { expanded = !expanded }.heightIn(min = 48.dp).padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+            val turn by animateFloatAsState(if (expanded) 45f else 0f, NutrixMotion.bouncy(), label = "disclosure")
+            Text("+", style = MaterialTheme.typography.titleMedium, color = tint, modifier = Modifier.rotate(turn))
+        }
+        AnimatedVisibility(expanded, enter = fadeIn(tween(NutrixMotion.MEDIUM)) + expandVertically(tween(NutrixMotion.MEDIUM, easing = NutrixMotion.Emphasized)),
+            exit = fadeOut(tween(NutrixMotion.SHORT)) + shrinkVertically(tween(NutrixMotion.SHORT, easing = NutrixMotion.EmphasizedAccelerate))) {
+            InfoBanner(details, icon, tint = tint)
+        }
     }
 }

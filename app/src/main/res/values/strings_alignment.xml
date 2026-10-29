@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="alignment_collapse">Свернуть</string>
+    <string name="alignment_all_symptoms">Все симптомы</string>
+    <string name="alignment_fluid_note">Что входит в общий объём</string>
+    <string name="alignment_analytics_note">Как учитываются дни без записей</string>
+    <string name="alignment_metric_average">Среднее за выбранный период</string>
+    <string name="alignment_about_tagline">Личный дневник питания и самочувствия</string>
+    <string name="alignment_local_data">Данные на вашем устройстве</string>
+    <string name="alignment_gemini_title">Gemini</string>
+    <string name="alignment_ai_disclosure">Фото и подсказка отправляются Google только по нажатию «Определить по фото».</string>
+    <string name="alignment_ai_privacy">Что отправляется и как хранится ключ</string>
+    <string name="alignment_ai_model_help">Как выбрать модель</string>
+    <string name="alignment_backup_details">Что входит в копию и как она проверяется</string>
+    <string name="alignment_source_privacy">Как используются данные здоровья</string>
+    <string name="alignment_reminders_details">Напоминания работают на устройстве</string>
+    <string name="alignment_disabled">Выключено</string>
+    <string name="alignment_sleep_history">История сна</string>
+    <string name="alignment_sleep_summary">Последний день со сном</string>
+    <string name="alignment_nutrition_summary">Пищевая ценность за сегодня</string>
+    <string name="alignment_meal_actions">Действия с приёмом пищи</string>
+    <string name="alignment_photo_remove">Убрать фото</string>
+    <string name="alignment_known_meals">Калорийность указана для %1$d из %2$d записей</string>
+    <string name="alignment_retry_save">Повторить сохранение</string>
+    <string name="alignment_favorite_saved">Блюдо добавлено в избранное</string>
+    <string name="alignment_more">Ещё</string>
+    <string name="alignment_relation_note">Это связь записей в дневнике, а не вывод о причине симптома.</string>
+    <string name="alignment_configure">Настроить</string>
+    <string name="alignment_confirm_word">Введите %1$s</string>
+    <string name="alignment_available_models">Доступные модели</string>
+    <string name="alignment_custom_period">Свой</string>
+    <string name="alignment_choose_favorite">Выбрать из избранного</string>
+</resources>

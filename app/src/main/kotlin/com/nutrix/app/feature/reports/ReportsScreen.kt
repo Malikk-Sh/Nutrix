@@ -6,6 +6,20 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import com.nutrix.app.core.ui.icons.StickyNote2
+import com.nutrix.app.core.ui.components.IconBadge
+import com.nutrix.app.core.ui.components.SegmentedChoices
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -165,19 +179,26 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewMode
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(f.mime)) { uri -> if (uri != null) viewModel.saveTo(uri) }
     }
 
-    NutrixScreen(title = stringResource(R.string.reports_title), onBack = onBack) { padding ->
+    NutrixScreen(title = stringResource(R.string.reports_title), onBack = onBack, bottomBar = {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(onClick = { launchers.getValue(format).launch(viewModel.fileName()) }, enabled = status !is ExportStatus.Working,
+                    modifier = Modifier.weight(1f).heightIn(min = 52.dp), shape = MaterialTheme.shapes.medium) { Text(stringResource(R.string.report_save)) }
+                OutlinedButton(onClick = viewModel::share, enabled = status !is ExportStatus.Working,
+                    modifier = Modifier.weight(1f).heightIn(min = 52.dp), shape = MaterialTheme.shapes.medium) { Text(stringResource(R.string.report_share)) }
+            }
+        }
+    }) { padding ->
         ScreenList(padding) {
             item {
                 NutrixCard {
                     Text(stringResource(R.string.reports_period), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(6.dp))
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(7 to R.string.period_7, 14 to R.string.period_14, 30 to R.string.period_30, 90 to R.string.period_90).forEach { (d, label) ->
-                            val selected = to == LocalDate.now() && from == LocalDate.now().minusDays(d - 1L)
-                            FilterChip(selected, { viewModel.from.value = LocalDate.now().minusDays(d - 1L); viewModel.to.value = LocalDate.now() }, label = { Text(stringResource(label)) })
-                        }
-                        FilterChip(false, { rangeDialog = true }, label = { Text(stringResource(R.string.period_custom)) })
-                    }
+                    val days = listOf(7, 14, 30, 90, 0)
+                    val current = days.firstOrNull { it != 0 && to == LocalDate.now() && from == LocalDate.now().minusDays(it - 1L) } ?: 0
+                    SegmentedChoices(days, current,
+                        label = { d -> stringResource(when (d) { 7 -> R.string.period_7; 14 -> R.string.period_14; 30 -> R.string.period_30; 90 -> R.string.period_90; else -> R.string.alignment_custom_period }) },
+                        onSelect = { d -> if (d == 0) rangeDialog = true else { viewModel.from.value = LocalDate.now().minusDays(d - 1L); viewModel.to.value = LocalDate.now() } })
                     Spacer(Modifier.height(6.dp))
                     Text(stringResource(R.string.period_range, Formatters.fullDate(from), Formatters.fullDate(to)), style = MaterialTheme.typography.bodyMedium)
                 }
@@ -194,16 +215,19 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewMode
                     ).forEach { (f, labels) ->
                         Row(
                             Modifier
-                                .fillMaxWidth()
+                                .fillMaxWidth().padding(vertical = 4.dp).clip(MaterialTheme.shapes.medium)
+                                .background(if (format == f) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceContainerHigh)
+                                .border(BorderStroke(1.dp, if (format == f) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant), MaterialTheme.shapes.medium)
                                 .selectable(selected = format == f, role = Role.RadioButton, onClick = { viewModel.format.value = f }),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            RadioButton(selected = format == f, onClick = null)
-                            Spacer(Modifier.width(8.dp))
-                            Column(Modifier.padding(vertical = 6.dp)) {
-                                Text(stringResource(labels.first), style = MaterialTheme.typography.bodyLarge)
+                            IconBadge(Icons.Rounded.StickyNote2, MaterialTheme.colorScheme.tertiary, size = 32.dp, modifier = Modifier.padding(start = 10.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
+                                Text(stringResource(labels.first), style = MaterialTheme.typography.titleSmall)
                                 Text(stringResource(labels.second), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
+                            RadioButton(selected = format == f, onClick = null)
                         }
                     }
                     if (format == ExportFormat.PDF || format == ExportFormat.DOCTOR_PDF) {
@@ -212,13 +236,7 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewMode
                             Switch(includePhotos, viewModel::setIncludePhotos)
                         }
                     }
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(onClick = { launchers.getValue(format).launch(viewModel.fileName()) }, enabled = status !is ExportStatus.Working) {
-                            Text(stringResource(R.string.report_save))
-                        }
-                        OutlinedButton(onClick = viewModel::share, enabled = status !is ExportStatus.Working) { Text(stringResource(R.string.report_share)) }
-                    }
+
                 }
             }
         }

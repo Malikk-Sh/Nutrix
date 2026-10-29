@@ -15,9 +15,11 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.lifecycle.awaitInstance
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -58,6 +60,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -71,10 +77,15 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.Lifecycle
 import com.nutrix.app.R
 import com.nutrix.app.core.photo.PhotoStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 
@@ -94,6 +105,9 @@ fun CameraScreen(onCaptured: (String) -> Unit, onBack: () -> Unit, viewModel: Ca
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         granted = it
         asked = true
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
     }
     LaunchedEffect(Unit) {
         if (!granted && !asked) permissionLauncher.launch(Manifest.permission.CAMERA)
@@ -165,6 +179,8 @@ private fun CameraContent(viewModel: CameraViewModel, onCaptured: (String) -> Un
     var lensFacing by rememberSaveable { mutableIntStateOf(CameraSelector.LENS_FACING_BACK) }
     var flashMode by rememberSaveable { mutableIntStateOf(ImageCapture.FLASH_MODE_AUTO) }
     var busy by remember { mutableStateOf(false) }
+    var ready by remember { mutableStateOf(false) }
+    var retry by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<Int?>(null) }
     val previewView = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
     val imageCapture = remember {
@@ -172,7 +188,8 @@ private fun CameraContent(viewModel: CameraViewModel, onCaptured: (String) -> Un
     }
     imageCapture.flashMode = flashMode
 
-    DisposableEffect(lensFacing) {
+    DisposableEffect(lensFacing, retry) {
+        ready = false
         var provider: ProcessCameraProvider? = null
         val job = scope.launch {
             runCatching {
@@ -187,7 +204,8 @@ private fun CameraContent(viewModel: CameraViewModel, onCaptured: (String) -> Un
                 p.unbindAll()
                 p.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture)
                 error = null
-            }.onFailure { error = R.string.camera_unavailable }
+                ready = true
+            }.onFailure { if (it is CancellationException) throw it; error = R.string.camera_unavailable; ready = false }
         }
         onDispose {
             job.cancel()
@@ -197,14 +215,35 @@ private fun CameraContent(viewModel: CameraViewModel, onCaptured: (String) -> Un
 
     Box(Modifier.fillMaxSize()) {
         AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-        error?.let {
-            Text(
-                stringResource(it),
-                color = Color.White,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(24.dp),
-            )
+        Box(Modifier.fillMaxWidth().height(116.dp).align(Alignment.TopCenter)
+            .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.65f), Color.Transparent))))
+        Box(Modifier.fillMaxWidth().height(220.dp).align(Alignment.BottomCenter)
+            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f)))))
+        Text(stringResource(R.string.camera_screen_title), color = Color.White, style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 20.dp))
+        if (ready && error == null) {
+            Canvas(Modifier.align(Alignment.Center).fillMaxWidth(0.82f).aspectRatio(1f)) {
+                val line = 3.dp.toPx()
+                val length = 28.dp.toPx()
+                listOf(Offset.Zero, Offset(size.width, 0f), Offset(0f, size.height), Offset(size.width, size.height)).forEach { corner ->
+                    val dx = if (corner.x == 0f) length else -length
+                    val dy = if (corner.y == 0f) length else -length
+                    drawLine(Color.White.copy(alpha = 0.9f), corner, corner + Offset(dx, 0f), line, StrokeCap.Round)
+                    drawLine(Color.White.copy(alpha = 0.9f), corner, corner + Offset(0f, dy), line, StrokeCap.Round)
+                }
+            }
+            Text(stringResource(if (busy) R.string.photo_processing else R.string.camera_framing_hint),
+                color = Color.White, style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 134.dp))
+        } else if (error == null) {
+            CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)
+        }
+        error?.let { message ->
+            Column(Modifier.align(Alignment.Center).padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(stringResource(message), color = Color.White, textAlign = TextAlign.Center)
+                Button(onClick = { error = null; retry++ }, shape = MaterialTheme.shapes.medium) { Text(stringResource(R.string.camera_retry)) }
+            }
         }
         Row(
             Modifier
@@ -215,7 +254,7 @@ private fun CameraContent(viewModel: CameraViewModel, onCaptured: (String) -> Un
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = {
+            IconButton(enabled = !busy, onClick = {
                 flashMode = when (flashMode) {
                     ImageCapture.FLASH_MODE_AUTO -> ImageCapture.FLASH_MODE_ON
                     ImageCapture.FLASH_MODE_ON -> ImageCapture.FLASH_MODE_OFF
@@ -240,10 +279,9 @@ private fun CameraContent(viewModel: CameraViewModel, onCaptured: (String) -> Un
                     .border(4.dp, Color.White, CircleShape)
                     .padding(8.dp)
                     .clip(CircleShape)
-                    .background(if (busy) Color.Gray else Color.White)
+                    .background(if (busy || !ready || error != null) Color.Gray else Color.White)
                     .semantics { contentDescription = captureLabel }
-                    .then(
-                        if (!busy) Modifier.clickable {
+                    .clickable(enabled = ready && !busy && error == null, role = Role.Button) {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             busy = true
                             val file = viewModel.newFile()
@@ -254,8 +292,11 @@ private fun CameraContent(viewModel: CameraViewModel, onCaptured: (String) -> Un
                                     override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                                         scope.launch {
                                             runCatching { viewModel.import(file) }
-                                                .onSuccess(onCaptured)
-                                                .onFailure { busy = false; error = R.string.camera_error }
+                                                .onSuccess { result -> withContext(Dispatchers.Main.immediate) { onCaptured(result) } }
+                                                .onFailure { failure ->
+                                                    if (failure is CancellationException) throw failure
+                                                    withContext(Dispatchers.Main.immediate) { busy = false; error = R.string.camera_error }
+                                                }
                                         }
                                     }
 
@@ -265,13 +306,12 @@ private fun CameraContent(viewModel: CameraViewModel, onCaptured: (String) -> Un
                                     }
                                 },
                             )
-                        } else Modifier,
-                    ),
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 if (busy) CircularProgressIndicator(color = Color.Black, modifier = Modifier.size(28.dp))
             }
-            IconButton(onClick = {
+            IconButton(enabled = !busy, onClick = {
                 lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
             }) {
                 Icon(Icons.Rounded.FlipCameraAndroid, stringResource(R.string.camera_flip), tint = Color.White)

@@ -1,7 +1,20 @@
 package com.nutrix.app.core.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.graphicsLayer
+import com.nutrix.app.core.ui.motion.NutrixMotion
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +35,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,6 +43,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -38,6 +57,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 
 /** Single-choice chip row. Tapping the selected chip again clears it when [allowDeselect]. */
@@ -56,6 +77,7 @@ fun <T> ChoiceChips(
         options.forEach { option ->
             val isSelected = option == selected
             FilterChip(
+                modifier = Modifier.animateContentSize(NutrixMotion.gentle()),
                 selected = isSelected,
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -64,10 +86,12 @@ fun <T> ChoiceChips(
                 label = { Text(label(option)) },
                 leadingIcon = if (isSelected) ({ Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }) else null,
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = accent.copy(alpha = 0.18f),
-                    selectedLabelColor = MaterialTheme.colorScheme.onSurface,
-                    selectedLeadingIconColor = accent,
+                    selectedContainerColor = accent,
+                    selectedLabelColor = if (accent.luminance() > 0.3f) Color(0xFF101619) else Color.White,
+                    selectedLeadingIconColor = if (accent.luminance() > 0.3f) Color(0xFF101619) else Color.White,
                 ),
+                shape = MaterialTheme.shapes.small,
+                border = BorderStroke(1.dp, if (isSelected) accent.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant),
             )
         }
     }
@@ -87,6 +111,7 @@ fun <T> MultiChoiceChips(
         options.forEach { option ->
             val isSelected = option in selected
             FilterChip(
+                modifier = Modifier.animateContentSize(NutrixMotion.gentle()),
                 selected = isSelected,
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -95,11 +120,53 @@ fun <T> MultiChoiceChips(
                 label = { Text(label(option)) },
                 leadingIcon = if (isSelected) ({ Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }) else null,
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = accent.copy(alpha = 0.18f),
-                    selectedLabelColor = MaterialTheme.colorScheme.onSurface,
-                    selectedLeadingIconColor = accent,
+                    selectedContainerColor = accent,
+                    selectedLabelColor = if (accent.luminance() > 0.3f) Color(0xFF101619) else Color.White,
+                    selectedLeadingIconColor = if (accent.luminance() > 0.3f) Color(0xFF101619) else Color.White,
                 ),
+                shape = MaterialTheme.shapes.small,
+                border = BorderStroke(1.dp, if (isSelected) accent.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant),
             )
+        }
+    }
+}
+
+/** Equal-width options stay visible; large text wraps into accessible rows. */
+@Composable
+fun <T> SegmentedChoices(options: List<T>, selected: T?, label: @Composable (T) -> String,
+    onSelect: (T) -> Unit, modifier: Modifier = Modifier) {
+    val largeText = LocalDensity.current.fontScale > 1.2f
+    val haptic = LocalHapticFeedback.current
+    @Composable fun choice(option: T, itemModifier: Modifier, drawsOwnBackground: Boolean) {
+        val active = option == selected
+        val background by animateColorAsState(if (active && drawsOwnBackground) MaterialTheme.colorScheme.primary else Color.Transparent,
+            tween(NutrixMotion.MEDIUM), label = "segmentBackground")
+        val content by animateColorAsState(if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            tween(NutrixMotion.MEDIUM), label = "segmentText")
+        Box(itemModifier.clip(MaterialTheme.shapes.small)
+            .background(background)
+            .selectable(active, role = Role.RadioButton, onClick = {
+                if (!active) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onSelect(option)
+            })
+            .heightIn(min = 48.dp).padding(horizontal = 6.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+            Text(label(option), style = MaterialTheme.typography.labelMedium, color = content, textAlign = TextAlign.Center)
+        }
+    }
+    if (largeText) FlowRow(modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        options.forEach { choice(it, Modifier, drawsOwnBackground = true) }
+    } else BoxWithConstraints(modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(4.dp)) {
+        // A single highlight slides between segments instead of each option switching colour on its own.
+        val index = options.indexOf(selected)
+        val segment = maxWidth / options.size.coerceAtLeast(1)
+        val offset by animateDpAsState(segment * index.coerceAtLeast(0), spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow), label = "segmentOffset")
+        if (index >= 0) Box(Modifier.matchParentSize()) {
+            Box(Modifier.offset { IntOffset(offset.roundToPx(), 0) }.width(segment).fillMaxHeight().clip(MaterialTheme.shapes.small)
+                .background(MaterialTheme.colorScheme.primary))
+        }
+        Row(Modifier.fillMaxWidth().selectableGroup()) {
+            options.forEach { choice(it, Modifier.weight(1f), drawsOwnBackground = false) }
         }
     }
 }
@@ -116,17 +183,19 @@ fun ScaleSelector(
 ) {
     val haptic = LocalHapticFeedback.current
     Column(modifier) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             for (i in 0..max) {
                 val selected = value == i
                 val bg by animateColorAsState(
                     if (selected) accent else MaterialTheme.colorScheme.surfaceContainerHighest,
                     label = "scale",
                 )
+                val pop by animateFloatAsState(if (selected) 1.1f else 1f, NutrixMotion.bouncy(), label = "scalePop")
                 val text = caption(i)
                 Box(
                     Modifier
-                        .size(44.dp)
+                        .graphicsLayer { scaleX = pop; scaleY = pop }
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(bg)
                         .border(1.dp, if (selected) accent else MaterialTheme.colorScheme.outlineVariant, CircleShape)
@@ -174,15 +243,19 @@ fun NutrixTextField(
     isError: Boolean = false,
     capitalization: KeyboardCapitalization = KeyboardCapitalization.Sentences,
     enabled: Boolean = true,
+    textStyle: TextStyle = MaterialTheme.typography.bodyLarge,
+    showLabel: Boolean = true,
 ) {
     OutlinedTextField(
         value = value,
         enabled = enabled,
         onValueChange = onValueChange,
-        label = { Text(label) },
+        label = if (showLabel) ({ Text(label) }) else null,
+        textStyle = textStyle,
         placeholder = placeholder?.let { { Text(it) } },
         modifier = modifier
             .fillMaxWidth()
+            .then(if (!showLabel) Modifier.semantics { contentDescription = label } else Modifier)
             .heightIn(min = 56.dp),
         singleLine = singleLine,
         minLines = minLines,
@@ -195,5 +268,13 @@ fun NutrixTextField(
         supportingText = supportingText?.let { { Text(it) } },
         isError = isError,
         shape = MaterialTheme.shapes.medium,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            errorContainerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+        ),
     )
 }

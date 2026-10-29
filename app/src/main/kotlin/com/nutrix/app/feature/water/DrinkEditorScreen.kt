@@ -46,26 +46,37 @@ import com.nutrix.app.core.ui.components.ChoiceChips
 import com.nutrix.app.core.ui.components.ConfirmDialog
 import com.nutrix.app.core.ui.components.DateTimeRow
 import com.nutrix.app.core.ui.components.NutrixCard
+import com.nutrix.app.core.ui.components.NutrixBottomAction
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.NutrixTextField
 import com.nutrix.app.core.ui.components.PhotoThumb
 import com.nutrix.app.core.ui.components.ScreenList
+import com.nutrix.app.core.ui.icon
+import com.nutrix.app.core.ui.theme.MetricTextStyle
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.platform.LocalDensity
 import com.nutrix.app.core.ui.labelRes
 import com.nutrix.app.core.ui.theme.LocalCategoryColors
+import com.nutrix.app.navigation.PhotoNavigationResults
 
 @Composable
 fun DrinkEditorScreen(
+    photoResults: PhotoNavigationResults,
     onClose: () -> Unit,
     onOpenCamera: () -> Unit,
     viewModel: DrinkEditorViewModel = hiltViewModel(),
 ) {
     val form by viewModel.form.collectAsStateWithLifecycle()
     val closed by viewModel.closed.collectAsStateWithLifecycle()
-    val camera by viewModel.cameraResult.collectAsStateWithLifecycle()
+    val camera by photoResults.cameraPhoto.collectAsStateWithLifecycle()
+    val loaded by viewModel.loaded.collectAsStateWithLifecycle()
     val colors = LocalCategoryColors.current
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    var allVolumes by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(closed) { if (closed) onClose() }
-    LaunchedEffect(camera) { camera?.let(viewModel::consumeCamera) }
+    LaunchedEffect(camera, loaded) { camera?.let { if (viewModel.consumeCamera(it)) photoResults.cameraConsumed(it) } }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(viewModel::setPhotoFromUri) }
     BackHandler { viewModel.cancel() }
 
@@ -76,17 +87,7 @@ fun DrinkEditorScreen(
             if (form.id != 0L) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete)) }
         },
         bottomBar = {
-            Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-                Button(
-                    onClick = viewModel::save,
-                    enabled = form.volume != null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                        .height(54.dp),
-                ) { Text(stringResource(R.string.action_save)) }
-            }
+            NutrixBottomAction(stringResource(R.string.action_save), viewModel::save, enabled = loaded && form.volume != null)
         },
     ) { padding ->
         ScreenList(padding, bottomExtra = 24.dp) {
@@ -94,7 +95,24 @@ fun DrinkEditorScreen(
                 NutrixCard {
                     Text(stringResource(R.string.water_type), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(6.dp))
-                    ChoiceChips(DrinkType.entries, form.type, { stringResource(it.labelRes) }, { t -> if (t != null) viewModel.update { it.copy(type = t) } }, allowDeselect = false, accent = colors.water)
+                    val columns = if (LocalDensity.current.fontScale > 1.2f) 1 else 2
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        DrinkType.entries.chunked(columns).forEach { row ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                row.forEach { type ->
+                                    val selected = type == form.type
+                                    FilledTonalButton(onClick = { viewModel.update { it.copy(type = type) } }, modifier = Modifier.weight(1f),
+                                        shape = MaterialTheme.shapes.small, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp),
+                                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = if (selected) colors.water.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                            contentColor = if (selected) colors.water else MaterialTheme.colorScheme.onSurfaceVariant)) {
+                                        Icon(type.icon, null, Modifier.size(20.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(stringResource(type.labelRes), style = MaterialTheme.typography.labelLarge)
+                                    }
+                                }
+                            }
+                        }
+                    }
                     Spacer(Modifier.height(12.dp))
                     NutrixTextField(
                         value = form.volumeText,
@@ -104,11 +122,13 @@ fun DrinkEditorScreen(
                         suffix = stringResource(R.string.unit_ml),
                         isError = form.volumeText.isNotEmpty() && form.volume == null,
                         supportingText = if (form.volumeText.isNotEmpty() && form.volume == null) stringResource(R.string.drink_volume_invalid) else null,
+                        textStyle = MetricTextStyle,
                     )
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(100, 150, 200, 250, 300, 330, 500).forEach { v ->
+                        (if (allVolumes) listOf(100, 150, 200, 250, 300, 330, 500) else listOf(100, 250, 500)).forEach { v ->
                             SuggestionChip(onClick = { viewModel.update { it.copy(volumeText = v.toString()) } }, label = { Text("$v") })
                         }
+                        androidx.compose.material3.TextButton(onClick = { allVolumes = !allVolumes }) { Text(stringResource(if (allVolumes) R.string.alignment_collapse else R.string.alignment_more)) }
                     }
                     Spacer(Modifier.height(8.dp))
                     NutrixTextField(form.name, { v -> viewModel.update { it.copy(name = v) } }, stringResource(R.string.drink_name_label))

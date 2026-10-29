@@ -1,6 +1,7 @@
 package com.nutrix.app.feature.settings
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -61,8 +62,20 @@ import com.nutrix.app.R
 import com.nutrix.app.core.model.ThemeMode
 import com.nutrix.app.core.model.WeightUnit
 import com.nutrix.app.core.ui.components.IconBadge
+import com.nutrix.app.core.ui.components.InfoDisclosure
+import com.nutrix.app.core.ui.components.SegmentedChoices
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import com.nutrix.app.core.ui.components.InfoBanner
 import com.nutrix.app.core.ui.components.NutrixCard
+import com.nutrix.app.core.ui.components.NutrixBottomAction
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.NutrixTextField
 import com.nutrix.app.core.ui.components.ScreenList
@@ -99,7 +112,9 @@ fun ProfileScreen(contentPadding: PaddingValues, actions: ProfileActions, viewMo
             item {
                 NutrixCard(onClick = actions.onEditProfile) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconBadge(Icons.Rounded.Person, MaterialTheme.colorScheme.primary, size = 48.dp)
+                        Box(Modifier.size(52.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
+                            Text(settings.userName.trim().firstOrNull()?.uppercase() ?: "N", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+                        }
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
                             Text(settings.userName.ifBlank { stringResource(R.string.profile_edit) }, style = MaterialTheme.typography.titleLarge)
@@ -138,17 +153,13 @@ fun ProfileScreen(contentPadding: PaddingValues, actions: ProfileActions, viewMo
             item {
                 NutrixCard {
                     Text(stringResource(R.string.settings_units), style = MaterialTheme.typography.titleSmall)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(settings.weightUnit == WeightUnit.KG, { viewModel.setUnit(WeightUnit.KG) }, label = { Text(stringResource(R.string.settings_units_kg)) })
-                        FilterChip(settings.weightUnit == WeightUnit.LB, { viewModel.setUnit(WeightUnit.LB) }, label = { Text(stringResource(R.string.settings_units_lb)) })
-                    }
-                    Spacer(Modifier.height(10.dp))
+                    SegmentedChoices(WeightUnit.entries, settings.weightUnit,
+                        label = { stringResource(if (it == WeightUnit.KG) R.string.settings_units_kg else R.string.settings_units_lb) }, onSelect = viewModel::setUnit)
+                    Spacer(Modifier.height(12.dp))
                     Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.titleSmall)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(ThemeMode.DARK to R.string.settings_theme_dark, ThemeMode.LIGHT to R.string.settings_theme_light, ThemeMode.SYSTEM to R.string.settings_theme_system).forEach { (m, l) ->
-                            FilterChip(settings.themeMode == m, { viewModel.setTheme(m) }, label = { Text(stringResource(l)) })
-                        }
-                    }
+                    SegmentedChoices(listOf(ThemeMode.DARK, ThemeMode.LIGHT, ThemeMode.SYSTEM), settings.themeMode,
+                        label = { stringResource(when (it) { ThemeMode.DARK -> R.string.settings_theme_dark; ThemeMode.LIGHT -> R.string.settings_theme_light; ThemeMode.SYSTEM -> R.string.settings_theme_system }) },
+                        onSelect = viewModel::setTheme)
                     Spacer(Modifier.height(10.dp))
                     SwitchRow(stringResource(R.string.settings_smart), stringResource(R.string.settings_smart_desc), settings.smartSuggestions, viewModel::setSmart)
                     SwitchRow(stringResource(R.string.settings_kcal), stringResource(R.string.settings_kcal_desc), settings.calorieEstimates, viewModel::setKcal)
@@ -173,23 +184,24 @@ fun ProfileScreen(contentPadding: PaddingValues, actions: ProfileActions, viewMo
     if (deleteDialog) {
         var word by remember { mutableStateOf("") }
         val required = stringResource(R.string.settings_delete_all_word)
-        AlertDialog(
-            onDismissRequest = { deleteDialog = false },
-            title = { Text(stringResource(R.string.settings_delete_all_title)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(R.string.settings_delete_all_text))
-                    OutlinedTextField(word, { word = it }, singleLine = true)
+        androidx.compose.material3.ModalBottomSheet(onDismissRequest = { deleteDialog = false },
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                IconBadge(Icons.Rounded.DeleteForever, MaterialTheme.colorScheme.error, size = 64.dp)
+                Text(stringResource(R.string.settings_delete_all_title), style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.settings_delete_all_text), style = MaterialTheme.typography.bodyMedium)
+                NutrixTextField(word, { word = it }, stringResource(R.string.alignment_confirm_word, required))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedButton(onClick = { deleteDialog = false }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.action_cancel)) }
+                    Button(onClick = { deleteDialog = false; viewModel.deleteAll() }, enabled = word.trim().equals(required, ignoreCase = true),
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError), modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_delete_all_confirm))
+                    }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { deleteDialog = false; viewModel.deleteAll() }, enabled = word.trim().equals(required, ignoreCase = true)) {
-                    Text(stringResource(R.string.settings_delete_all_confirm), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = { TextButton(onClick = { deleteDialog = false }) { Text(stringResource(R.string.action_cancel)) } },
-        )
+            }
+        }
     }
+
 }
 
 @Composable
@@ -198,12 +210,13 @@ private fun NavRow(icon: ImageVector, tint: Color, title: String, onClick: () ->
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
+            .heightIn(min = 52.dp)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconBadge(icon, tint, size = 36.dp)
+        IconBadge(icon, tint, size = 30.dp)
         Spacer(Modifier.width(14.dp))
-        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Text(title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -242,13 +255,8 @@ fun ProfileEditScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltVie
         title = stringResource(R.string.profile_edit),
         onBack = onBack,
         bottomBar = {
-            Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-                Button(
-                    onClick = { viewModel.saveProfile(name, heightValue, parse(start), parse(target)); onBack() },
-                    enabled = valid,
-                    modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp).height(54.dp),
-                ) { Text(stringResource(R.string.action_save)) }
-            }
+            NutrixBottomAction(stringResource(R.string.action_save),
+                { viewModel.saveProfile(name, heightValue, parse(start), parse(target)); onBack() }, enabled = valid)
         },
     ) { padding ->
         ScreenList(padding, bottomExtra = 24.dp) {
@@ -278,7 +286,8 @@ fun SecurityScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewMo
         ScreenList(padding) {
             item {
                 NutrixCard {
-                    Text(stringResource(R.string.security_lock), style = MaterialTheme.typography.titleMedium)
+                    com.nutrix.app.core.ui.components.CardHeader(Icons.Rounded.Lock, stringResource(R.string.security_lock), MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(10.dp))
                     Text(stringResource(R.string.security_lock_desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -324,6 +333,7 @@ fun SecurityScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewMo
             }
             item {
                 NutrixCard {
+                    com.nutrix.app.core.ui.components.CardHeader(Icons.Rounded.Lock, stringResource(R.string.security_secure_screen), MaterialTheme.colorScheme.tertiary)
                     SwitchRow(stringResource(R.string.security_secure_screen), stringResource(R.string.security_secure_screen_desc), settings.secureScreen, viewModel::setSecureScreen)
                 }
             }
@@ -362,25 +372,24 @@ fun AboutScreen(onBack: () -> Unit) {
     NutrixScreen(title = stringResource(R.string.about_title), onBack = onBack) { padding ->
         ScreenList(padding) {
             item {
-                NutrixCard {
-                    Text("NUTRIX", style = MaterialTheme.typography.headlineMedium)
-                    Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.height(8.dp))
-                    Text(stringResource(R.string.about_offline), style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        stringResource(R.string.about_samsung_sdk, stringResource(if (BuildConfig.SAMSUNG_SDK_BUNDLED) R.string.about_sdk_bundled else R.string.about_sdk_missing)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Column(Modifier.fillMaxWidth().padding(vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(116.dp))
+                    Text("NUTRIX", style = MaterialTheme.typography.headlineLarge)
+                    Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(10.dp))
+                    Text(stringResource(R.string.alignment_about_tagline), style = MaterialTheme.typography.bodyMedium)
                 }
             }
             item {
                 NutrixCard {
-                    Text(stringResource(R.string.about_privacy), style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(6.dp))
-                    Text(stringResource(R.string.privacy_text), style = MaterialTheme.typography.bodyMedium)
+                    com.nutrix.app.core.ui.components.CardHeader(Icons.Rounded.Lock, stringResource(R.string.alignment_local_data), MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(8.dp))
+                    Text(stringResource(R.string.about_offline), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.about_samsung_sdk, stringResource(if (BuildConfig.SAMSUNG_SDK_BUNDLED) R.string.about_sdk_bundled else R.string.about_sdk_missing)),
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+            item { InfoDisclosure(stringResource(R.string.about_privacy), stringResource(R.string.privacy_text), Icons.Rounded.Info) }
             item { InfoBanner(stringResource(R.string.medical_disclaimer), Icons.Rounded.Info) }
         }
     }

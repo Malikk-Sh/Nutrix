@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.SnackbarHost
+import com.nutrix.app.core.ui.components.NutrixSnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -139,7 +139,7 @@ fun NutrixRoot(vm: RootViewModel) {
                             )
                         }
                     }
-                    SnackbarHost(
+                    NutrixSnackbarHost(
                         snackbar,
                         Modifier
                             .align(Alignment.BottomCenter)

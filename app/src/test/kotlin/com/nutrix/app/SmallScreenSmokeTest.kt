@@ -61,7 +61,10 @@ class SmallScreenSmokeTest {
     fun tearDown() = scenario.close()
 
     private fun waitForText(text: String) =
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() ||
+                runCatching { compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(text)) }.isSuccess
+        }
 
     private fun waitForDescription(label: String) =
         compose.waitUntil(10_000) { compose.onAllNodes(hasContentDescription(label)).fetchSemanticsNodes().isNotEmpty() }

@@ -10,11 +10,13 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.printToString
@@ -124,7 +126,8 @@ class AppSmokeTest {
         // Quick add -> water screen -> one-tap volume
         clickDescription("Быстрое добавление")
         compose.onAllNodesWithText("Вода").onFirst().assertExists()
-        clickDescription("Вода")
+        compose.waitUntil(10_000) { compose.onAllNodes(androidx.compose.ui.test.hasTestTag("quick-action-WATER")).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("quick-action-WATER").performScrollTo().performClick()
         waitForText("Выпито сегодня")
         clickText("+250 мл")
         waitForText("250 мл")
@@ -142,7 +145,11 @@ class AppSmokeTest {
         // Weight from the dashboard card
         clickDescription("Записать вес")
         waitForText("Записать вес")
-        compose.onNode(hasSetTextAction() and hasText("Вес")).performTextReplacement("55,2")
+        // The screen's add button has the same text as the dialog title. Wait for the
+        // editable field, so the assertion cannot race navigation/dialog creation.
+        val weightField = hasSetTextAction() and hasText("Вес")
+        compose.waitUntil(10_000) { compose.onAllNodes(weightField).fetchSemanticsNodes().size == 1 }
+        compose.onNode(weightField).performTextReplacement("55,2")
         compose.onAllNodesWithText("Сохранить").onFirst().performClick()
         waitForText("55,2 кг", substring = true)
         clickDescription("Назад")
@@ -150,7 +157,13 @@ class AppSmokeTest {
         // Note via quick add
         waitForDescription("Быстрое добавление")
         clickDescription("Быстрое добавление")
-        clickDescription("Заметка")
+        try {
+            compose.waitUntil(10_000) { compose.onAllNodes(androidx.compose.ui.test.hasTestTag("quick-action-NOTE")).fetchSemanticsNodes().isNotEmpty() }
+        } catch (error: Throwable) {
+            dumpTree("waiting for quick note sheet")
+            throw error
+        }
+        compose.onNodeWithTag("quick-action-NOTE").performScrollTo().performClick()
         waitForText("Новая заметка")
         compose.onNode(hasSetTextAction()).performTextInput("Хорошо выспался")
         clickText("Сохранить")

@@ -34,6 +34,7 @@ import com.nutrix.app.core.time.TimeUtils
 import com.nutrix.app.core.ui.components.ConfirmDialog
 import com.nutrix.app.core.ui.components.DateTimeRow
 import com.nutrix.app.core.ui.components.NutrixCard
+import com.nutrix.app.core.ui.components.NutrixBottomAction
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.NutrixTextField
 import com.nutrix.app.core.ui.components.ScreenList
@@ -113,17 +114,7 @@ fun NoteEditorScreen(onClose: () -> Unit, viewModel: NoteEditorViewModel = hiltV
         onBack = onClose,
         actions = { if (viewModel.isEdit) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete)) } },
         bottomBar = {
-            Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-                Button(
-                    onClick = viewModel::save,
-                    enabled = form.text.isNotBlank(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                        .height(54.dp),
-                ) { Text(stringResource(R.string.action_save)) }
-            }
+            NutrixBottomAction(stringResource(R.string.action_save), viewModel::save, enabled = form.text.isNotBlank())
         },
     ) { padding ->
         ScreenList(padding, bottomExtra = 24.dp) {
@@ -131,7 +122,7 @@ fun NoteEditorScreen(onClose: () -> Unit, viewModel: NoteEditorViewModel = hiltV
                 NutrixCard {
                     DateTimeRow(form.date, form.time, { d -> viewModel.update { it.copy(date = d) } }, { t -> viewModel.update { it.copy(time = t) } })
                     Spacer(Modifier.height(12.dp))
-                    NutrixTextField(form.text, { v -> viewModel.update { it.copy(text = v) } }, stringResource(R.string.label_note), placeholder = stringResource(R.string.note_text_hint), singleLine = false, minLines = 6)
+                    NutrixTextField(form.text, { v -> viewModel.update { it.copy(text = v) } }, stringResource(R.string.label_note), placeholder = stringResource(R.string.note_text_hint), singleLine = false, minLines = 14)
                 }
             }
         }
