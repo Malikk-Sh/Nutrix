@@ -50,6 +50,7 @@ import com.nutrix.app.core.ui.components.EmptyState
 import com.nutrix.app.core.ui.components.InfoBanner
 import com.nutrix.app.core.ui.components.LabeledValue
 import com.nutrix.app.core.ui.components.NutrixCard
+import com.nutrix.app.core.ui.components.NutrixBottomAction
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.NutrixTextField
 import com.nutrix.app.core.ui.components.Pill
@@ -83,9 +84,7 @@ fun WeightScreen(openAdd: Boolean, onBack: () -> Unit, viewModel: WeightViewMode
     NutrixScreen(
         title = stringResource(R.string.weight_title),
         onBack = onBack,
-        floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = viewModel::startAdd, icon = { Icon(Icons.Rounded.Add, null) }, text = { Text(stringResource(R.string.weight_add)) })
-        },
+        bottomBar = { NutrixBottomAction(stringResource(R.string.weight_add), viewModel::startAdd) },
     ) { padding ->
         ScreenList(padding) {
             val stats = state.stats
@@ -136,7 +135,7 @@ fun WeightScreen(openAdd: Boolean, onBack: () -> Unit, viewModel: WeightViewMode
                     NutrixCard {
                         Text(stringResource(R.string.weight_chart), style = MaterialTheme.typography.titleSmall)
                         Spacer(Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             WeightPeriod.entries.forEach { p ->
                                 FilterChip(
                                     selected = state.period == p,

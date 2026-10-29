@@ -16,7 +16,6 @@ import com.nutrix.app.data.repository.UserMessages
 import com.nutrix.app.database.entity.DrinkEntity
 import com.nutrix.app.database.entity.DrinkTemplateEntity
 import com.nutrix.app.navigation.DrinkEditorRoute
-import com.nutrix.app.navigation.NavResults
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -137,7 +136,8 @@ class DrinkEditorViewModel @Inject constructor(
     private val _form = MutableStateFlow(DrinkForm())
     val form: StateFlow<DrinkForm> = _form.asStateFlow()
     val closed = MutableStateFlow(false)
-    val cameraResult = savedStateHandle.getStateFlow<String?>(NavResults.CAMERA_PHOTO, null)
+    private val _loaded = MutableStateFlow(route.drinkId == 0L)
+    val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
     private var originalPhoto: String? = null
 
     init {
@@ -151,15 +151,17 @@ class DrinkEditorViewModel @Inject constructor(
                     date = rt.localDate, time = rt.localTime, zoneId = d.zoneId, photo = d.photoFile, note = d.note.orEmpty(),
                     templateId = d.templateId, createdAt = d.createdAt,
                 )
+                _loaded.value = true
             }
         }
     }
 
     fun update(transform: (DrinkForm) -> DrinkForm) = _form.update(transform)
 
-    fun consumeCamera(file: String) {
-        savedStateHandle[NavResults.CAMERA_PHOTO] = null
+    fun consumeCamera(file: String): Boolean {
+        if (!_loaded.value || closed.value) return false
         setPhoto(file)
+        return true
     }
 
     fun setPhotoFromUri(uri: android.net.Uri) {
@@ -168,6 +170,7 @@ class DrinkEditorViewModel @Inject constructor(
 
     private fun setPhoto(file: String) {
         val previous = _form.value.photo
+        if (previous == file) return
         if (previous != null && previous != originalPhoto) photos.delete(previous)
         _form.update { it.copy(photo = file) }
     }

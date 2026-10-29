@@ -160,10 +160,6 @@ class FoodEditorViewModel @Inject constructor(
     private val _events = MutableStateFlow<FoodEditorEvent?>(null)
     val events: StateFlow<FoodEditorEvent?> = _events.asStateFlow()
 
-    /** Camera / crop results delivered through this entry's SavedStateHandle. */
-    val cameraResult = savedStateHandle.getStateFlow<String?>(NavResults.CAMERA_PHOTO, null)
-    val cropResult = savedStateHandle.getStateFlow<String?>(NavResults.CROPPED_PHOTO, null)
-
     val favorites = meals.observeFavorites().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
@@ -379,21 +375,21 @@ class FoodEditorViewModel @Inject constructor(
         }
     }
 
-    fun consumeCameraResult(fileName: String) {
-        if (!_state.value.loaded || _state.value.pendingDraft != null || _state.value.isSaving || finished) return
-        savedStateHandle[NavResults.CAMERA_PHOTO] = null
-        update { it.copy(photos = it.photos + fileName) }
+    fun consumeCameraResult(fileName: String): Boolean {
+        if (!_state.value.loaded || _state.value.pendingDraft != null || _state.value.isSaving || finished) return false
+        if (fileName !in _state.value.form.photos) update { it.copy(photos = it.photos + fileName) }
+        return true
     }
 
-    fun consumeCropResult(cropped: String) {
-        if (!_state.value.loaded || _state.value.pendingDraft != null || _state.value.isSaving || finished) return
+    fun consumeCropResult(cropped: String): Boolean {
+        if (!_state.value.loaded || _state.value.pendingDraft != null || _state.value.isSaving || finished) return false
         val source = savedStateHandle.get<String>(NavResults.CROP_SOURCE)
-        savedStateHandle[NavResults.CROPPED_PHOTO] = null
         savedStateHandle[NavResults.CROP_SOURCE] = null
-        update { form ->
+        if (cropped !in _state.value.form.photos) update { form ->
             val idx = form.photos.indexOf(source)
             if (idx >= 0) form.copy(photos = form.photos.toMutableList().also { it[idx] = cropped }) else form.copy(photos = form.photos + cropped)
         }
+        return true
     }
 
     fun prepareCrop(fileName: String) {

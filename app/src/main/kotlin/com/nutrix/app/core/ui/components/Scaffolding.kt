@@ -68,7 +68,7 @@ fun NutrixScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(title, style = if (onBack == null) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     if (onBack != null) {
                         IconButton(onClick = onBack) {
@@ -109,7 +109,7 @@ fun ScreenList(
             contentPadding = PaddingValues(
                 start = NutrixTokens.ScreenPadding,
                 end = NutrixTokens.ScreenPadding,
-                top = padding.calculateTopPadding() + 4.dp,
+                top = padding.calculateTopPadding() + 12.dp,
                 bottom = padding.calculateBottomPadding() + bottomExtra,
             ),
             verticalArrangement = Arrangement.spacedBy(NutrixTokens.CardSpacing),

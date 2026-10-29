@@ -1,6 +1,8 @@
 package com.nutrix.app.core.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,6 +27,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
@@ -51,8 +56,14 @@ fun NutrixCard(
         shape = shape,
         color = color,
         tonalElevation = 0.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
+        shadowElevation = if (MaterialTheme.colorScheme.background.luminance() > 0.5f) 1.dp else 0.dp,
     ) {
-        Column(Modifier.padding(contentPadding), content = content)
+        Column(
+            Modifier.background(Brush.verticalGradient(listOf(color, lerp(color, MaterialTheme.colorScheme.surfaceContainerHigh, 0.14f))))
+                .padding(contentPadding),
+            content = content,
+        )
     }
 }
 
@@ -80,12 +91,14 @@ fun CardHeader(
 }
 
 @Composable
-fun IconBadge(icon: ImageVector, tint: Color, size: Dp = 34.dp, modifier: Modifier = Modifier) {
+fun IconBadge(icon: ImageVector, tint: Color, size: Dp = 38.dp, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(size * 0.28f)
     Box(
         modifier
             .size(size)
-            .clip(RoundedCornerShape(size / 3))
-            .background(tint.copy(alpha = 0.16f)),
+            .clip(shape)
+            .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.26f), tint.copy(alpha = 0.10f))))
+            .border(1.dp, tint.copy(alpha = 0.18f), shape),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(size * 0.56f))
@@ -129,12 +142,12 @@ fun EmptyState(
     ) {
         Box(
             Modifier
-                .size(64.dp)
+                .size(88.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                .background(Brush.radialGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f), MaterialTheme.colorScheme.primary.copy(alpha = 0.04f)))),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(30.dp))
+            Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(38.dp))
         }
         Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
         if (text != null) {
@@ -160,6 +173,7 @@ fun InfoBanner(text: String, icon: ImageVector, modifier: Modifier = Modifier, t
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
             .background(tint.copy(alpha = 0.10f))
+            .border(1.dp, tint.copy(alpha = 0.16f), MaterialTheme.shapes.medium)
             .padding(14.dp),
         verticalAlignment = Alignment.Top,
     ) {
@@ -180,6 +194,7 @@ fun Pill(text: String, color: Color, modifier: Modifier = Modifier) {
         style = MaterialTheme.typography.labelSmall,
         color = color,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 

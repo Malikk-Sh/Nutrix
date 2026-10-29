@@ -2,6 +2,7 @@ package com.nutrix.app.core.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,6 +40,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 
 /** Single-choice chip row. Tapping the selected chip again clears it when [allowDeselect]. */
@@ -64,10 +67,12 @@ fun <T> ChoiceChips(
                 label = { Text(label(option)) },
                 leadingIcon = if (isSelected) ({ Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }) else null,
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = accent.copy(alpha = 0.18f),
+                    selectedContainerColor = accent.copy(alpha = 0.22f),
                     selectedLabelColor = MaterialTheme.colorScheme.onSurface,
                     selectedLeadingIconColor = accent,
                 ),
+                shape = MaterialTheme.shapes.small,
+                border = BorderStroke(1.dp, if (isSelected) accent.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant),
             )
         }
     }
@@ -95,10 +100,12 @@ fun <T> MultiChoiceChips(
                 label = { Text(label(option)) },
                 leadingIcon = if (isSelected) ({ Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }) else null,
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = accent.copy(alpha = 0.18f),
+                    selectedContainerColor = accent.copy(alpha = 0.22f),
                     selectedLabelColor = MaterialTheme.colorScheme.onSurface,
                     selectedLeadingIconColor = accent,
                 ),
+                shape = MaterialTheme.shapes.small,
+                border = BorderStroke(1.dp, if (isSelected) accent.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant),
             )
         }
     }
@@ -116,7 +123,7 @@ fun ScaleSelector(
 ) {
     val haptic = LocalHapticFeedback.current
     Column(modifier) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             for (i in 0..max) {
                 val selected = value == i
                 val bg by animateColorAsState(
@@ -126,7 +133,7 @@ fun ScaleSelector(
                 val text = caption(i)
                 Box(
                     Modifier
-                        .size(44.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(bg)
                         .border(1.dp, if (selected) accent else MaterialTheme.colorScheme.outlineVariant, CircleShape)
@@ -174,15 +181,19 @@ fun NutrixTextField(
     isError: Boolean = false,
     capitalization: KeyboardCapitalization = KeyboardCapitalization.Sentences,
     enabled: Boolean = true,
+    textStyle: TextStyle = MaterialTheme.typography.bodyLarge,
+    showLabel: Boolean = true,
 ) {
     OutlinedTextField(
         value = value,
         enabled = enabled,
         onValueChange = onValueChange,
-        label = { Text(label) },
+        label = if (showLabel) ({ Text(label) }) else null,
+        textStyle = textStyle,
         placeholder = placeholder?.let { { Text(it) } },
         modifier = modifier
             .fillMaxWidth()
+            .then(if (!showLabel) Modifier.semantics { contentDescription = label } else Modifier)
             .heightIn(min = 56.dp),
         singleLine = singleLine,
         minLines = minLines,
@@ -195,5 +206,13 @@ fun NutrixTextField(
         supportingText = supportingText?.let { { Text(it) } },
         isError = isError,
         shape = MaterialTheme.shapes.medium,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            errorContainerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+        ),
     )
 }

@@ -2,6 +2,7 @@ package com.nutrix.app.feature.food
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,6 +44,7 @@ import com.nutrix.app.core.time.TimeUtils
 import com.nutrix.app.core.ui.components.ConfirmDialog
 import com.nutrix.app.core.ui.components.EmptyState
 import com.nutrix.app.core.ui.components.NutrixCard
+import com.nutrix.app.core.ui.components.NutrixBottomAction
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.PhotoThumb
 import com.nutrix.app.core.ui.components.Pill
@@ -100,13 +102,7 @@ fun FoodDiaryScreen(
             IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, stringResource(R.string.action_search)) }
             IconButton(onClick = onFavorites) { Icon(Icons.Rounded.Star, stringResource(R.string.food_favorites_title)) }
         },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onAdd,
-                icon = { Icon(Icons.Rounded.Add, null) },
-                text = { Text(stringResource(R.string.action_add)) },
-            )
-        },
+        bottomBar = { NutrixBottomAction(stringResource(R.string.card_food_add), onAdd) },
     ) { padding ->
         val list = days
         ScreenList(padding) {
@@ -157,7 +153,7 @@ fun MealRow(meal: MealWithPhotos, onClick: () -> Unit, modifier: Modifier = Modi
     val colors = LocalCategoryColors.current
     NutrixCard(modifier = modifier, onClick = onClick, contentPadding = 12.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            PhotoThumb(meal.sortedPhotos.firstOrNull()?.fileName, size = 64.dp, shape = MaterialTheme.shapes.medium)
+            PhotoThumb(meal.sortedPhotos.firstOrNull()?.fileName, size = 76.dp, shape = MaterialTheme.shapes.medium)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -179,6 +175,19 @@ fun MealRow(meal: MealWithPhotos, onClick: () -> Unit, modifier: Modifier = Modi
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                val nutrition = m.nutrition
+                if (m.portionGrams != null || nutrition != null) {
+                    Text(
+                        listOfNotNull(
+                            m.portionGrams?.let { "$it ${stringResource(R.string.unit_g)}" },
+                            nutrition?.proteinGrams?.let { "Б ${Formatters.decimal(it)}" },
+                            nutrition?.fatGrams?.let { "Ж ${Formatters.decimal(it)}" },
+                            nutrition?.carbsGrams?.let { "У ${Formatters.decimal(it)}" },
+                        ).joinToString(" · "),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 val chips = buildList {
                     m.appetite?.let { add(stringResource(R.string.food_appetite) + ": $it/5" to colors.meal) }
                     m.portion?.let { add(stringResource(it.labelRes) to colors.meal) }
@@ -186,7 +195,7 @@ fun MealRow(meal: MealWithPhotos, onClick: () -> Unit, modifier: Modifier = Modi
                     m.feelings.filter { it != AfterMealFeeling.NORMAL }.forEach { add(stringResource(it.labelRes) to colors.symptom) }
                 }
                 if (chips.isNotEmpty()) {
-                    Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FlowRow(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         chips.take(3).forEach { (text, color) -> Pill(text, color) }
                         if (chips.size > 3) Pill("+${chips.size - 3}", MaterialTheme.colorScheme.onSurfaceVariant)
                     }

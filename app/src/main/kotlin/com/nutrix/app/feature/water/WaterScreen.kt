@@ -21,6 +21,7 @@ import com.nutrix.app.core.ui.icons.WaterDrop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +55,7 @@ import com.nutrix.app.core.ui.components.IconBadge
 import com.nutrix.app.core.ui.components.InfoBanner
 import com.nutrix.app.core.ui.components.MiniBars
 import com.nutrix.app.core.ui.components.NutrixCard
+import com.nutrix.app.core.ui.components.NutrixBottomAction
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.NutrixTextField
 import com.nutrix.app.core.ui.components.PhotoThumb
@@ -93,9 +95,7 @@ fun WaterScreen(
     NutrixScreen(
         title = stringResource(R.string.water_title),
         onBack = onBack,
-        floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = onAddDrink, icon = { Icon(Icons.Rounded.Add, null) }, text = { Text(stringResource(R.string.action_add)) })
-        },
+        bottomBar = { NutrixBottomAction(stringResource(R.string.drink_add_action), onAddDrink) },
     ) { padding ->
         ScreenList(padding) {
             item(key = "summary") {

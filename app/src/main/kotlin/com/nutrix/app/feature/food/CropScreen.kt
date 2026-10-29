@@ -57,6 +57,7 @@ import com.nutrix.app.core.photo.PhotoStorage
 import com.nutrix.app.core.ui.components.NutrixScreen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -90,10 +91,18 @@ fun CropScreen(fileName: String, onDone: (String) -> Unit, onBack: () -> Unit, v
     var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var crop by remember { mutableStateOf(Rect(0f, 0f, 1f, 1f)) }
     var saving by remember { mutableStateOf(false) }
+    var loadFailed by remember { mutableStateOf(false) }
+    var saveFailed by remember { mutableStateOf(false) }
 
-    LaunchedEffect(rotation) {
-        bitmap = viewModel.loadPreview(fileName, rotation)?.asImageBitmap()
-        crop = Rect(0f, 0f, 1f, 1f)
+    LaunchedEffect(fileName, rotation) {
+        val loaded = try { viewModel.loadPreview(fileName, rotation)?.asImageBitmap() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { null }
+        withContext(Dispatchers.Main.immediate) {
+            bitmap = loaded
+            loadFailed = loaded == null
+            crop = Rect(0f, 0f, 1f, 1f)
+        }
     }
 
     NutrixScreen(
@@ -103,10 +112,14 @@ fun CropScreen(fileName: String, onDone: (String) -> Unit, onBack: () -> Unit, v
             TextButton(
                 onClick = {
                     saving = true
+                    saveFailed = false
                     scope.launch {
                         runCatching { viewModel.crop(fileName, rotation, crop) }
-                            .onSuccess(onDone)
-                            .onFailure { saving = false }
+                            .onSuccess { result -> withContext(Dispatchers.Main.immediate) { onDone(result) } }
+                            .onFailure { failure ->
+                                if (failure is CancellationException) throw failure
+                                withContext(Dispatchers.Main.immediate) { saving = false; saveFailed = true }
+                            }
                     }
                 },
                 enabled = !saving && bitmap != null,
@@ -123,11 +136,15 @@ fun CropScreen(fileName: String, onDone: (String) -> Unit, onBack: () -> Unit, v
                 .background(Color.Black),
         ) {
             val image = bitmap
-            if (image == null || saving) {
+            if (loadFailed) {
+                Text(stringResource(R.string.photo_unavailable), color = Color.White, modifier = Modifier.align(Alignment.Center).padding(24.dp))
+            } else if (image == null || saving) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
             } else {
                 CropArea(image, crop, onCropChange = { crop = it }, modifier = Modifier.padding(bottom = 88.dp))
             }
+            if (saveFailed) Text(stringResource(R.string.crop_failed), color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.align(Alignment.TopCenter).padding(20.dp))
             Row(
                 Modifier
                     .align(Alignment.BottomCenter)

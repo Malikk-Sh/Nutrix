@@ -60,6 +60,7 @@ import com.nutrix.app.core.ui.components.InfoBanner
 import com.nutrix.app.core.ui.components.LabeledValue
 import com.nutrix.app.core.ui.components.MiniBars
 import com.nutrix.app.core.ui.components.NutrixCard
+import com.nutrix.app.core.ui.components.NutrixBottomAction
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.NutrixTextField
 import com.nutrix.app.core.ui.components.Pill
@@ -420,17 +421,8 @@ fun SleepEditorScreen(onClose: () -> Unit, viewModel: SleepEditorViewModel = hil
         onBack = { if (!saving) onClose() },
         actions = { if (viewModel.isEdit) IconButton(enabled = loaded && !saving, onClick = { confirmDelete = true }) { Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete)) } },
         bottomBar = {
-            Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-                Button(
-                    onClick = viewModel::save,
-                    enabled = loaded && !saving && form.valid,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                        .height(54.dp),
-                ) { Text(stringResource(if (saving) R.string.action_saving else R.string.action_save)) }
-            }
+            NutrixBottomAction(stringResource(if (saving) R.string.action_saving else R.string.action_save), viewModel::save,
+                enabled = loaded && form.valid, loading = saving)
         },
     ) { padding ->
         ScreenList(padding, bottomExtra = 24.dp) {

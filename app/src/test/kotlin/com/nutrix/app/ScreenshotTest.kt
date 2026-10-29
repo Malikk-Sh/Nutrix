@@ -25,6 +25,7 @@ import com.nutrix.app.core.model.MealType
 import com.nutrix.app.core.model.PortionEaten
 import com.nutrix.app.core.model.Satiety
 import com.nutrix.app.core.model.SymptomType
+import com.nutrix.app.core.model.ThemeMode
 import com.nutrix.app.core.security.AppLockManager
 import com.nutrix.app.core.time.RecordTime
 import com.nutrix.app.data.repository.DrinkRepository
@@ -47,6 +48,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowDialog
 import java.io.File
 import java.time.LocalDate
 import java.time.LocalTime
@@ -97,6 +99,7 @@ class ScreenshotTest {
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now()
         settings.setProfile("Анна", 168, 56.0, 55.0)
+        settings.setThemeMode(ThemeMode.DARK)
         settings.setWaterGoal(1800)
         val dishes = listOf("Овсянка с ягодами", "Гречка с курицей", "Суп-пюре", "Творог с бананом", "Рис с рыбой", "Омлет")
         for (back in 29 downTo 0) {
@@ -148,8 +151,18 @@ class ScreenshotTest {
         scenario.onActivity { activity ->
             val view = activity.window.decorView
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            view.draw(Canvas(bitmap))
+            val canvas = Canvas(bitmap)
+            view.draw(canvas)
+            ShadowDialog.getLatestDialog()?.takeIf { it.isShowing }?.window?.decorView?.let { dialog ->
+                val position = IntArray(2)
+                dialog.getLocationOnScreen(position)
+                canvas.save()
+                canvas.translate(position[0].toFloat(), position[1].toFloat())
+                dialog.draw(canvas)
+                canvas.restore()
+            }
             File(outDir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            bitmap.recycle()
         }
     }
 
@@ -171,7 +184,7 @@ class ScreenshotTest {
         compose.onNodeWithContentDescription("Быстрое добавление").performClick()
         compose.waitForIdle()
         shot("04-quick-add")
-        compose.onNodeWithContentDescription("Быстрое добавление").performClick()
+        compose.onNodeWithContentDescription("Закрыть").performClick()
 
         compose.onNodeWithText("Календарь").performClick()
         waitForText("Открыть день")
@@ -195,5 +208,44 @@ class ScreenshotTest {
         compose.onNodeWithText("Профиль").performClick()
         waitForText("Профиль и настройки")
         shot("09-profile")
+
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        listOf(
+            R.string.settings_food_diary to "10-food-diary",
+            R.string.settings_weight to "11-weight",
+            R.string.settings_symptoms to "12-symptoms",
+            R.string.settings_sleep_activity to "13-sleep-activity",
+            R.string.settings_integrations to "14-integrations",
+            R.string.settings_reminders to "15-reminders",
+            R.string.settings_reports to "16-reports",
+            R.string.settings_backup to "17-backup",
+            R.string.settings_security to "18-security",
+            R.string.ai_settings to "19-gemini",
+            R.string.settings_about to "20-about",
+        ).forEach { (label, name) ->
+            val text = context.getString(label)
+            compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(text))
+            compose.onAllNodesWithText(text).onFirst().performSemanticsAction(SemanticsActions.OnClick)
+            compose.waitUntil(10_000) { compose.onAllNodes(hasContentDescription("Назад")).fetchSemanticsNodes().isNotEmpty() }
+            shot(name)
+            compose.onNodeWithContentDescription("Назад").performClick()
+            waitForText("Профиль и настройки")
+        }
+    }
+
+    @Test
+    fun captureLightTheme() {
+        runBlocking { settings.setThemeMode(ThemeMode.LIGHT) }
+        waitForText("Питание")
+        shot("light-01-dashboard")
+        compose.onNodeWithText("Календарь").performClick()
+        waitForText("Открыть день")
+        shot("light-02-calendar")
+        compose.onNodeWithText("Аналитика").performClick()
+        waitForText("Динамика веса")
+        shot("light-03-analytics")
+        compose.onNodeWithText("Профиль").performClick()
+        waitForText("Профиль и настройки")
+        shot("light-04-profile")
     }
 }

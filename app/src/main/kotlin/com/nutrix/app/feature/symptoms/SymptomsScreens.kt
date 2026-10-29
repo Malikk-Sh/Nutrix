@@ -60,6 +60,7 @@ import com.nutrix.app.core.ui.components.IconBadge
 import com.nutrix.app.core.ui.components.InfoBanner
 import com.nutrix.app.core.ui.components.MultiChoiceChips
 import com.nutrix.app.core.ui.components.NutrixCard
+import com.nutrix.app.core.ui.components.NutrixBottomAction
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.NutrixTextField
 import com.nutrix.app.core.ui.components.Pill
@@ -109,9 +110,7 @@ fun SymptomsScreen(
         title = stringResource(R.string.symptoms_title),
         onBack = onBack,
         snackbarHost = snackbar,
-        floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = onAdd, icon = { Icon(Icons.Rounded.Add, null) }, text = { Text(stringResource(R.string.action_add)) })
-        },
+        bottomBar = { NutrixBottomAction(stringResource(R.string.symptoms_add_action), onAdd) },
     ) { padding ->
         ScreenList(padding) {
             item(key = "quick") {
@@ -192,17 +191,8 @@ fun SymptomEditorScreen(onClose: () -> Unit, viewModel: SymptomEditorViewModel =
             if (viewModel.isEdit) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete)) }
         },
         bottomBar = {
-            Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-                Button(
-                    onClick = viewModel::save,
-                    enabled = form.types.isNotEmpty(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                        .height(54.dp),
-                ) { Text(stringResource(if (form.types.isEmpty()) R.string.symptom_need_selection else R.string.action_save)) }
-            }
+            NutrixBottomAction(stringResource(if (form.types.isEmpty()) R.string.symptom_need_selection else R.string.action_save),
+                viewModel::save, enabled = form.types.isNotEmpty())
         },
     ) { padding ->
         ScreenList(padding, bottomExtra = 24.dp) {

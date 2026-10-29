@@ -1,0 +1,27 @@
+<resources>
+    <string name="quick_add_title">Добавить запись</string>
+    <string name="quick_food_hint">Фото или вручную</string>
+    <string name="quick_water_hint">Вода, чай и другие напитки</string>
+    <string name="quick_weight_hint">Записать текущий вес</string>
+    <string name="quick_symptom_hint">Симптомы и их интенсивность</string>
+    <string name="quick_note_hint">Наблюдения и важные детали</string>
+    <string name="food_nutrition_title">Масса и пищевая ценность</string>
+    <string name="food_nutrition_hint">Необязательно. Оценки приблизительны; значения можно исправить.</string>
+    <string name="food_protein_short">Белки</string>
+    <string name="food_fat_short">Жиры</string>
+    <string name="food_carbs_short">Углеводы</string>
+    <string name="sleep_session_count">Записей сна: %1$d</string>
+    <string name="food_portion_mass">Масса порции</string>
+    <string name="food_more_details">Вес тела и заметка</string>
+    <string name="food_entry_actions">Действия с записью</string>
+    <string name="food_photo_actions">Действия с фото</string>
+    <string name="photo_unavailable">Фото недоступно</string>
+    <string name="photo_processing">Обрабатываем фото…</string>
+    <string name="camera_framing_hint">Поместите блюдо в кадр</string>
+    <string name="camera_screen_title">Фото еды</string>
+    <string name="camera_retry">Повторить</string>
+    <string name="crop_failed">Не удалось обрезать фото. Исходный снимок сохранён.</string>
+    <string name="ai_review_fields">Проверить значения</string>
+    <string name="drink_add_action">Добавить напиток</string>
+    <string name="symptoms_add_action">Добавить симптом</string>
+</resources>

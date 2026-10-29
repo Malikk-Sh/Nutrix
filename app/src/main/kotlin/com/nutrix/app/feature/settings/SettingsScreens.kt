@@ -63,6 +63,7 @@ import com.nutrix.app.core.model.WeightUnit
 import com.nutrix.app.core.ui.components.IconBadge
 import com.nutrix.app.core.ui.components.InfoBanner
 import com.nutrix.app.core.ui.components.NutrixCard
+import com.nutrix.app.core.ui.components.NutrixBottomAction
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.NutrixTextField
 import com.nutrix.app.core.ui.components.ScreenList
@@ -242,13 +243,8 @@ fun ProfileEditScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltVie
         title = stringResource(R.string.profile_edit),
         onBack = onBack,
         bottomBar = {
-            Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-                Button(
-                    onClick = { viewModel.saveProfile(name, heightValue, parse(start), parse(target)); onBack() },
-                    enabled = valid,
-                    modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp).height(54.dp),
-                ) { Text(stringResource(R.string.action_save)) }
-            }
+            NutrixBottomAction(stringResource(R.string.action_save),
+                { viewModel.saveProfile(name, heightValue, parse(start), parse(target)); onBack() }, enabled = valid)
         },
     ) { padding ->
         ScreenList(padding, bottomExtra = 24.dp) {

@@ -46,26 +46,30 @@ import com.nutrix.app.core.ui.components.ChoiceChips
 import com.nutrix.app.core.ui.components.ConfirmDialog
 import com.nutrix.app.core.ui.components.DateTimeRow
 import com.nutrix.app.core.ui.components.NutrixCard
+import com.nutrix.app.core.ui.components.NutrixBottomAction
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.NutrixTextField
 import com.nutrix.app.core.ui.components.PhotoThumb
 import com.nutrix.app.core.ui.components.ScreenList
 import com.nutrix.app.core.ui.labelRes
 import com.nutrix.app.core.ui.theme.LocalCategoryColors
+import com.nutrix.app.navigation.PhotoNavigationResults
 
 @Composable
 fun DrinkEditorScreen(
+    photoResults: PhotoNavigationResults,
     onClose: () -> Unit,
     onOpenCamera: () -> Unit,
     viewModel: DrinkEditorViewModel = hiltViewModel(),
 ) {
     val form by viewModel.form.collectAsStateWithLifecycle()
     val closed by viewModel.closed.collectAsStateWithLifecycle()
-    val camera by viewModel.cameraResult.collectAsStateWithLifecycle()
+    val camera by photoResults.cameraPhoto.collectAsStateWithLifecycle()
+    val loaded by viewModel.loaded.collectAsStateWithLifecycle()
     val colors = LocalCategoryColors.current
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(closed) { if (closed) onClose() }
-    LaunchedEffect(camera) { camera?.let(viewModel::consumeCamera) }
+    LaunchedEffect(camera, loaded) { camera?.let { if (viewModel.consumeCamera(it)) photoResults.cameraConsumed(it) } }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(viewModel::setPhotoFromUri) }
     BackHandler { viewModel.cancel() }
 
@@ -76,17 +80,7 @@ fun DrinkEditorScreen(
             if (form.id != 0L) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete)) }
         },
         bottomBar = {
-            Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-                Button(
-                    onClick = viewModel::save,
-                    enabled = form.volume != null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                        .height(54.dp),
-                ) { Text(stringResource(R.string.action_save)) }
-            }
+            NutrixBottomAction(stringResource(R.string.action_save), viewModel::save, enabled = loaded && form.volume != null)
         },
     ) { padding ->
         ScreenList(padding, bottomExtra = 24.dp) {

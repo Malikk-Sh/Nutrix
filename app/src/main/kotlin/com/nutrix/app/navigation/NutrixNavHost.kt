@@ -3,6 +3,11 @@ package com.nutrix.app.navigation
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -13,6 +18,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material.icons.Icons
 import com.nutrix.app.core.ui.icons.CalendarMonth
 import androidx.compose.material.icons.rounded.Home
@@ -22,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Text
@@ -34,7 +44,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -112,7 +126,11 @@ fun NavHostController.handleAppAction(action: String) {
 }
 
 @Composable
-fun NutrixNavHost(pendingAction: String?, onActionConsumed: () -> Unit) {
+fun NutrixNavHost(
+    pendingAction: String?,
+    onActionConsumed: () -> Unit,
+    cameraContent: @Composable (onCaptured: (String) -> Unit, onBack: () -> Unit) -> Unit = { captured, back -> CameraScreen(captured, back) },
+) {
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
     val destination = backStack?.destination
@@ -137,7 +155,7 @@ fun NutrixNavHost(pendingAction: String?, onActionConsumed: () -> Unit) {
     fun quick(a: QuickAction) {
         fabExpanded = false
         when (a) {
-            QuickAction.FOOD -> nav.navigate(FoodEditorRoute(openCamera = true))
+            QuickAction.FOOD -> nav.navigate(FoodEditorRoute())
             QuickAction.WATER -> nav.navigate(WaterRoute())
             QuickAction.WEIGHT -> nav.navigate(WeightRoute(openAdd = true))
             QuickAction.SYMPTOM -> nav.navigate(SymptomsRoute(openAdd = true))
@@ -147,6 +165,7 @@ fun NutrixNavHost(pendingAction: String?, onActionConsumed: () -> Unit) {
 
     BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val wide = maxWidth >= 600.dp
+        val centeredAdd = !wide && maxWidth >= 360.dp && LocalDensity.current.fontScale <= 1.2f
         Row(Modifier.fillMaxSize()) {
             if (wide && isTopLevel) {
                 NavigationRail(containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -163,7 +182,12 @@ fun NutrixNavHost(pendingAction: String?, onActionConsumed: () -> Unit) {
             }
             Box(Modifier.weight(1f).fillMaxSize()) {
                 val bottomPadding = if (isTopLevel && !wide) PaddingValues(bottom = 80.dp) else PaddingValues(0.dp)
-                NavHost(nav, startDestination = DashboardRoute, modifier = Modifier.fillMaxSize()) {
+                NavHost(nav, startDestination = DashboardRoute, modifier = Modifier.fillMaxSize(),
+                    enterTransition = { fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 24 } },
+                    exitTransition = { fadeOut(tween(150)) },
+                    popEnterTransition = { fadeIn(tween(180)) },
+                    popExitTransition = { fadeOut(tween(150)) + slideOutHorizontally(tween(180)) { it / 24 } },
+                ) {
                     composable<DashboardRoute> {
                         DashboardScreen(
                             contentPadding = bottomPadding,
@@ -220,6 +244,7 @@ fun NutrixNavHost(pendingAction: String?, onActionConsumed: () -> Unit) {
                     composable<FoodEditorRoute> { entry ->
                         val route = entry.toRoute<FoodEditorRoute>()
                         FoodEditorScreen(
+                            photoResults = rememberPhotoNavigationResults(entry),
                             openCamera = route.openCamera,
                             onOpenGeminiSettings = { nav.navigate(GeminiSettingsRoute) },
                             onClose = { nav.popBackStack() },
@@ -235,12 +260,12 @@ fun NutrixNavHost(pendingAction: String?, onActionConsumed: () -> Unit) {
                         FavoritesScreen(onBack = nav::popBackStack, onUse = { nav.navigate(FoodEditorRoute(favoriteId = it)) })
                     }
                     composable<CameraRoute> {
-                        CameraScreen(
-                            onCaptured = { file ->
+                        cameraContent(
+                            { file ->
                                 nav.previousBackStackEntry?.savedStateHandle?.set(NavResults.CAMERA_PHOTO, file)
                                 nav.popBackStack()
                             },
-                            onBack = nav::popBackStack,
+                            { nav.popBackStack() },
                         )
                     }
                     composable<CropRoute> { entry ->
@@ -261,8 +286,8 @@ fun NutrixNavHost(pendingAction: String?, onActionConsumed: () -> Unit) {
                             onOpenDrink = { nav.navigate(DrinkEditorRoute(it)) },
                         )
                     }
-                    composable<DrinkEditorRoute> {
-                        DrinkEditorScreen(onClose = { nav.popBackStack() }, onOpenCamera = { nav.navigate(CameraRoute) })
+                    composable<DrinkEditorRoute> { entry ->
+                        DrinkEditorScreen(photoResults = rememberPhotoNavigationResults(entry), onClose = { nav.popBackStack() }, onOpenCamera = { nav.navigate(CameraRoute) })
                     }
                     composable<WeightRoute> { entry -> WeightScreen(openAdd = entry.toRoute<WeightRoute>().openAdd, onBack = nav::popBackStack) }
                     composable<SymptomsRoute> { entry ->
@@ -305,43 +330,48 @@ fun NutrixNavHost(pendingAction: String?, onActionConsumed: () -> Unit) {
                     composable<AboutRoute> { AboutScreen(onBack = nav::popBackStack) }
                 }
 
-                // Scrim behind the expanded quick-add menu.
-                androidx.compose.animation.AnimatedVisibility(fabExpanded && isTopLevel, enter = fadeIn(), exit = fadeOut()) {
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
-                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { fabExpanded = false },
-                    )
-                }
                 if (isTopLevel) {
                     // Move the FAB above an app-wide snackbar instead of letting it cover the button.
                     val snackbarShown = LocalSnackbarHost.current.currentSnackbarData != null
                     val fabBottom by animateDpAsState(
-                        (if (wide) 16.dp else 96.dp) + if (snackbarShown) 72.dp else 0.dp,
+                        (if (wide) 16.dp else if (centeredAdd) 30.dp else 104.dp) + if (snackbarShown && !centeredAdd) 72.dp else 0.dp,
                         label = "fabOffset",
                     )
                     Box(
                         Modifier
-                            .align(Alignment.BottomEnd)
+                            .zIndex(1f)
+                            .align(if (centeredAdd) Alignment.BottomCenter else Alignment.BottomEnd)
                             .navigationBarsPadding()
-                            .padding(end = 16.dp, bottom = fabBottom),
+                            .padding(end = if (centeredAdd) 0.dp else 20.dp, bottom = fabBottom),
                     ) {
                         QuickAddFab(fabExpanded, { fabExpanded = it }, ::quick)
                     }
                 }
                 if (isTopLevel && !wide) {
                     NavigationBar(
-                        modifier = Modifier.align(Alignment.BottomCenter),
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding()
+                            .padding(start = 12.dp, end = 12.dp, bottom = 8.dp)
+                            .clip(MaterialTheme.shapes.large)
+                            .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), MaterialTheme.shapes.large),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        tonalElevation = 0.dp,
+                        windowInsets = WindowInsets(0),
                     ) {
-                        topLevels.forEach { t ->
+                        topLevels.forEachIndexed { index, t ->
+                            if (centeredAdd && index == 2) Spacer(Modifier.width(64.dp))
                             val selected = destination?.hierarchy?.any { it.hasRoute(t.type) } == true
                             NavigationBarItem(
                                 selected = selected,
                                 onClick = { fabExpanded = false; selectTop(t) },
                                 icon = { Icon(t.icon, null) },
-                                label = { Text(stringResource(t.label)) },
+                                label = { Text(stringResource(t.label), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                ),
                             )
                         }
                     }

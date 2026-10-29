@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -213,7 +214,7 @@ fun MonthGrid(
                 for (dow in 0 until 7) {
                     val index = week * 7 + dow - offset
                     val date = if (index in 0 until month.lengthOfMonth()) month.atDay(index + 1) else null
-                    Box(Modifier.weight(1f).aspectRatio(0.9f), contentAlignment = Alignment.Center) {
+                    Box(Modifier.weight(1f).heightIn(min = 52.dp).aspectRatio(0.9f), contentAlignment = Alignment.Center) {
                         if (date != null) {
                             DayCell(date, date == selected, date == today, date.isAfter(today), markers[date.toEpochDay()].orEmpty(), onClick = { onSelect(date) })
                         }
@@ -234,8 +235,8 @@ private fun DayCell(date: LocalDate, selected: Boolean, isToday: Boolean, future
             .padding(2.dp)
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.small)
-            .background(if (selected) primary.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceContainer)
-            .then(if (isToday) Modifier.border(1.5.dp, primary, MaterialTheme.shapes.small) else Modifier)
+            .background(if (selected) primary else androidx.compose.ui.graphics.Color.Transparent)
+            .then(if (isToday && !selected) Modifier.border(1.5.dp, primary, MaterialTheme.shapes.small) else Modifier)
             .clickable(enabled = !future, onClick = onClick)
             .padding(vertical = 6.dp)
             .semantics { contentDescription = description },
@@ -245,7 +246,7 @@ private fun DayCell(date: LocalDate, selected: Boolean, isToday: Boolean, future
             "${date.dayOfMonth}",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (selected || isToday) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (future) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f) else MaterialTheme.colorScheme.onSurface,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else if (future) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f) else MaterialTheme.colorScheme.onSurface,
         )
         Spacer(Modifier.height(4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {

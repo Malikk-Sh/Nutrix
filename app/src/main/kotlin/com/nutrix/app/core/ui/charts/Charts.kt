@@ -123,7 +123,7 @@ fun DailyLineChart(
             fill = remember(color) { LineCartesianLayer.LineFill.single(fill(color)) },
             areaFill = remember(color) {
                 LineCartesianLayer.AreaFill.single(
-                    fill(ShaderProvider.verticalGradient(intArrayOf(color.copy(alpha = 0.30f).toArgbCompat(), Color.Transparent.toArgbCompat()))),
+                    fill(ShaderProvider.verticalGradient(intArrayOf(color.copy(alpha = 0.18f).toArgbCompat(), Color.Transparent.toArgbCompat()))),
                 )
             },
             pointProvider = LineCartesianLayer.PointProvider.single(

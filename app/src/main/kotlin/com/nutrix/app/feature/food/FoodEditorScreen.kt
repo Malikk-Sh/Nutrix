@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.rounded.Delete
 import com.nutrix.app.core.ui.icons.ExpandLess
 import com.nutrix.app.core.ui.icons.ExpandMore
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.MoreVert
 import com.nutrix.app.core.ui.icons.PhotoCamera
 import com.nutrix.app.core.ui.icons.PhotoLibrary
 import com.nutrix.app.core.ui.icons.Repeat
@@ -62,6 +64,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -73,6 +76,8 @@ import coil3.compose.AsyncImage
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -95,6 +100,9 @@ import com.nutrix.app.core.ui.components.DateTimeRow
 import com.nutrix.app.core.ui.components.InfoBanner
 import com.nutrix.app.core.ui.components.MultiChoiceChips
 import com.nutrix.app.core.ui.components.NutrixCard
+import com.nutrix.app.core.ui.components.NutrixActionSheet
+import com.nutrix.app.core.ui.components.NutrixContextAction
+import com.nutrix.app.core.ui.components.NutrixBottomAction
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.NutrixTextField
 import com.nutrix.app.core.ui.components.PhotoThumb
@@ -106,9 +114,12 @@ import com.nutrix.app.core.util.Units
 import com.nutrix.app.feature.ai.FoodAiCard
 import com.nutrix.app.feature.ai.NutritionTable
 import com.nutrix.app.feature.ai.FoodReference
+import com.nutrix.app.navigation.PhotoNavigationResults
+import kotlinx.coroutines.launch
 
 @Composable
 fun FoodEditorScreen(
+    photoResults: PhotoNavigationResults,
     openCamera: Boolean,
     onClose: () -> Unit,
     onOpenCamera: () -> Unit,
@@ -120,12 +131,15 @@ fun FoodEditorScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val event by viewModel.events.collectAsStateWithLifecycle()
-    val cameraResult by viewModel.cameraResult.collectAsStateWithLifecycle()
-    val cropResult by viewModel.cropResult.collectAsStateWithLifecycle()
+    val cameraResult by photoResults.cameraPhoto.collectAsStateWithLifecycle()
+    val cropResult by photoResults.croppedPhoto.collectAsStateWithLifecycle()
     val form = state.form
     val colors = LocalCategoryColors.current
     val haptic = LocalHapticFeedback.current
 
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    var showActions by rememberSaveable { mutableStateOf(false) }
     var showLeaveDialog by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var cameraLaunched by rememberSaveable { mutableStateOf(false) }
@@ -140,9 +154,13 @@ fun FoodEditorScreen(
             null -> Unit
         }
     }
-    LaunchedEffect(cameraResult, state.loaded, state.pendingDraft, state.isSaving) { cameraResult?.let(viewModel::consumeCameraResult) }
-    LaunchedEffect(cropResult, state.loaded, state.pendingDraft, state.isSaving) { cropResult?.let(viewModel::consumeCropResult) }
-    LaunchedEffect(state.loaded) {
+    LaunchedEffect(cameraResult, state.loaded, state.pendingDraft, state.isSaving) {
+        cameraResult?.let { if (viewModel.consumeCameraResult(it)) photoResults.cameraConsumed(it) }
+    }
+    LaunchedEffect(cropResult, state.loaded, state.pendingDraft, state.isSaving) {
+        cropResult?.let { if (viewModel.consumeCropResult(it)) photoResults.cropConsumed(it) }
+    }
+    LaunchedEffect(state.loaded, state.pendingDraft) {
         if (state.loaded && openCamera && !cameraLaunched && state.pendingDraft == null) {
             cameraLaunched = true
             onOpenCamera()
@@ -166,36 +184,21 @@ fun FoodEditorScreen(
         title = stringResource(if (state.isEdit) R.string.food_edit_title else R.string.food_add_title),
         onBack = handleBack,
         actions = {
-            if (state.isEdit) {
-                IconButton(enabled = !state.isSaving && !state.processingPhoto && !state.analyzingPhoto, onClick = { onAddSymptom(form.mealId) }) {
-                    Icon(Icons.Rounded.Healing, contentDescription = stringResource(R.string.food_add_symptom))
-                }
-                IconButton(enabled = !state.isSaving && !state.processingPhoto && !state.analyzingPhoto, onClick = { onRepeat(form.mealId) }) {
-                    Icon(Icons.Rounded.Repeat, contentDescription = stringResource(R.string.food_repeat))
-                }
-                IconButton(enabled = !state.isSaving && !state.processingPhoto && !state.analyzingPhoto, onClick = { showDeleteDialog = true }) {
-                    Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.action_delete))
-                }
+            if (state.isEdit) IconButton(enabled = !state.isSaving && !state.processingPhoto && !state.analyzingPhoto,
+                onClick = { showActions = true }) {
+                Icon(Icons.Rounded.MoreVert, stringResource(R.string.food_entry_actions))
             }
         },
         bottomBar = {
-            Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-                Button(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        viewModel.save()
-                    },
-                    enabled = state.loaded && !state.isSaving && !state.processingPhoto && !state.analyzingPhoto && state.pendingDraft == null && !viewModel.isWeightInvalid() && !viewModel.isNutritionInvalid(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                        .height(54.dp),
-                ) { Text(stringResource(if (state.isSaving) R.string.action_saving else R.string.action_save), style = MaterialTheme.typography.titleMedium) }
-            }
+            NutrixBottomAction(
+                text = stringResource(if (state.isSaving) R.string.action_saving else R.string.action_save),
+                onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); viewModel.save() },
+                enabled = state.loaded && !state.processingPhoto && !state.analyzingPhoto && state.pendingDraft == null && !viewModel.isWeightInvalid() && !viewModel.isNutritionInvalid(),
+                loading = state.isSaving,
+            )
         },
     ) { padding ->
-        ScreenList(padding, bottomExtra = 24.dp) {
+        ScreenList(padding, state = listState, bottomExtra = 24.dp) {
             if (state.error == "save" || state.error == "draft") {
                 item(key = "save-error") {
                     Text(stringResource(if (state.error == "save") R.string.food_save_error else R.string.food_draft_error),
@@ -258,7 +261,10 @@ fun FoodEditorScreen(
             }
 
             if (form.photos.isNotEmpty()) {
-                item(key = "food-ai") { FoodAiCard(state, viewModel, onOpenGeminiSettings) }
+                item(key = "food-ai") { FoodAiCard(state, viewModel, onOpenGeminiSettings, onReview = {
+                    val beforeNutrition = 4 + (if (state.error == "save" || state.error == "draft") 1 else 0) + (if (state.pendingDraft != null) 1 else 0)
+                    scope.launch { listState.animateScrollToItem(beforeNutrition) }
+                }) }
             }
 
             item(key = "when") {
@@ -283,6 +289,8 @@ fun FoodEditorScreen(
             item(key = "dish") {
                 DishCard(state, viewModel)
             }
+
+            item(key = "nutrition") { NutritionCard(state, viewModel, onEstimateFailed = { kcalNotFound = true }) }
 
             item(key = "details") {
                 NutrixCard {
@@ -343,10 +351,19 @@ fun FoodEditorScreen(
             }
 
             item(key = "more") {
-                MoreCard(state, viewModel, onEstimateFailed = { kcalNotFound = true })
+                MoreCard(state, viewModel)
             }
         }
     }
+
+    if (showActions) NutrixActionSheet(
+        title = form.title.ifBlank { stringResource(R.string.food_entry_actions) },
+        actions = listOf(
+            NutrixContextAction(stringResource(R.string.food_repeat), Icons.Rounded.Repeat) { onRepeat(form.mealId) },
+            NutrixContextAction(stringResource(R.string.food_add_symptom), Icons.Rounded.Healing) { onAddSymptom(form.mealId) },
+            NutrixContextAction(stringResource(R.string.action_delete), Icons.Rounded.Delete, destructive = true) { showDeleteDialog = true },
+        ), onDismiss = { showActions = false },
+    )
 
     if (kcalNotFound) {
         AlertDialog(
@@ -394,7 +411,7 @@ private fun PhotoWithMenu(fileName: String, isCover: Boolean, onCrop: () -> Unit
     var preview by remember { mutableStateOf(false) }
     if (preview) PhotoPreviewDialog(fileName) { preview = false }
     Box {
-        PhotoThumb(fileName, size = 96.dp, shape = MaterialTheme.shapes.medium, onClick = { menu = true })
+        PhotoThumb(fileName, size = 112.dp, shape = MaterialTheme.shapes.medium, contentDescription = stringResource(R.string.food_photo_actions), onClick = { menu = true })
         if (isCover) {
             Icon(
                 Icons.Rounded.Star,
@@ -406,30 +423,15 @@ private fun PhotoWithMenu(fileName: String, isCover: Boolean, onCrop: () -> Unit
                     .size(18.dp),
             )
         }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.food_photo_view)) },
-                leadingIcon = { Icon(Icons.Rounded.ZoomIn, null) },
-                onClick = { menu = false; preview = true },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.food_photo_crop)) },
-                leadingIcon = { Icon(Icons.Rounded.Crop, null) },
-                onClick = { menu = false; onCrop() },
-            )
-            if (!isCover) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.food_photo_cover)) },
-                    leadingIcon = { Icon(Icons.Rounded.Star, null) },
-                    onClick = { menu = false; onCover() },
-                )
-            }
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.food_photo_remove)) },
-                leadingIcon = { Icon(Icons.Rounded.Close, null) },
-                onClick = { menu = false; onRemove() },
-            )
-        }
+        if (menu) NutrixActionSheet(
+            title = stringResource(R.string.food_photo_actions),
+            actions = buildList {
+                add(NutrixContextAction(stringResource(R.string.food_photo_view), Icons.Rounded.ZoomIn) { preview = true })
+                add(NutrixContextAction(stringResource(R.string.food_photo_crop), Icons.Rounded.Crop, onClick = onCrop))
+                if (!isCover) add(NutrixContextAction(stringResource(R.string.food_photo_cover), Icons.Rounded.Star, onClick = onCover))
+                add(NutrixContextAction(stringResource(R.string.food_photo_remove), Icons.Rounded.Close, destructive = true, onClick = onRemove))
+            }, onDismiss = { menu = false },
+        )
     }
 }
 
@@ -582,15 +584,14 @@ private fun DishCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel) {
 }
 
 @Composable
-private fun MoreCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onEstimateFailed: () -> Unit) {
+private fun MoreCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel) {
     val form = state.form
-    var expanded by rememberSaveable { mutableStateOf(form.weightText.isNotBlank() || form.note.isNotBlank() || form.kcalText.isNotBlank() || form.nutritionInfo != null) }
-    LaunchedEffect(form.nutritionInfo?.estimatedAt) { if (form.nutritionInfo != null) expanded = true }
+    var expanded by rememberSaveable { mutableStateOf(form.weightText.isNotBlank() || form.note.isNotBlank()) }
     val unitLabel = stringResource(if (state.weightUnit == WeightUnit.KG) R.string.unit_kg else R.string.unit_lb)
     NutrixCard(onClick = if (!expanded) ({ expanded = true }) else null) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "${stringResource(R.string.food_weight_section)} · ${stringResource(R.string.food_calories_section)} · ${stringResource(R.string.label_note)}",
+                stringResource(R.string.food_more_details),
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.weight(1f),
             )
@@ -627,51 +628,6 @@ private fun MoreCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, o
                         Checkbox(checked = form.alsoSaveWeight, onCheckedChange = { c -> viewModel.update { it.copy(alsoSaveWeight = c) } })
                         Text(stringResource(R.string.food_weight_also_save), style = MaterialTheme.typography.bodyMedium)
                     }
-                }
-
-                if (state.calorieEstimatesEnabled || form.kcalText.isNotBlank() || form.gramsText.isNotBlank() || form.nutritionInfo != null) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(stringResource(R.string.food_calories_section), style = MaterialTheme.typography.labelLarge)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        NutrixTextField(
-                            value = form.gramsText,
-                            onValueChange = { v -> viewModel.update { it.copy(gramsText = v.filter(Char::isDigit).take(5)) } },
-                            label = stringResource(R.string.food_grams_label),
-                            keyboardType = KeyboardType.Number,
-                            suffix = stringResource(R.string.unit_g),
-                            modifier = Modifier.weight(1f).testTag("food-grams"),
-                        )
-                        NutrixTextField(
-                            value = form.kcalText,
-                            onValueChange = { v -> viewModel.update { it.copy(kcalText = v.filter(Char::isDigit).take(5), kcalFromReference = false) } },
-                            label = stringResource(R.string.food_kcal_label),
-                            keyboardType = KeyboardType.Number,
-                            suffix = "≈ " + stringResource(R.string.unit_kcal),
-                            modifier = Modifier.weight(1f).testTag("food-kcal"),
-                        )
-                    }
-                    TextButton(onClick = { if (!viewModel.estimateCalories()) onEstimateFailed() }) {
-                        Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.food_kcal_estimate))
-                    }
-                    InfoBanner(stringResource(R.string.food_kcal_disclaimer), Icons.Rounded.Info)
-                }
-
-                Text(stringResource(R.string.ai_macros), style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    NutrixTextField(form.proteinText, { value -> viewModel.update { it.copy(proteinText = value.take(8)) } },
-                        stringResource(R.string.ai_protein), keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f).testTag("food-protein"))
-                    NutrixTextField(form.fatText, { value -> viewModel.update { it.copy(fatText = value.take(8)) } },
-                        stringResource(R.string.ai_fat), keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f).testTag("food-fat"))
-                    NutrixTextField(form.carbsText, { value -> viewModel.update { it.copy(carbsText = value.take(8)) } },
-                        stringResource(R.string.ai_carbs), keyboardType = KeyboardType.Decimal, modifier = Modifier.weight(1f).testTag("food-carbs"))
-                }
-                if (viewModel.isNutritionInvalid()) Text(stringResource(R.string.ai_invalid_macros), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                if (listOf(form.proteinText, form.fatText, form.carbsText).any(String::isNotBlank) || form.nutritionInfo != null) {
-                    NutritionTable(form.kcalText.toDoubleOrNull(), Units.parseDecimal(form.proteinText), Units.parseDecimal(form.fatText), Units.parseDecimal(form.carbsText), form.gramsText.toDoubleOrNull())
-                    form.nutritionInfo?.estimateModel?.let { Text(stringResource(R.string.ai_estimated_by, it), style = MaterialTheme.typography.labelSmall) }
-                    form.nutritionInfo?.uncertainty?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 }
 
                 NutrixTextField(
