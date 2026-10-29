@@ -66,7 +66,8 @@ class InsightsUiTest {
             summary = "Первый приём пищи сильно плавает, а напитков к обеду мало.",
             points = listOf(ReviewItem("meal_rhythm", "Начало дня меняется почти на 6 часов."), ReviewItem("unknown", "Лишнее")).filter { it.insightId in ids },
             suggestions = listOf(ReviewItem("fluid", "Попробуйте стакан воды до обеда в течение недели.")),
-        ) to "gemini-test"
+        // The model the app has chosen, as the real reviewer reports it.
+        ) to settings.current().geminiModel
     }
 
     @Inject lateinit var settings: SettingsRepository

@@ -4,6 +4,9 @@ import android.content.Context
 import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.security.SecretCipher
 import com.nutrix.app.data.repository.InsightReport
+import com.nutrix.app.domain.insights.Insight
+import com.nutrix.app.domain.insights.InsightComparison
+import com.nutrix.app.domain.insights.MeasureKind
 import com.nutrix.app.feature.ai.FoodAiError
 import com.nutrix.app.feature.ai.FoodAiException
 import com.nutrix.app.feature.ai.GeminiClient
@@ -18,6 +21,8 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
@@ -28,6 +33,7 @@ import java.security.MessageDigest
 import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.roundToInt
 
 @Serializable
 data class ReviewItem(val insightId: String, val text: String)
@@ -44,24 +50,49 @@ data class CachedReview(val payloadHash: String, val createdAt: Long, val model:
  * No diary text, notes, photos, names or dates of individual records.
  */
 object InsightReviewPayload {
+    /**
+     * Version of what is sent and of the prompt that reads it. Part of the cache fingerprint, so a review
+     * written for an older contract is shown as outdated.
+     */
+    const val CONTRACT_VERSION = 3
+
     fun build(report: InsightReport): JsonObject = buildJsonObject {
+        put("contract_version", CONTRACT_VERSION)
         put("period_from", LocalDate.ofEpochDay(report.from).toString())
         put("period_to", LocalDate.ofEpochDay(report.to).toString())
+        val earlier = InsightComparison.previousWindow(report.from..report.to)
+        put("previous_period_from", LocalDate.ofEpochDay(earlier.first).toString())
+        put("previous_period_to", LocalDate.ofEpochDay(earlier.last).toString())
         putJsonArray("observations") {
             report.visible.forEach { insight ->
                 addJsonObject {
                     put("id", insight.id)
                     put("topic", insight.topic.name.lowercase())
                     put("tone", insight.tone.name.lowercase())
+                    if (insight.basis != Insight.DEFAULT_BASIS) put("basis", insight.basis)
                     // Summaries exist whenever data does: they are compared only when the earlier weeks had them too.
                     val history = report.history(insight)
                     if (insight.isPattern || history.previous != null) put("compared_with_previous_4_weeks", history.recurrence.name.lowercase())
-                    putJsonObject("facts") {
-                        insight.facts().forEach { (name, value) ->
-                            when (value) {
-                                is Number -> put(name, value)
-                                is Boolean -> put(name, value)
-                                is String -> put(name, value)
+                    putJsonObject("facts") { putFacts(insight.facts()) }
+                    if (insight.params().isNotEmpty()) putJsonObject("params") { insight.params().forEach { put(it.key, number(it.kind, it.value)) } }
+                    history.previous?.let { before ->
+                        putJsonObject("previous_facts") { putFacts(before.facts()) }
+                        // Differences are computed here, so the model explains numbers instead of deriving them.
+                        putJsonArray("changes") {
+                            history.changes.forEach { c ->
+                                addJsonObject {
+                                    put("metric", c.key)
+                                    put("unit", c.kind.name.lowercase())
+                                    put("before", number(c.kind, c.before))
+                                    put("after", number(c.kind, c.after))
+                                    put("difference", number(if (c.kind == MeasureKind.CLOCK) MeasureKind.MINUTES else c.kind, c.delta))
+                                    put("noticeable", c.noticeable)
+                                }
+                            }
+                        }
+                        if (history.paramChanges.isNotEmpty()) putJsonArray("param_changes") {
+                            history.paramChanges.forEach { c ->
+                                addJsonObject { put("param", c.key); put("before", number(c.kind, c.before)); put("after", number(c.kind, c.after)) }
                             }
                         }
                     }
@@ -70,10 +101,32 @@ object InsightReviewPayload {
         }
     }
 
+    private fun JsonObjectBuilder.putFacts(facts: Map<String, Any>) = facts.forEach { (name, value) ->
+        when (value) {
+            is Number -> put(name, value)
+            is Boolean -> put(name, value)
+            is String -> put(name, value)
+        }
+    }
+
+    /** Times of day as "HH:MM", shares with two decimals, everything else rounded as shown in the app. */
+    private fun number(kind: MeasureKind, value: Double): JsonPrimitive = when (kind) {
+        MeasureKind.CLOCK -> JsonPrimitive(clockText(value.roundToInt()))
+        MeasureKind.SHARE, MeasureKind.KG_PER_WEEK -> JsonPrimitive(kotlin.math.round(value * 100) / 100)
+        MeasureKind.COUNT -> JsonPrimitive(kotlin.math.round(value * 10) / 10)
+        else -> JsonPrimitive(value.roundToInt())
+    }
+
+    private fun clockText(minutes: Int): String {
+        val m = ((minutes % 1440) + 1440) % 1440
+        return String.format(java.util.Locale.ROOT, "%02d:%02d", m / 60, m % 60)
+    }
+
     fun ids(report: InsightReport): Set<String> = report.visible.map { it.id }.toSet()
 
-    fun fingerprint(payload: JsonObject): String =
-        MessageDigest.getInstance("SHA-256").digest(payload.toString().toByteArray()).take(12).joinToString("") { "%02x".format(it) }
+    /** Facts, contract (inside the payload) and model together: a review stays current only while all three do. */
+    fun fingerprint(payload: JsonObject, model: String): String =
+        MessageDigest.getInstance("SHA-256").digest("$payload|$model".toByteArray()).take(12).joinToString("") { "%02x".format(it) }
 
     fun pretty(payload: JsonObject): String = Json { prettyPrint = true }.encodeToString(JsonObject.serializer(), payload)
 }

@@ -65,9 +65,12 @@ class InsightReviewProtocolTest {
         val observations = payload.getValue("observations").jsonArray.map { it.jsonObject }
         assertThat(observations.map { it.getValue("id").jsonPrimitive.content }).containsExactly("meal_rhythm", "fluid")
         assertThat(observations.first().getValue("facts").jsonObject.getValue("first_meal_median").jsonPrimitive.content).isEqualTo("09:00")
-        assertThat(InsightReviewPayload.fingerprint(payload)).isEqualTo(InsightReviewPayload.fingerprint(InsightReviewPayload.build(report)))
-        assertThat(InsightReviewPayload.fingerprint(payload))
-            .isNotEqualTo(InsightReviewPayload.fingerprint(InsightReviewPayload.build(report.copy(hidden = emptySet()))))
+        assertThat(InsightReviewPayload.fingerprint(payload, "m")).isEqualTo(InsightReviewPayload.fingerprint(InsightReviewPayload.build(report), "m"))
+        assertThat(InsightReviewPayload.fingerprint(payload, "m"))
+            .isNotEqualTo(InsightReviewPayload.fingerprint(InsightReviewPayload.build(report.copy(hidden = emptySet())), "m"))
+        // Another model or another contract makes the cached review outdated.
+        assertThat(InsightReviewPayload.fingerprint(payload, "m")).isNotEqualTo(InsightReviewPayload.fingerprint(payload, "other"))
+        assertThat(payload.getValue("contract_version").toString()).isEqualTo(InsightReviewPayload.CONTRACT_VERSION.toString())
     }
 
     @Test fun `one request with schema and key only in header`() = runBlocking {

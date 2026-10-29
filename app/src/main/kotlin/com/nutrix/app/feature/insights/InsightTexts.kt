@@ -21,8 +21,11 @@ import com.nutrix.app.core.ui.icons.WaterDrop
 import com.nutrix.app.core.ui.theme.LocalCategoryColors
 import com.nutrix.app.core.util.Units
 import com.nutrix.app.domain.insights.Coverage
+import com.nutrix.app.domain.insights.Change
 import com.nutrix.app.domain.insights.EvidenceDay
+import com.nutrix.app.domain.insights.EvidenceGroup
 import com.nutrix.app.domain.insights.EvidenceKind
+import com.nutrix.app.domain.insights.MeasureKind
 import com.nutrix.app.domain.insights.FluidSummary
 import com.nutrix.app.domain.insights.Insight
 import com.nutrix.app.domain.insights.InsightTopic
@@ -198,17 +201,115 @@ fun evidenceText(insight: Insight, e: EvidenceDay): String {
     fun duration(minutes: Int?) = Formatters.duration(abs(minutes ?: 0).toLong(), h, m)
     fun clock(minutes: Int?) = Formatters.time(TimeUtils.timeOfMinutes(minutes ?: 0))
     return when (e.kind) {
-        EvidenceKind.LATE_BEFORE_SLEEP -> stringResource(R.string.evidence_late_sleep, clock(e.clock), duration(e.minutes))
+        EvidenceKind.LATE_BEFORE_SLEEP -> stringResource(R.string.evidence_late_sleep, clock(e.clock), duration(e.minutes), duration(e.value))
         EvidenceKind.LATE_CLOCK -> stringResource(R.string.evidence_late_clock, clock(e.clock))
         EvidenceKind.LONG_GAP -> stringResource(R.string.evidence_gap, clock(e.clock), duration(e.minutes))
         EvidenceKind.SHORT_NIGHT -> stringResource(R.string.evidence_short_night, duration(e.minutes), Formatters.integer((e.value ?: 0).toLong()))
-        EvidenceKind.LATE_COFFEE -> stringResource(R.string.evidence_coffee, clock(e.clock), duration(e.minutes))
+        EvidenceKind.LATE_COFFEE ->
+            if (e.clock != null) stringResource(R.string.evidence_coffee, clock(e.clock), duration(e.minutes))
+            else stringResource(R.string.evidence_no_coffee, duration(e.minutes))
         EvidenceKind.LARGE_DISCOMFORT -> {
             val unit = stringResource(if ((insight as? MealDiscomfort)?.largeFromGrams != null) R.string.unit_g else R.string.unit_kcal)
-            stringResource(R.string.evidence_discomfort, clock(e.clock), "${e.value ?: 0} $unit")
+            stringResource(if (e.flag == false) R.string.evidence_comfort else R.string.evidence_discomfort, clock(e.clock), "${e.value ?: 0} $unit")
         }
-        EvidenceKind.SYMPTOM_AFTER_GAP -> stringResource(R.string.evidence_symptom, clock(e.clock), duration(e.minutes))
+        EvidenceKind.SYMPTOM_AFTER_GAP ->
+            if (e.minutes != null) stringResource(R.string.evidence_symptom, clock(e.clock), duration(e.minutes))
+            else stringResource(R.string.evidence_symptom_no_meal, clock(e.clock))
     }
+}
+
+/** Heading of one evidence group, with its count (or its outcome count where the outcome is yes/no). */
+@Composable
+fun evidenceGroupTitle(insight: Insight, group: EvidenceGroup, items: List<EvidenceDay>): String {
+    val match = group == EvidenceGroup.MATCH
+    val days = items.map { it.day }.distinct().size
+    @Composable fun count(@androidx.annotation.StringRes res: Int, vararg args: Any) = stringResource(R.string.evidence_group_count, stringResource(res, *args), days)
+    return when (insight) {
+        is LateMeals -> if (insight.beforeSleep) count(if (match) R.string.evidence_late_sleep_match else R.string.evidence_late_sleep_other)
+            else count(if (match) R.string.evidence_late_clock_match else R.string.evidence_late_clock_other)
+        is LongGaps -> count(if (match) R.string.evidence_gap_match else R.string.evidence_gap_other)
+        is SleepAndEating -> if (match) count(R.string.evidence_short_match,
+            Formatters.duration(insight.shortThresholdMinutes.toLong(), stringResource(R.string.unit_hour_short), stringResource(R.string.unit_minute_short)))
+            else count(R.string.evidence_short_other)
+        is LateCaffeine -> count(if (match) R.string.evidence_coffee_match else R.string.evidence_coffee_other)
+        is MealDiscomfort -> {
+            val from = insight.largeFromGrams?.let { "$it ${stringResource(R.string.unit_g)}" } ?: "${insight.largeFromKcal} ${stringResource(R.string.unit_kcal)}"
+            val label = if (match) stringResource(R.string.evidence_portion_match, stringResource(R.string.value_from, from)) else stringResource(R.string.evidence_portion_other)
+            stringResource(R.string.evidence_group_outcome, label, items.count { it.flag == true }, items.size)
+        }
+        is SymptomsAfterGaps -> stringResource(R.string.evidence_group_count,
+            stringResource(if (match) R.string.evidence_symptom_match else R.string.evidence_symptom_other), items.size)
+        else -> stringResource(R.string.evidence_group_count, stringResource(R.string.evidence_title), days)
+    }
+}
+
+@Composable
+fun measureLabel(key: String): String = stringResource(when (key) {
+    "first_meal" -> R.string.measure_first_meal
+    "last_meal" -> R.string.measure_last_meal
+    "eating_window" -> R.string.measure_eating_window
+    "first_meal_spread" -> R.string.measure_first_meal_spread
+    "meals_per_day" -> R.string.measure_meals_per_day
+    "late_share" -> R.string.measure_late_share
+    "sleep_difference" -> R.string.measure_sleep_difference
+    "gap_share" -> R.string.measure_gap_share
+    "longest_gap" -> R.string.measure_longest_gap
+    "kcal" -> R.string.measure_kcal
+    "evening_share" -> R.string.measure_evening_share
+    "protein" -> R.string.measure_protein
+    "fat" -> R.string.measure_fat
+    "carbs" -> R.string.measure_carbs
+    "kcal_difference" -> R.string.measure_kcal_difference
+    "fluid" -> R.string.measure_fluid
+    "morning_share" -> R.string.measure_morning_share
+    "goal_share" -> R.string.measure_goal_share
+    "bedtime_shift" -> R.string.measure_bedtime_shift
+    "late_coffee_share" -> R.string.measure_late_coffee_share
+    "sleep" -> R.string.measure_sleep
+    "bedtime" -> R.string.measure_bedtime
+    "bedtime_spread" -> R.string.measure_bedtime_spread
+    "weekend_shift" -> R.string.measure_weekend_shift
+    "trend" -> R.string.measure_trend
+    "steps" -> R.string.measure_steps
+    "large_share" -> R.string.measure_large_share
+    "other_share" -> R.string.measure_other_share
+    "after_gap_share" -> R.string.measure_after_gap_share
+    "baseline" -> R.string.measure_baseline
+    "short_night_below" -> R.string.measure_short_night_below
+    "large_from" -> R.string.measure_large_from
+    else -> R.string.measure_other
+})
+
+/** A measured value in the user's units; negative differences keep their sign. */
+@Composable
+fun measureValue(kind: MeasureKind, value: Double, unit: WeightUnit): String {
+    val h = stringResource(R.string.unit_hour_short)
+    val m = stringResource(R.string.unit_minute_short)
+    val minus = if (value < 0) "−" else ""
+    return when (kind) {
+        MeasureKind.CLOCK -> Formatters.time(TimeUtils.timeOfMinutes(value.roundToInt()))
+        MeasureKind.MINUTES -> minus + Formatters.duration(abs(value).roundToInt().toLong(), h, m)
+        MeasureKind.SHARE -> "${(value * 100).roundToInt()}%"
+        MeasureKind.ML -> Formatters.integer(value.roundToInt().toLong()) + " " + stringResource(R.string.unit_ml)
+        MeasureKind.KCAL -> minus + Formatters.integer(abs(value).roundToInt().toLong()) + " " + stringResource(R.string.unit_kcal)
+        MeasureKind.GRAMS -> "${value.roundToInt()} " + stringResource(R.string.unit_g)
+        MeasureKind.STEPS -> Formatters.integer(value.roundToInt().toLong())
+        MeasureKind.KG_PER_WEEK -> stringResource(R.string.unit_per_week,
+            Formatters.signedDecimal(Units.toDisplay(value, unit), 2) + " " + stringResource(if (unit == WeightUnit.KG) R.string.unit_kg else R.string.unit_lb))
+        MeasureKind.COUNT -> Formatters.decimal(value)
+    }
+}
+
+/** "Первый приём пищи: было 09:10, стало 08:30." */
+@Composable
+fun changeText(change: Change, unit: WeightUnit): String =
+    stringResource(R.string.insights_change, measureLabel(change.key), measureValue(change.kind, change.before, unit), measureValue(change.kind, change.after, unit))
+
+/** "Граница большой порции изменилась: было от 500 г, стало от 1 000 г." */
+@Composable
+fun paramChangeText(change: Change, unit: WeightUnit): String {
+    @Composable fun bound(v: Double) = stringResource(if (change.key == "short_night_below") R.string.value_below else R.string.value_from, measureValue(change.kind, v, unit))
+    return stringResource(R.string.insights_param_change, measureLabel(change.key), bound(change.before), bound(change.after))
 }
 
 @Composable

@@ -66,8 +66,11 @@ import com.nutrix.app.core.ui.motion.entrance
 import com.nutrix.app.core.ui.motion.rememberEntranceState
 import com.nutrix.app.core.ui.motion.scanSweep
 import com.nutrix.app.domain.insights.Insight
+import com.nutrix.app.domain.insights.InsightComparison
 import com.nutrix.app.domain.insights.InsightHistory
 import com.nutrix.app.domain.insights.InsightTopic
+import com.nutrix.app.domain.insights.EvidenceGroup
+import com.nutrix.app.domain.insights.RecordRef
 import com.nutrix.app.domain.insights.evidenceDays
 import com.nutrix.app.domain.insights.Recurrence
 import com.nutrix.app.domain.insights.InsightTone
@@ -79,6 +82,7 @@ fun InsightsScreen(
     onBack: () -> Unit,
     onOpenGeminiSettings: () -> Unit,
     onOpenDay: (Long) -> Unit = {},
+    onOpenRecord: (RecordRef) -> Unit = {},
     viewModel: InsightsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -93,8 +97,10 @@ fun InsightsScreen(
             item(key = "intro") {
                 Column(Modifier.entrance(entrance, 0)) {
                     if (report != null) {
+                        val earlier = InsightComparison.previousWindow(report.from..report.to)
                         Text(stringResource(R.string.insights_period, Formatters.dayMonthShort(LocalDate.ofEpochDay(report.from)),
-                            Formatters.dayMonthShort(LocalDate.ofEpochDay(report.to))),
+                            Formatters.dayMonthShort(LocalDate.ofEpochDay(report.to)),
+                            Formatters.dayMonthShort(LocalDate.ofEpochDay(earlier.first)), Formatters.dayMonthShort(LocalDate.ofEpochDay(earlier.last))),
                             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     InfoDisclosure(stringResource(R.string.insights_about_summary), stringResource(R.string.insights_about), Icons.Rounded.Info)
@@ -126,7 +132,7 @@ fun InsightsScreen(
             }
             val faded = report.faded
             if (faded.isNotEmpty()) {
-                item(key = "faded") { FadedCard(faded, state.unit, Modifier.animateItem()) }
+                item(key = "faded") { FadedCard(faded, state.unit, Modifier.animateItem(), onShowDays = { evidenceFor = PREVIOUS + it.id }) }
             }
             if (report.hiddenCount > 0) {
                 item(key = "hidden-toggle") {
@@ -145,12 +151,15 @@ fun InsightsScreen(
             }
         }
     }
-    val evidenceInsight = report?.all?.firstOrNull { it.id == evidenceFor }
+    // Faded patterns open the evidence of the earlier weeks they came from.
+    val evidenceInsight = evidenceFor?.let { key ->
+        if (key.startsWith(PREVIOUS)) report?.previous?.insights?.firstOrNull { PREVIOUS + it.id == key }
+        else report?.all?.firstOrNull { it.id == key }
+    }
     if (evidenceInsight != null) {
-        EvidenceSheet(evidenceInsight, state.unit, onDismiss = { evidenceFor = null }, onOpenDay = { day ->
-            evidenceFor = null
-            onOpenDay(day)
-        })
+        EvidenceSheet(evidenceInsight, state.unit, onDismiss = { evidenceFor = null },
+            onOpenDay = { day -> evidenceFor = null; onOpenDay(day) },
+            onOpenRecord = { ref -> evidenceFor = null; onOpenRecord(ref) })
     }
     if (paidDialog) {
         AlertDialog(
@@ -204,24 +213,25 @@ fun InsightCard(
         text.lines.forEach { line ->
             Text(line, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 4.dp))
         }
-        val before = history?.previous?.let { insightText(it, unit).lines.firstOrNull() }
-        val previous = when {
-            before == null -> null
-            before != text.lines.firstOrNull() -> stringResource(R.string.insights_previously, before.replaceFirstChar { it.lowercase() })
-            // The same wording: a pattern is worth confirming, an unchanged summary needs no echo.
-            insight.isPattern -> stringResource(R.string.insights_repeats_same)
-            else -> null
+        // What changed since the earlier weeks, in measured values; small wobbles are not reported.
+        val notes = buildList {
+            when (history?.recurrence) {
+                Recurrence.REPEATS, Recurrence.CHANGED -> {
+                    val changes = history.noticeableChanges.take(2)
+                    if (changes.isEmpty()) add(stringResource(if (insight.isPattern) R.string.insights_repeats_same else R.string.insights_same_as_before))
+                    changes.forEach { add(changeText(it, unit)) }
+                    history.paramChanges.forEach { add(paramChangeText(it, unit)) }
+                }
+                Recurrence.NEW -> if (insight.isPattern) add(stringResource(R.string.insights_new_note))
+                Recurrence.NO_BASELINE -> if (insight.isPattern) add(stringResource(R.string.insights_no_baseline))
+                Recurrence.OTHER_BASIS -> add(stringResource(R.string.insights_other_basis, basisLabel(history.previousBasis)))
+                null -> Unit
+            }
         }
-        val note = previous ?: when (recurrence) {
-            Recurrence.NEW -> stringResource(R.string.insights_new_note)
-            Recurrence.NO_BASELINE -> stringResource(R.string.insights_no_baseline)
-            Recurrence.OTHER_BASIS -> stringResource(R.string.insights_other_basis, basisLabel(history?.previousBasis))
-            else -> null
-        }
-        if (note != null) {
-            Text(note,
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 4.dp).testTag("insight-previous-${insight.id}"))
+        if (notes.isNotEmpty()) {
+            Column(Modifier.padding(bottom = 4.dp).testTag("insight-previous-${insight.id}")) {
+                notes.forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
         }
         if (insight.chart.size >= 3) {
             Spacer(Modifier.height(4.dp))
@@ -278,7 +288,7 @@ private fun TopicsRow(interests: Set<InsightTopic>, onChange: (InsightTopic, Boo
 
 /** Patterns of the previous four weeks that did not come back, although the latest weeks had the data. */
 @Composable
-private fun FadedCard(faded: List<Insight>, unit: WeightUnit, modifier: Modifier) {
+private fun FadedCard(faded: List<Insight>, unit: WeightUnit, modifier: Modifier, onShowDays: (Insight) -> Unit) {
     NutrixCard(modifier = modifier.testTag("insight-faded")) {
         CardHeader(Icons.Rounded.Insights, stringResource(R.string.insights_faded_title), MaterialTheme.colorScheme.primary)
         Text(stringResource(R.string.insights_faded_text), style = MaterialTheme.typography.bodySmall,
@@ -292,6 +302,11 @@ private fun FadedCard(faded: List<Insight>, unit: WeightUnit, modifier: Modifier
                     text.lines.firstOrNull()?.let {
                         Text(stringResource(R.string.insights_previously, it.replaceFirstChar { c -> c.lowercase() }), style = MaterialTheme.typography.bodySmall)
                     }
+                    if (insight.evidence.isNotEmpty()) {
+                        TextButton(onClick = { onShowDays(insight) }, modifier = Modifier.testTag("insight-faded-days-${insight.id}")) {
+                            Text(stringResource(R.string.insights_show_days, insight.evidenceDays.size))
+                        }
+                    }
                 }
             }
         }
@@ -301,7 +316,7 @@ private fun FadedCard(faded: List<Insight>, unit: WeightUnit, modifier: Modifier
 /** The diary days behind a pattern; each opens the day, so every count can be checked. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EvidenceSheet(insight: Insight, unit: WeightUnit, onDismiss: () -> Unit, onOpenDay: (Long) -> Unit) {
+private fun EvidenceSheet(insight: Insight, unit: WeightUnit, onDismiss: () -> Unit, onOpenDay: (Long) -> Unit, onOpenRecord: (RecordRef) -> Unit) {
     val title = insightText(insight, unit).title
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp).testTag("insight-evidence")) {
@@ -309,21 +324,32 @@ private fun EvidenceSheet(insight: Insight, unit: WeightUnit, onDismiss: () -> U
             Text(title, style = MaterialTheme.typography.titleSmall, color = topicColor(insight.topic))
             Text(stringResource(R.string.evidence_hint), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
-            // Evidence is already newest first, so grouping keeps the order of days.
-            insight.evidence.groupBy { it.day }.forEach { (day, episodes) ->
-                val date = LocalDate.ofEpochDay(day)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { onOpenDay(day) }.padding(vertical = 6.dp)
-                        .testTag("insight-evidence-day"),
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("${Formatters.weekdayShort(date)}, ${Formatters.dayMonthShort(date)}", style = MaterialTheme.typography.titleSmall)
-                        episodes.sortedBy { it.clock ?: 0 }.forEach { e ->
-                            Text(evidenceText(insight, e), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+            // The group the pattern is about, then the group it is compared with, so both counts can be checked.
+            EvidenceGroup.entries.forEach { group ->
+                val items = insight.evidence.filter { it.group == group }
+                if (items.isEmpty()) return@forEach
+                Text(evidenceGroupTitle(insight, group, items), style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp).testTag("insight-evidence-${group.name.lowercase()}"))
+                // Evidence is already newest first, so grouping keeps the order of days.
+                items.groupBy { it.day }.forEach { (day, episodes) ->
+                    val date = LocalDate.ofEpochDay(day)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { onOpenDay(day) }.padding(vertical = 4.dp)
+                            .testTag("insight-evidence-day"),
+                    ) {
+                        Text("${Formatters.weekdayShort(date)}, ${Formatters.dayMonthShort(date)}", style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.weight(1f))
+                        Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    episodes.sortedBy { it.clock ?: 0 }.forEach { e ->
+                        val record = e.record
+                        Text(evidenceText(insight, e), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp)
+                                .clickable(onClickLabel = stringResource(R.string.evidence_open_record)) { if (record != null) onOpenRecord(record) else onOpenDay(day) }
+                                .padding(start = 12.dp, top = 8.dp, bottom = 8.dp)
+                                .testTag(if (record != null) "insight-evidence-record" else "insight-evidence-line"))
+                    }
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -503,3 +529,6 @@ private fun actionText(action: com.nutrix.app.domain.insights.DiaryAction): Stri
     com.nutrix.app.domain.insights.DiaryAction.ESTIMATE_MEALS -> R.string.action_estimate_meals
     com.nutrix.app.domain.insights.DiaryAction.SET_WATER_GUIDELINE -> R.string.action_set_water_guideline
 })
+
+/** Key prefix for the evidence of a pattern from the earlier weeks. */
+private const val PREVIOUS = "previous:"
