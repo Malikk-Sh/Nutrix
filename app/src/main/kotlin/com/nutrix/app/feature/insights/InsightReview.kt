@@ -53,6 +53,9 @@ object InsightReviewPayload {
                     put("id", insight.id)
                     put("topic", insight.topic.name.lowercase())
                     put("tone", insight.tone.name.lowercase())
+                    // Summaries exist whenever data does: without earlier data there is nothing to compare.
+                    val history = report.history(insight)
+                    if (insight.isPattern || history.previous != null) put("compared_with_previous_4_weeks", history.recurrence.name.lowercase())
                     putJsonObject("facts") {
                         insight.facts().forEach { (name, value) ->
                             when (value) {

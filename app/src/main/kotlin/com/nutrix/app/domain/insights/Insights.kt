@@ -7,6 +7,23 @@ enum class InsightTopic { MEALS, NUTRITION, FLUID, SLEEP, WEIGHT, ACTIVITY, WELL
 /** How an observation reads for the user's own routine. It never grades health. */
 enum class InsightTone { POSITIVE, NEUTRAL, ATTENTION }
 
+enum class EvidenceKind { LATE_BEFORE_SLEEP, LATE_CLOCK, LONG_GAP, SHORT_NIGHT, LATE_COFFEE, LARGE_DISCOMFORT, SYMPTOM_AFTER_GAP }
+
+/**
+ * One diary day behind a pattern, so the user can open it and check the claim. Stays on the phone:
+ * it is never part of [Insight.facts].
+ */
+data class EvidenceDay(
+    val day: Long,
+    val kind: EvidenceKind,
+    /** Minute of the day of the event (the last meal, the coffee, the symptom). */
+    val clock: Int? = null,
+    /** A duration in minutes: before sleep, the gap, the night. */
+    val minutes: Int? = null,
+    /** A size: kcal of the day, grams or kcal of the portion. */
+    val value: Int? = null,
+)
+
 /**
  * A local observation about the user's own records over the analysis window.
  * Values are compared with the user's own days, never with population norms.
@@ -22,6 +39,10 @@ sealed interface Insight {
     val chart: List<ChartPoint> get() = emptyList()
     /** Personal links between two diaries rank above plain summaries. */
     val isLink: Boolean get() = false
+    /** A pattern appears only when something recurs; summaries are there whenever data is. */
+    val isPattern: Boolean get() = false
+    /** The days behind a pattern, newest first. */
+    val evidence: List<EvidenceDay> get() = emptyList()
 
     /** Compact, language-neutral facts for the optional AI review. Never includes free text from the diary. */
     fun facts(): Map<String, Any>
@@ -58,10 +79,12 @@ data class LateMeals(
     val beforeSleep: Boolean,
     /** Sleep on late nights minus other nights, minutes; null without enough nights of each. */
     val sleepDifferenceMinutes: Int?,
+    override val evidence: List<EvidenceDay> = emptyList(),
 ) : Insight {
     override val id = "late_meals"
     override val topic = InsightTopic.MEALS
     override val tone = InsightTone.ATTENTION
+    override val isPattern = true
     override val isLink get() = sleepDifferenceMinutes != null
     override fun facts() = buildMap<String, Any> {
         put("days", days); put("late_days", lateDays)
@@ -74,7 +97,9 @@ data class LongGaps(
     override val days: Int,
     val gapDays: Int,
     val longestGapMedianMinutes: Int,
+    override val evidence: List<EvidenceDay> = emptyList(),
 ) : Insight {
+    override val isPattern = true
     override val id = "long_gaps"
     override val topic = InsightTopic.MEALS
     override val tone = InsightTone.NEUTRAL
@@ -109,7 +134,9 @@ data class SleepAndEating(
     val shortNights: Int,
     val shortThresholdMinutes: Int,
     val kcalDifference: Int,
+    override val evidence: List<EvidenceDay> = emptyList(),
 ) : Insight {
+    override val isPattern = true
     override val id = "sleep_eating"
     override val topic = InsightTopic.NUTRITION
     override val tone = if (kcalDifference > 0) InsightTone.ATTENTION else InsightTone.NEUTRAL
@@ -149,7 +176,9 @@ data class LateCaffeine(
     val lateDays: Int,
     val bedtimeShiftMinutes: Int,
     val sleepDifferenceMinutes: Int,
+    override val evidence: List<EvidenceDay> = emptyList(),
 ) : Insight {
+    override val isPattern = true
     override val id = "late_caffeine"
     override val topic = InsightTopic.SLEEP
     override val tone = InsightTone.ATTENTION
@@ -233,7 +262,9 @@ data class MealDiscomfort(
     val otherTotal: Int,
     val largeFromGrams: Int?,
     val largeFromKcal: Int?,
+    override val evidence: List<EvidenceDay> = emptyList(),
 ) : Insight {
+    override val isPattern = true
     override val id = "meal_discomfort"
     override val topic = InsightTopic.WELLBEING
     override val tone = InsightTone.ATTENTION
@@ -252,7 +283,9 @@ data class SymptomsAfterGaps(
     val episodes: Int,
     val afterGap: Int,
     val baselineShare: Double,
+    override val evidence: List<EvidenceDay> = emptyList(),
 ) : Insight {
+    override val isPattern = true
     override val id = "symptoms_after_gaps"
     override val topic = InsightTopic.WELLBEING
     override val tone = InsightTone.ATTENTION

@@ -100,6 +100,13 @@ class InsightEngineTest {
         assertThat(late.lateDays).isEqualTo(14)
         assertThat(late.sleepDifferenceMinutes).isEqualTo(-90)
         assertThat(late.isLink).isTrue()
+        // Each late evening can be opened: newest first, with the meal time and how long before sleep.
+        assertThat(late.evidence).hasSize(14)
+        assertThat(late.evidence.map { it.day }).isInOrder(Comparator.reverseOrder<Long>())
+        assertThat(late.evidence.first().clock).isEqualTo(22 * 60)
+        assertThat(late.evidence.first().minutes).isEqualTo(60)
+        assertThat(late.evidence.map { it.day }.toSet()).isEqualTo(days.filterIndexed { i, _ -> i % 2 == 0 }.toSet())
+        assertThat(late.facts().toString()).doesNotContain(LocalDate.ofEpochDay(late.evidence.first().day).toString())
     }
 
     @Test
@@ -107,6 +114,8 @@ class InsightEngineTest {
         val late = run(meals = days.mapIndexed { i, d -> meal(d, if (i < 10) 22 else 19, 30) }).find<LateMeals>()!!
         assertThat(late.beforeSleep).isFalse()
         assertThat(late.lateDays).isEqualTo(10)
+        assertThat(late.evidence.map { it.day }.toSet()).isEqualTo(days.take(10).toSet())
+        assertThat(late.evidence.all { it.clock == 22 * 60 + 30 }).isTrue()
     }
 
     @Test
@@ -134,6 +143,8 @@ class InsightEngineTest {
         assertThat(caffeine.bedtimeShiftMinutes).isEqualTo(120)
         assertThat(caffeine.sleepDifferenceMinutes).isEqualTo(-120)
         assertThat(caffeine.lateDays).isEqualTo(14)
+        assertThat(caffeine.evidence).hasSize(14)
+        assertThat(caffeine.evidence.all { it.clock == 17 * 60 && it.minutes == 6 * 60 }).isTrue()
     }
 
     @Test

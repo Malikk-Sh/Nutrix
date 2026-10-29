@@ -21,6 +21,8 @@ import com.nutrix.app.core.ui.icons.WaterDrop
 import com.nutrix.app.core.ui.theme.LocalCategoryColors
 import com.nutrix.app.core.util.Units
 import com.nutrix.app.domain.insights.Coverage
+import com.nutrix.app.domain.insights.EvidenceDay
+import com.nutrix.app.domain.insights.EvidenceKind
 import com.nutrix.app.domain.insights.FluidSummary
 import com.nutrix.app.domain.insights.Insight
 import com.nutrix.app.domain.insights.InsightTopic
@@ -187,3 +189,36 @@ fun insightText(insight: Insight, unit: WeightUnit): InsightText {
         )
     }
 }
+
+/** One evidence day in words: what happened that day, in the user's own records. */
+@Composable
+fun evidenceText(insight: Insight, e: EvidenceDay): String {
+    val h = stringResource(R.string.unit_hour_short)
+    val m = stringResource(R.string.unit_minute_short)
+    fun duration(minutes: Int?) = Formatters.duration(abs(minutes ?: 0).toLong(), h, m)
+    fun clock(minutes: Int?) = Formatters.time(TimeUtils.timeOfMinutes(minutes ?: 0))
+    return when (e.kind) {
+        EvidenceKind.LATE_BEFORE_SLEEP -> stringResource(R.string.evidence_late_sleep, clock(e.clock), duration(e.minutes))
+        EvidenceKind.LATE_CLOCK -> stringResource(R.string.evidence_late_clock, clock(e.clock))
+        EvidenceKind.LONG_GAP -> stringResource(R.string.evidence_gap, clock(e.clock), duration(e.minutes))
+        EvidenceKind.SHORT_NIGHT -> stringResource(R.string.evidence_short_night, duration(e.minutes), Formatters.integer((e.value ?: 0).toLong()))
+        EvidenceKind.LATE_COFFEE -> stringResource(R.string.evidence_coffee, clock(e.clock), duration(e.minutes))
+        EvidenceKind.LARGE_DISCOMFORT -> {
+            val unit = stringResource(if ((insight as? MealDiscomfort)?.largeFromGrams != null) R.string.unit_g else R.string.unit_kcal)
+            stringResource(R.string.evidence_discomfort, clock(e.clock), "${e.value ?: 0} $unit")
+        }
+        EvidenceKind.SYMPTOM_AFTER_GAP -> stringResource(R.string.evidence_symptom, clock(e.clock), duration(e.minutes))
+    }
+}
+
+@Composable
+fun topicLabel(topic: InsightTopic): String = stringResource(when (topic) {
+    InsightTopic.MEALS -> R.string.topic_meals
+    InsightTopic.NUTRITION -> R.string.topic_nutrition
+    InsightTopic.FLUID -> R.string.topic_fluid
+    InsightTopic.SLEEP -> R.string.topic_sleep
+    InsightTopic.WEIGHT -> R.string.topic_weight
+    InsightTopic.ACTIVITY -> R.string.topic_activity
+    InsightTopic.WELLBEING -> R.string.topic_wellbeing
+    InsightTopic.DATA -> R.string.insight_coverage_title
+})

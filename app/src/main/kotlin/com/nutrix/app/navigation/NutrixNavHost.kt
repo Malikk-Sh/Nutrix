@@ -254,7 +254,8 @@ fun NutrixNavHost(
                     }
                     composable<AnalyticsRoute> { AnalyticsScreen(bottomPadding, onOpenInsights = { nav.navigate(InsightsRoute) }) }
                     composable<InsightsRoute> {
-                        InsightsScreen(onBack = nav::popBackStack, onOpenGeminiSettings = { nav.navigate(GeminiSettingsRoute) })
+                        InsightsScreen(onBack = nav::popBackStack, onOpenGeminiSettings = { nav.navigate(GeminiSettingsRoute) },
+                            onOpenDay = { nav.navigate(DayRoute(it)) })
                     }
                     composable<ProfileRoute> {
                         ProfileScreen(

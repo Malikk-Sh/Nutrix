@@ -8,6 +8,7 @@ import com.nutrix.app.data.repository.InsightReport
 import com.nutrix.app.data.repository.InsightRepository
 import com.nutrix.app.feature.ai.FoodAiError
 import com.nutrix.app.feature.ai.FoodAiException
+import com.nutrix.app.domain.insights.InsightTopic
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -71,6 +72,10 @@ class InsightsViewModel @Inject constructor(
 
     fun setHidden(id: String, hidden: Boolean) {
         viewModelScope.launch { settings.setInsightHidden(id, hidden) }
+    }
+
+    fun setInterest(topic: InsightTopic, chosen: Boolean) {
+        viewModelScope.launch { settings.setInsightTopic(topic.name, chosen) }
     }
 
     fun setPaidProject(paid: Boolean) {

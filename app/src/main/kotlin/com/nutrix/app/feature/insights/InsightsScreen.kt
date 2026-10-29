@@ -17,7 +17,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -55,18 +60,28 @@ import com.nutrix.app.core.ui.components.Pill
 import com.nutrix.app.core.ui.components.ScreenList
 import com.nutrix.app.core.ui.components.Sparkline
 import com.nutrix.app.core.ui.icons.AutoAwesome
+import com.nutrix.app.core.ui.icons.ChevronRight
 import com.nutrix.app.core.ui.icons.Insights
 import com.nutrix.app.core.ui.motion.entrance
 import com.nutrix.app.core.ui.motion.rememberEntranceState
 import com.nutrix.app.core.ui.motion.scanSweep
 import com.nutrix.app.domain.insights.Insight
+import com.nutrix.app.domain.insights.InsightHistory
+import com.nutrix.app.domain.insights.InsightTopic
+import com.nutrix.app.domain.insights.Recurrence
 import com.nutrix.app.domain.insights.InsightTone
 import com.nutrix.app.feature.ai.messageRes
 import java.time.LocalDate
 
 @Composable
-fun InsightsScreen(onBack: () -> Unit, onOpenGeminiSettings: () -> Unit, viewModel: InsightsViewModel = hiltViewModel()) {
+fun InsightsScreen(
+    onBack: () -> Unit,
+    onOpenGeminiSettings: () -> Unit,
+    onOpenDay: (Long) -> Unit = {},
+    viewModel: InsightsViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var evidenceFor by rememberSaveable { mutableStateOf<String?>(null) }
     var consentDialog by rememberSaveable { mutableStateOf(false) }
     var paidDialog by rememberSaveable { mutableStateOf(false) }
     var showHidden by rememberSaveable { mutableStateOf(false) }
@@ -82,6 +97,7 @@ fun InsightsScreen(onBack: () -> Unit, onOpenGeminiSettings: () -> Unit, viewMod
                             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     InfoDisclosure(stringResource(R.string.insights_about_summary), stringResource(R.string.insights_about), Icons.Rounded.Info)
+                    report?.let { TopicsRow(it.interests, viewModel::setInterest) }
                 }
             }
             if (report == null) {
@@ -102,8 +118,14 @@ fun InsightsScreen(onBack: () -> Unit, onOpenGeminiSettings: () -> Unit, viewMod
             visible.forEachIndexed { index, insight ->
                 item(key = insight.id) {
                     InsightCard(insight, state.unit, Modifier.animateItem().entrance(entrance, index + 3),
+                        history = report.history(insight),
+                        onShowDays = if (insight.evidence.isNotEmpty()) { { evidenceFor = insight.id } } else null,
                         action = { TextButton(onClick = { viewModel.setHidden(insight.id, true) }) { Text(stringResource(R.string.insights_hide)) } })
                 }
+            }
+            val faded = report.faded
+            if (faded.isNotEmpty()) {
+                item(key = "faded") { FadedCard(faded, state.unit, Modifier.animateItem()) }
             }
             if (report.hiddenCount > 0) {
                 item(key = "hidden-toggle") {
@@ -121,6 +143,13 @@ fun InsightsScreen(onBack: () -> Unit, onOpenGeminiSettings: () -> Unit, viewMod
                 }
             }
         }
+    }
+    val evidenceInsight = report?.all?.firstOrNull { it.id == evidenceFor }
+    if (evidenceInsight != null) {
+        EvidenceSheet(evidenceInsight, state.unit, onDismiss = { evidenceFor = null }, onOpenDay = { day ->
+            evidenceFor = null
+            onOpenDay(day)
+        })
     }
     if (paidDialog) {
         AlertDialog(
@@ -140,19 +169,54 @@ fun InsightsScreen(onBack: () -> Unit, onOpenGeminiSettings: () -> Unit, viewMod
 }
 
 @Composable
-fun InsightCard(insight: Insight, unit: WeightUnit, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
+fun InsightCard(
+    insight: Insight,
+    unit: WeightUnit,
+    modifier: Modifier = Modifier,
+    history: InsightHistory? = null,
+    onShowDays: (() -> Unit)? = null,
+    action: (@Composable () -> Unit)? = null,
+) {
     val text = insightText(insight, unit)
     val color = topicColor(insight.topic)
+    val recurrence = history?.recurrence?.takeIf { insight.isPattern || it == Recurrence.CHANGED }
     NutrixCard(modifier = modifier.testTag("insight-${insight.id}")) {
         CardHeader(topicIcon(insight.topic), text.title, color)
-        when (insight.tone) {
-            InsightTone.ATTENTION -> Pill(stringResource(R.string.insights_tone_attention), MaterialTheme.colorScheme.tertiary, Modifier.padding(top = 8.dp))
-            InsightTone.POSITIVE -> Pill(stringResource(R.string.insights_tone_positive), color, Modifier.padding(top = 8.dp))
-            InsightTone.NEUTRAL -> Unit
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            when (insight.tone) {
+                InsightTone.ATTENTION -> Pill(stringResource(R.string.insights_tone_attention), MaterialTheme.colorScheme.tertiary, Modifier.padding(top = 8.dp))
+                InsightTone.POSITIVE -> Pill(stringResource(R.string.insights_tone_positive), color, Modifier.padding(top = 8.dp))
+                InsightTone.NEUTRAL -> Unit
+            }
+            when (recurrence) {
+                Recurrence.NEW -> Pill(stringResource(R.string.insights_new), MaterialTheme.colorScheme.secondary,
+                    Modifier.padding(top = 8.dp).testTag("insight-new-${insight.id}"))
+                Recurrence.REPEATS -> Pill(stringResource(R.string.insights_repeats), MaterialTheme.colorScheme.primary,
+                    Modifier.padding(top = 8.dp).testTag("insight-repeats-${insight.id}"))
+                Recurrence.CHANGED -> Pill(stringResource(R.string.insights_changed), MaterialTheme.colorScheme.secondary,
+                    Modifier.padding(top = 8.dp).testTag("insight-changed-${insight.id}"))
+                null -> Unit
+            }
         }
         Spacer(Modifier.height(8.dp))
         text.lines.forEach { line ->
             Text(line, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 4.dp))
+        }
+        val before = history?.previous?.let { insightText(it, unit).lines.firstOrNull() }
+        val previous = when {
+            before == null -> null
+            before != text.lines.firstOrNull() -> stringResource(R.string.insights_previously, before.replaceFirstChar { it.lowercase() })
+            // The same wording: a pattern is worth confirming, an unchanged summary needs no echo.
+            insight.isPattern -> stringResource(R.string.insights_repeats_same)
+            else -> null
+        }
+        if (previous != null) {
+            Text(previous,
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 4.dp).testTag("insight-previous-${insight.id}"))
+        } else if (recurrence == Recurrence.NEW) {
+            Text(stringResource(R.string.insights_new_note), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
         }
         if (insight.chart.size >= 3) {
             Spacer(Modifier.height(4.dp))
@@ -167,6 +231,92 @@ fun InsightCard(insight: Insight, unit: WeightUnit, modifier: Modifier = Modifie
                 }
             }
             action?.invoke()
+        }
+        if (onShowDays != null) {
+            OutlinedButton(onClick = onShowDays, shape = MaterialTheme.shapes.small, modifier = Modifier.testTag("insight-days-${insight.id}")) {
+                Text(stringResource(R.string.insights_show_days, insight.evidence.size))
+            }
+        }
+    }
+}
+
+/** The user's topics of interest: a summary line that opens chips for choosing. */
+@Composable
+private fun TopicsRow(interests: Set<InsightTopic>, onChange: (InsightTopic, Boolean) -> Unit) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    val chosen = InsightTopic.entries.filter { it in interests }
+    Column(Modifier.animateContentSize().testTag("insight-topics")) {
+        TextButton(onClick = { open = !open }, modifier = Modifier.testTag("insight-topics-toggle")) {
+            Text(
+                if (chosen.isEmpty()) stringResource(R.string.insights_topics_none)
+                else stringResource(R.string.insights_topics_title) + ": " + chosen.map { topicLabel(it) }.joinToString(", "),
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+        if (open) {
+            Text(stringResource(R.string.insights_topics_hint), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 12.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 12.dp)) {
+                InsightTopic.entries.filter { it != InsightTopic.DATA }.forEach { topic ->
+                    FilterChip(
+                        selected = topic in interests,
+                        onClick = { onChange(topic, topic !in interests) },
+                        label = { Text(topicLabel(topic)) },
+                        leadingIcon = { Icon(topicIcon(topic), null, Modifier.size(18.dp), tint = topicColor(topic)) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Patterns of the previous four weeks that did not come back, although the latest weeks had the data. */
+@Composable
+private fun FadedCard(faded: List<Insight>, unit: WeightUnit, modifier: Modifier) {
+    NutrixCard(modifier = modifier.testTag("insight-faded")) {
+        CardHeader(Icons.Rounded.Insights, stringResource(R.string.insights_faded_title), MaterialTheme.colorScheme.primary)
+        Text(stringResource(R.string.insights_faded_text), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+        faded.forEach { insight ->
+            val text = insightText(insight, unit)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                Icon(topicIcon(insight.topic), null, tint = topicColor(insight.topic), modifier = Modifier.size(18.dp).padding(top = 2.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(text.title, style = MaterialTheme.typography.titleSmall)
+                    text.lines.firstOrNull()?.let {
+                        Text(stringResource(R.string.insights_previously, it.replaceFirstChar { c -> c.lowercase() }), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The diary days behind a pattern; each opens the day, so every count can be checked. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EvidenceSheet(insight: Insight, unit: WeightUnit, onDismiss: () -> Unit, onOpenDay: (Long) -> Unit) {
+    val title = insightText(insight, unit).title
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp).testTag("insight-evidence")) {
+            Text(stringResource(R.string.evidence_title), style = MaterialTheme.typography.titleLarge)
+            Text(title, style = MaterialTheme.typography.titleSmall, color = topicColor(insight.topic))
+            Text(stringResource(R.string.evidence_hint), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
+            insight.evidence.forEach { e ->
+                val date = LocalDate.ofEpochDay(e.day)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { onOpenDay(e.day) }.padding(vertical = 6.dp),
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("${Formatters.weekdayShort(date)}, ${Formatters.dayMonthShort(date)}", style = MaterialTheme.typography.titleSmall)
+                        Text(evidenceText(insight, e), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Spacer(Modifier.height(16.dp))
         }
     }
 }
