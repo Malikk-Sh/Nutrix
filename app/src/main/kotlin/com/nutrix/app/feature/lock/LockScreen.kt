@@ -1,6 +1,13 @@
 package com.nutrix.app.feature.lock
 
 import androidx.biometric.BiometricManager
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.graphics.graphicsLayer
+import com.nutrix.app.core.ui.motion.NutrixMotion
+import com.nutrix.app.core.ui.motion.shakeOnChange
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
@@ -69,6 +76,7 @@ fun LockScreen(lockManager: AppLockManager, biometricEnabled: Boolean) {
     val scope = rememberCoroutineScope()
     var pin by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
+    var rejected by remember { mutableIntStateOf(0) }
     val title = stringResource(R.string.lock_biometric_title)
     val negative = stringResource(R.string.lock_biometric_negative)
     val biometricAvailable = biometricEnabled && canUseBiometrics(context)
@@ -103,10 +111,12 @@ fun LockScreen(lockManager: AppLockManager, biometricEnabled: Boolean) {
                 is PinResult.Wrong -> {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     message = resources.getString(R.string.lock_wrong_pin, r.attemptsLeft)
+                    rejected++
                     pin = ""
                 }
                 is PinResult.LockedOut -> {
                     message = resources.getString(R.string.lock_locked_out, r.secondsLeft)
+                    rejected++
                     pin = ""
                 }
             }
@@ -133,15 +143,8 @@ fun LockScreen(lockManager: AppLockManager, biometricEnabled: Boolean) {
             Text(stringResource(R.string.lock_title), style = MaterialTheme.typography.titleLarge)
             Text(stringResource(R.string.lock_enter_pin), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(20.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                repeat(maxOf(4, pin.length)) { i ->
-                    Box(
-                        Modifier
-                            .size(14.dp)
-                            .clip(CircleShape)
-                            .background(if (i < pin.length) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest),
-                    )
-                }
+            Row(Modifier.shakeOnChange(rejected), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                repeat(maxOf(4, pin.length)) { i -> PinDot(filled = i < pin.length, error = message != null && pin.isEmpty()) }
             }
             Spacer(Modifier.height(10.dp))
             Text(message ?: " ", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -176,4 +179,26 @@ fun LockScreen(lockManager: AppLockManager, biometricEnabled: Boolean) {
             TextButton(onClick = ::submit, enabled = pin.length >= 4) { Text(stringResource(R.string.action_continue)) }
         }
     }
+}
+
+/** A PIN position: pops when a digit is entered, turns to the error colour after a rejected PIN. */
+@Composable
+private fun PinDot(filled: Boolean, error: Boolean) {
+    val scale by animateFloatAsState(if (filled) 1.15f else 1f, NutrixMotion.bouncy(), label = "pinDot")
+    val color by animateColorAsState(
+        when {
+            filled -> MaterialTheme.colorScheme.primary
+            error -> MaterialTheme.colorScheme.error.copy(alpha = 0.55f)
+            else -> MaterialTheme.colorScheme.surfaceContainerHighest
+        },
+        tween(NutrixMotion.SHORT),
+        label = "pinDotColor",
+    )
+    Box(
+        Modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .size(14.dp)
+            .clip(CircleShape)
+            .background(color),
+    )
 }

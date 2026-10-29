@@ -1,6 +1,18 @@
 package com.nutrix.app.core.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.graphicsLayer
+import com.nutrix.app.core.ui.motion.NutrixMotion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
@@ -46,6 +58,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 
 /** Single-choice chip row. Tapping the selected chip again clears it when [allowDeselect]. */
@@ -64,6 +77,7 @@ fun <T> ChoiceChips(
         options.forEach { option ->
             val isSelected = option == selected
             FilterChip(
+                modifier = Modifier.animateContentSize(NutrixMotion.gentle()),
                 selected = isSelected,
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -97,6 +111,7 @@ fun <T> MultiChoiceChips(
         options.forEach { option ->
             val isSelected = option in selected
             FilterChip(
+                modifier = Modifier.animateContentSize(NutrixMotion.gentle()),
                 selected = isSelected,
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -121,22 +136,38 @@ fun <T> MultiChoiceChips(
 fun <T> SegmentedChoices(options: List<T>, selected: T?, label: @Composable (T) -> String,
     onSelect: (T) -> Unit, modifier: Modifier = Modifier) {
     val largeText = LocalDensity.current.fontScale > 1.2f
-    @Composable fun choice(option: T, itemModifier: Modifier) {
+    val haptic = LocalHapticFeedback.current
+    @Composable fun choice(option: T, itemModifier: Modifier, drawsOwnBackground: Boolean) {
         val active = option == selected
+        val background by animateColorAsState(if (active && drawsOwnBackground) MaterialTheme.colorScheme.primary else Color.Transparent,
+            tween(NutrixMotion.MEDIUM), label = "segmentBackground")
+        val content by animateColorAsState(if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            tween(NutrixMotion.MEDIUM), label = "segmentText")
         Box(itemModifier.clip(MaterialTheme.shapes.small)
-            .background(if (active) MaterialTheme.colorScheme.primary else Color.Transparent)
-            .selectable(active, role = Role.RadioButton, onClick = { onSelect(option) })
+            .background(background)
+            .selectable(active, role = Role.RadioButton, onClick = {
+                if (!active) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onSelect(option)
+            })
             .heightIn(min = 48.dp).padding(horizontal = 6.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
-            Text(label(option), style = MaterialTheme.typography.labelMedium,
-                color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center)
+            Text(label(option), style = MaterialTheme.typography.labelMedium, color = content, textAlign = TextAlign.Center)
         }
     }
     if (largeText) FlowRow(modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        options.forEach { choice(it, Modifier) }
-    } else Row(modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
-        .background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(4.dp).selectableGroup()) {
-        options.forEach { choice(it, Modifier.weight(1f)) }
+        options.forEach { choice(it, Modifier, drawsOwnBackground = true) }
+    } else BoxWithConstraints(modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(4.dp)) {
+        // A single highlight slides between segments instead of each option switching colour on its own.
+        val index = options.indexOf(selected)
+        val segment = maxWidth / options.size.coerceAtLeast(1)
+        val offset by animateDpAsState(segment * index.coerceAtLeast(0), spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow), label = "segmentOffset")
+        if (index >= 0) Box(Modifier.matchParentSize()) {
+            Box(Modifier.offset { IntOffset(offset.roundToPx(), 0) }.width(segment).fillMaxHeight().clip(MaterialTheme.shapes.small)
+                .background(MaterialTheme.colorScheme.primary))
+        }
+        Row(Modifier.fillMaxWidth().selectableGroup()) {
+            options.forEach { choice(it, Modifier.weight(1f), drawsOwnBackground = false) }
+        }
     }
 }
 
@@ -159,9 +190,11 @@ fun ScaleSelector(
                     if (selected) accent else MaterialTheme.colorScheme.surfaceContainerHighest,
                     label = "scale",
                 )
+                val pop by animateFloatAsState(if (selected) 1.1f else 1f, NutrixMotion.bouncy(), label = "scalePop")
                 val text = caption(i)
                 Box(
                     Modifier
+                        .graphicsLayer { scaleX = pop; scaleY = pop }
                         .size(48.dp)
                         .clip(CircleShape)
                         .background(bg)

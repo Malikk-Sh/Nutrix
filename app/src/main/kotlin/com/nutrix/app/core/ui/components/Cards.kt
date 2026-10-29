@@ -28,6 +28,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material3.ripple
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.rotate
+import com.nutrix.app.core.ui.motion.NutrixMotion
+import com.nutrix.app.core.ui.motion.gentleFloat
+import com.nutrix.app.core.ui.motion.pressScale
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,11 +67,13 @@ fun NutrixCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = MaterialTheme.shapes.large
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         modifier = modifier
+            .then(if (onClick != null) Modifier.pressScale(interaction, pressedScale = 0.98f) else Modifier)
             .fillMaxWidth()
             .clip(shape)
-            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier),
+            .then(if (onClick != null) Modifier.clickable(interaction, ripple(), role = Role.Button, onClick = onClick) else Modifier),
         shape = shape,
         color = color,
         tonalElevation = 0.dp,
@@ -148,6 +163,7 @@ fun EmptyState(
     ) {
         Box(
             Modifier
+                .gentleFloat()
                 .size(88.dp)
                 .clip(CircleShape)
                 .background(Brush.radialGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f), MaterialTheme.colorScheme.primary.copy(alpha = 0.04f)))),
@@ -224,8 +240,12 @@ fun InfoDisclosure(summary: String, details: String, icon: ImageVector, modifier
             Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(10.dp))
             Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-            Text(if (expanded) "−" else "+", style = MaterialTheme.typography.titleMedium, color = tint)
+            val turn by animateFloatAsState(if (expanded) 45f else 0f, NutrixMotion.bouncy(), label = "disclosure")
+            Text("+", style = MaterialTheme.typography.titleMedium, color = tint, modifier = Modifier.rotate(turn))
         }
-        AnimatedVisibility(expanded) { InfoBanner(details, icon, tint = tint) }
+        AnimatedVisibility(expanded, enter = fadeIn(tween(NutrixMotion.MEDIUM)) + expandVertically(tween(NutrixMotion.MEDIUM, easing = NutrixMotion.Emphasized)),
+            exit = fadeOut(tween(NutrixMotion.SHORT)) + shrinkVertically(tween(NutrixMotion.SHORT, easing = NutrixMotion.EmphasizedAccelerate))) {
+            InfoBanner(details, icon, tint = tint)
+        }
     }
 }

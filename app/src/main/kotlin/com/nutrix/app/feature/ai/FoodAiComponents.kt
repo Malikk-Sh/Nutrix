@@ -19,6 +19,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import com.nutrix.app.core.ui.motion.NutrixMotion
+import com.nutrix.app.core.ui.motion.scanSweep
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -69,7 +72,14 @@ fun FoodAiCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onSetti
         Spacer(Modifier.height(14.dp))
         if (state.analyzingPhoto) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                CircularProgressIndicator(Modifier.size(36.dp).testTag("food-ai-progress"), strokeWidth = 3.dp)
+                if (selected != null) {
+                    // The photo being analysed is shown with a scanning light instead of a bare spinner.
+                    Box(Modifier.testTag("food-ai-progress")) {
+                        PhotoThumb(selected, Modifier.scanSweep(MaterialTheme.colorScheme.primary), size = 56.dp, shape = MaterialTheme.shapes.medium)
+                    }
+                } else {
+                    CircularProgressIndicator(Modifier.size(36.dp).testTag("food-ai-progress"), strokeWidth = 3.dp)
+                }
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(if (state.aiRetrying) R.string.ai_retry_wait else R.string.ai_analyzing),
                         style = MaterialTheme.typography.bodyMedium, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
@@ -92,7 +102,10 @@ fun FoodAiCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onSetti
             }
             if (success) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary)
+                    val pop = remember { androidx.compose.animation.core.Animatable(0.4f) }
+                    LaunchedEffect(Unit) { pop.animateTo(1f, NutrixMotion.bouncy()) }
+                    Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value; alpha = pop.value })
                     Text(stringResource(R.string.ai_autofilled), style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.weight(1f).testTag("food-ai-success").semantics { liveRegion = LiveRegionMode.Polite })
                 }

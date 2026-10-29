@@ -1,6 +1,21 @@
 package com.nutrix.app.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.IntOffset
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavDestination
+import com.nutrix.app.core.ui.motion.NutrixMotion
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
@@ -104,6 +119,28 @@ private val topLevels = listOf(
     TopLevel(ProfileRoute, ProfileRoute::class, Icons.Rounded.Person, R.string.nav_profile),
 )
 
+private fun NavDestination?.isTopLevel(): Boolean = this != null && topLevels.any { t -> hierarchy.any { it.hasRoute(t.type) } }
+
+/** Bottom-tab switches fade through; deeper screens use a shared horizontal axis (Material motion). */
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.isTabSwitch() =
+    initialState.destination.isTopLevel() && targetState.destination.isTopLevel()
+
+private val axisSpec = tween<IntOffset>(NutrixMotion.MEDIUM, easing = NutrixMotion.Emphasized)
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.forwardEnter(): EnterTransition =
+    if (isTabSwitch()) fadeIn(tween(210, delayMillis = 90)) + scaleIn(tween(210, delayMillis = 90, easing = NutrixMotion.EmphasizedDecelerate), initialScale = 0.96f)
+    else fadeIn(tween(210, delayMillis = 90)) + slideInHorizontally(axisSpec) { it / 10 }
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.forwardExit(): ExitTransition =
+    if (isTabSwitch()) fadeOut(tween(90))
+    else fadeOut(tween(90)) + slideOutHorizontally(axisSpec) { -it / 10 }
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.backEnter(): EnterTransition =
+    if (isTabSwitch()) forwardEnter() else fadeIn(tween(210, delayMillis = 90)) + slideInHorizontally(axisSpec) { -it / 10 }
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.backExit(): ExitTransition =
+    if (isTabSwitch()) forwardExit() else fadeOut(tween(90)) + slideOutHorizontally(axisSpec) { it / 10 }
+
 fun NavHostController.openTarget(target: TimelineTarget) = when (target) {
     is TimelineTarget.Meal -> navigate(FoodEditorRoute(mealId = target.id))
     is TimelineTarget.Drink -> navigate(DrinkEditorRoute(target.id))
@@ -134,7 +171,10 @@ fun NutrixNavHost(
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
     val destination = backStack?.destination
-    val isTopLevel = topLevels.any { t -> destination?.hierarchy?.any { it.hasRoute(t.type) } == true }
+    val isTopLevel = destination.isTopLevel()
+    // Keeps the tab highlighted while the bottom bar slides away into a detail screen.
+    val lastTab = remember { arrayOfNulls<NavDestination>(1) }
+    if (isTopLevel) lastTab[0] = destination
     var fabExpanded by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(pendingAction, backStack != null) {
@@ -183,10 +223,10 @@ fun NutrixNavHost(
             Box(Modifier.weight(1f).fillMaxSize()) {
                 val bottomPadding = if (isTopLevel && !wide) PaddingValues(bottom = 80.dp) else PaddingValues(0.dp)
                 NavHost(nav, startDestination = DashboardRoute, modifier = Modifier.fillMaxSize(),
-                    enterTransition = { fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 24 } },
-                    exitTransition = { fadeOut(tween(150)) },
-                    popEnterTransition = { fadeIn(tween(180)) },
-                    popExitTransition = { fadeOut(tween(150)) + slideOutHorizontally(tween(180)) { it / 24 } },
+                    enterTransition = { forwardEnter() },
+                    exitTransition = { forwardExit() },
+                    popEnterTransition = { backEnter() },
+                    popExitTransition = { backExit() },
                 ) {
                     composable<DashboardRoute> {
                         DashboardScreen(
@@ -332,26 +372,32 @@ fun NutrixNavHost(
                     composable<AboutRoute> { AboutScreen(onBack = nav::popBackStack) }
                 }
 
-                if (isTopLevel) {
-                    // Move the FAB above an app-wide snackbar instead of letting it cover the button.
-                    val snackbarShown = LocalSnackbarHost.current.currentSnackbarData != null
-                    val fabBottom by animateDpAsState(
-                        (if (wide) 16.dp else if (centeredAdd) 30.dp else 104.dp) + if (snackbarShown && !centeredAdd) 72.dp else 0.dp,
-                        label = "fabOffset",
-                    )
-                    Box(
-                        Modifier
-                            .zIndex(1f)
-                            .align(if (centeredAdd) Alignment.BottomCenter else Alignment.BottomEnd)
-                            .navigationBarsPadding()
-                            .padding(end = if (centeredAdd) 0.dp else 20.dp, bottom = fabBottom),
-                    ) {
-                        QuickAddFab(fabExpanded, { fabExpanded = it }, ::quick)
-                    }
+                // Move the FAB above an app-wide snackbar instead of letting it cover the button.
+                val snackbarShown = LocalSnackbarHost.current.currentSnackbarData != null
+                val fabBottom by animateDpAsState(
+                    (if (wide) 16.dp else if (centeredAdd) 30.dp else 104.dp) + if (snackbarShown && !centeredAdd) 72.dp else 0.dp,
+                    label = "fabOffset",
+                )
+                androidx.compose.animation.AnimatedVisibility(
+                    isTopLevel,
+                    modifier = Modifier
+                        .zIndex(1f)
+                        .align(if (centeredAdd) Alignment.BottomCenter else Alignment.BottomEnd)
+                        .navigationBarsPadding()
+                        .padding(end = if (centeredAdd) 0.dp else 20.dp, bottom = fabBottom),
+                    enter = scaleIn(NutrixMotion.bouncy(), initialScale = 0.6f) + fadeIn(tween(NutrixMotion.SHORT)),
+                    exit = scaleOut(tween(NutrixMotion.SHORT), targetScale = 0.6f) + fadeOut(tween(NutrixMotion.SHORT)),
+                ) {
+                    QuickAddFab(fabExpanded, { fabExpanded = it }, ::quick)
                 }
-                if (isTopLevel && !wide) {
+                androidx.compose.animation.AnimatedVisibility(
+                    isTopLevel && !wide,
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    enter = slideInVertically(tween(NutrixMotion.MEDIUM, easing = NutrixMotion.EmphasizedDecelerate)) { it } + fadeIn(tween(NutrixMotion.SHORT)),
+                    exit = slideOutVertically(tween(NutrixMotion.SHORT, easing = NutrixMotion.EmphasizedAccelerate)) { it } + fadeOut(tween(NutrixMotion.SHORT)),
+                ) {
                     NavigationBar(
-                        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding()
+                        modifier = Modifier.navigationBarsPadding()
                             .padding(start = 12.dp, end = 12.dp, bottom = 8.dp)
                             .clip(MaterialTheme.shapes.large)
                             .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), MaterialTheme.shapes.large),
@@ -361,11 +407,11 @@ fun NutrixNavHost(
                     ) {
                         topLevels.forEachIndexed { index, t ->
                             if (centeredAdd && index == 2) Spacer(Modifier.width(64.dp))
-                            val selected = destination?.hierarchy?.any { it.hasRoute(t.type) } == true
+                            val selected = lastTab[0]?.hierarchy?.any { it.hasRoute(t.type) } == true
                             NavigationBarItem(
                                 selected = selected,
                                 onClick = { fabExpanded = false; selectTop(t) },
-                                icon = { Icon(t.icon, null) },
+                                icon = { BouncyNavIcon(t.icon, selected) },
                                 label = { Text(stringResource(t.label), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall) },
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = MaterialTheme.colorScheme.primary,
@@ -381,4 +427,19 @@ fun NutrixNavHost(
             }
         }
     }
+}
+
+/** The tab icon springs up once when it becomes selected, confirming the switch. */
+@Composable
+private fun BouncyNavIcon(icon: ImageVector, selected: Boolean) {
+    val scale = remember { Animatable(1f) }
+    var wasSelected by remember { mutableStateOf(selected) }
+    LaunchedEffect(selected) {
+        if (selected && !wasSelected) {
+            scale.snapTo(0.78f)
+            scale.animateTo(1f, spring(dampingRatio = 0.42f, stiffness = Spring.StiffnessMedium))
+        }
+        wasSelected = selected
+    }
+    Icon(icon, null, Modifier.graphicsLayer { scaleX = scale.value; scaleY = scale.value })
 }
