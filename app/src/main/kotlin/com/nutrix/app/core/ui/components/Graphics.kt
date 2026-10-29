@@ -1,6 +1,11 @@
 package com.nutrix.app.core.ui.components
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.drawscope.clipRect
+import com.nutrix.app.core.ui.motion.NutrixMotion
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
@@ -24,6 +29,9 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun Sparkline(values: List<Double>, color: Color, modifier: Modifier = Modifier, strokeWidth: Dp = 2.5.dp) {
     if (values.size < 2) return
+    // The line draws itself from left to right when shown or when its data changes.
+    val reveal = remember(values) { Animatable(0f) }
+    LaunchedEffect(values) { reveal.animateTo(1f, tween(900, easing = NutrixMotion.EmphasizedDecelerate)) }
     Canvas(modifier) {
         val min = values.min()
         val max = values.max()
@@ -39,9 +47,17 @@ fun Sparkline(values: List<Double>, color: Color, modifier: Modifier = Modifier,
             lineTo(0f, size.height)
             close()
         }
-        drawPath(fill, Brush.verticalGradient(listOf(color.copy(alpha = 0.28f), Color.Transparent)))
-        drawPath(line, color, style = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Round))
-        drawCircle(color, radius = strokeWidth.toPx() * 1.4f, center = Offset(size.width, y(values.last())))
+        val progress = reveal.value
+        clipRect(right = size.width * progress + pad * 2) {
+            drawPath(fill, Brush.verticalGradient(listOf(color.copy(alpha = 0.28f), Color.Transparent)))
+            drawPath(line, color, style = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Round))
+        }
+        val dot = ((progress - 0.85f) / 0.15f).coerceIn(0f, 1f)
+        if (dot > 0f) {
+            val end = Offset(size.width, y(values.last()))
+            drawCircle(color.copy(alpha = 0.22f * dot), radius = strokeWidth.toPx() * 3.2f * dot, center = end)
+            drawCircle(color, radius = strokeWidth.toPx() * 1.4f * dot, center = end)
+        }
     }
 }
 
@@ -55,7 +71,7 @@ fun ProgressRing(
     stroke: Dp = 8.dp,
     content: @Composable () -> Unit = {},
 ) {
-    val animated by animateFloatAsState(fraction.coerceIn(0f, 1f), animationSpec = tween(700), label = "ring")
+    val animated by animateFloatAsState(fraction.coerceIn(0f, 1f), animationSpec = tween(900, easing = NutrixMotion.Emphasized), label = "ring")
     val track = MaterialTheme.colorScheme.surfaceContainerHighest
     Box(modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(size)) {
@@ -74,7 +90,7 @@ fun ProgressRing(
 /** Thin horizontal progress bar. */
 @Composable
 fun ProgressBar(fraction: Float, color: Color, modifier: Modifier = Modifier, height: Dp = 8.dp) {
-    val animated by animateFloatAsState(fraction.coerceIn(0f, 1f), animationSpec = tween(600), label = "bar")
+    val animated by animateFloatAsState(fraction.coerceIn(0f, 1f), animationSpec = tween(800, easing = NutrixMotion.Emphasized), label = "bar")
     val track = MaterialTheme.colorScheme.surfaceContainerHighest
     Canvas(modifier) {
         val h = height.toPx()
@@ -82,7 +98,7 @@ fun ProgressBar(fraction: Float, color: Color, modifier: Modifier = Modifier, he
         drawLine(track, Offset(h / 2, y), Offset(size.width - h / 2, y), strokeWidth = h, cap = StrokeCap.Round)
         if (animated > 0f) {
             val end = h / 2 + (size.width - h) * animated
-            drawLine(color, Offset(h / 2, y), Offset(end, y), strokeWidth = h, cap = StrokeCap.Round)
+            drawLine(Brush.horizontalGradient(listOf(color.copy(alpha = 0.75f), color), startX = 0f, endX = end), Offset(h / 2, y), Offset(end, y), strokeWidth = h, cap = StrokeCap.Round)
         }
     }
 }

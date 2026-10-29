@@ -9,6 +9,8 @@
     <string name="water_goal_text">Укажите объём жидкости, на который хотите ориентироваться. NUTRIX не рассчитывает «норму» автоматически — при необходимости обсудите её с врачом.</string>
     <string name="water_goal_label">Ориентир в день</string>
     <string name="water_goal_remove">Убрать ориентир</string>
+    <string name="water_goal_reached">Ориентир достигнут</string>
+    <string name="water_percent_of_goal">%1$d%% ориентира</string>
     <string name="water_quick">Быстро добавить</string>
     <string name="water_quick_type">Напиток для быстрых кнопок</string>
     <string name="water_quick_edit">Настроить объёмы</string>

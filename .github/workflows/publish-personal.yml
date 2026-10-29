@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       tag:
-        description: Existing draft release tag (vMAJOR.MINOR.PATCH)
+        description: Release tag (vMAJOR.MINOR.PATCH); a missing draft is created from docs/releases/<tag>.md
         required: true
         type: string
 
@@ -36,6 +36,15 @@ jobs:
           [[ "$VERIFICATION_RUN_ID" =~ ^[0-9]+$ ]]
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           gh run watch "$VERIFICATION_RUN_ID" --exit-status --interval 20
+      - name: Create draft from the tested commit when missing
+        shell: bash
+        run: |
+          # The draft is pinned to the verified commit and its notes come from docs/releases/<tag>.md.
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            sha=$(gh api "repos/$GH_REPO/actions/runs/$VERIFICATION_RUN_ID" --jq .head_sha)
+            gh api "repos/$GH_REPO/contents/docs/releases/$RELEASE_TAG.md?ref=$sha" -H "Accept: application/vnd.github.raw" > release-notes.md
+            gh release create "$RELEASE_TAG" --draft --target "$sha" --title "Nutrix ${RELEASE_TAG#v}" --notes-file release-notes.md
+          fi
       - name: Verify release source matches the tested source
         id: source
         shell: bash

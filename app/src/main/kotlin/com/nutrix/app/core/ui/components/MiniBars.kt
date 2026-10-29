@@ -1,6 +1,11 @@
 package com.nutrix.app.core.ui.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.runtime.LaunchedEffect
+import com.nutrix.app.core.ui.motion.NutrixMotion
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,6 +47,11 @@ fun MiniBars(
     var selected by remember(values) { mutableStateOf(values.lastIndex) }
     val track = MaterialTheme.colorScheme.surfaceContainerHighest
     val guide = MaterialTheme.colorScheme.onSurfaceVariant
+    // Bars grow from the baseline one after another; the selected bar eases to full colour.
+    val grow = remember(values) { Animatable(0f) }
+    LaunchedEffect(values) { grow.animateTo(1f, tween(900, easing = LinearEasing)) }
+    val highlight = remember { Animatable(values.lastIndex.toFloat()) }
+    LaunchedEffect(selected) { highlight.animateTo(selected.toFloat(), tween(NutrixMotion.MEDIUM, easing = NutrixMotion.Emphasized)) }
     Column(modifier) {
         Text(
             "${labels.getOrElse(selected) { "" }}: ${valueText(values[selected])}",
@@ -62,13 +72,16 @@ fun MiniBars(
             val max = maxOf(values.max(), target ?: 0.0).takeIf { it > 0 } ?: 1.0
             val slot = size.width / values.size
             val barW = slot * 0.62f
+            val stagger = 0.45f / values.size
             values.forEachIndexed { i, v ->
                 val x = i * slot + (slot - barW) / 2
                 drawRoundRect(track, Offset(x, 0f), Size(barW, size.height), CornerRadius(barW / 3))
-                val h = (v / max * size.height).toFloat()
+                val local = ((grow.value - i * stagger) / 0.55f).coerceIn(0f, 1f)
+                val h = (v / max * size.height).toFloat() * NutrixMotion.EmphasizedDecelerate.transform(local)
                 if (h > 0f) {
+                    val emphasis = (1f - kotlin.math.abs(highlight.value - i)).coerceIn(0f, 1f)
                     drawRoundRect(
-                        if (i == selected) color else color.copy(alpha = 0.55f),
+                        color.copy(alpha = 0.55f + 0.45f * emphasis),
                         Offset(x, size.height - h),
                         Size(barW, h),
                         CornerRadius(barW / 3),

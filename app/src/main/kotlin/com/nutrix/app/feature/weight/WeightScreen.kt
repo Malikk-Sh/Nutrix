@@ -1,5 +1,6 @@
 package com.nutrix.app.feature.weight
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -158,7 +159,7 @@ fun WeightScreen(openAdd: Boolean, onBack: () -> Unit, viewModel: WeightViewMode
                 item(key = "note") { InfoDisclosure(stringResource(R.string.weight_chart), stringResource(R.string.weight_fluctuation_note), Icons.Rounded.Info, tint = colors.weight) }
                 item(key = "history-h") { SectionHeader(stringResource(R.string.weight_history)) }
                 items(state.all.take(300), key = { it.id }) { w ->
-                    WeightRow(w, fmt(w.weightKg), onClick = { viewModel.startEdit(w) })
+                    Box(Modifier.animateItem()) { WeightRow(w, fmt(w.weightKg), onClick = { viewModel.startEdit(w) }) }
                 }
             }
         }

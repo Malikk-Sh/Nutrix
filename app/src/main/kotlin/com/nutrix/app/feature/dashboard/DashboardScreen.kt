@@ -1,6 +1,20 @@
 package com.nutrix.app.feature.dashboard
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.remember
+import com.nutrix.app.core.ui.motion.CelebrationBurst
+import com.nutrix.app.core.ui.motion.FloatingDeltaState
+import com.nutrix.app.core.ui.motion.FloatingDeltas
+import com.nutrix.app.core.ui.motion.NutrixMotion
+import com.nutrix.app.core.ui.motion.animatedInt
+import com.nutrix.app.core.ui.motion.entrance
+import com.nutrix.app.core.ui.motion.rememberEntranceState
+import com.nutrix.app.core.ui.motion.rememberGoalCelebration
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
@@ -108,6 +122,12 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
     val h = stringResource(R.string.unit_hour_short)
     val m = stringResource(R.string.unit_minute_short)
     LaunchedEffect(Unit) { viewModel.refreshHealth() }
+    val entrance = rememberEntranceState(ready = state.loaded)
+    val waterDeltas = remember { FloatingDeltaState() }
+    val celebration = rememberGoalCelebration(state.water.totalMl, state.water.goalMl) {
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+    }
+    val ml = stringResource(R.string.unit_ml)
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
     val compactMetrics = maxWidth >= 360.dp && maxWidth < 600.dp && LocalDensity.current.fontScale <= 1.2f
@@ -128,11 +148,11 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
         horizontalArrangement = Arrangement.spacedBy(NutrixTokens.CardSpacing),
     ) {
         item(key = "header", span = StaggeredGridItemSpan.FullLine) {
-            Header(state, onSearch = actions.onSearch)
+            Header(state, onSearch = actions.onSearch, modifier = Modifier.entrance(entrance, 0))
         }
 
         item(key = "food", span = if (compactMetrics) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane) {
-            NutrixCard(onClick = actions.onFoodDiary) {
+            NutrixCard(modifier = Modifier.entrance(entrance, 1), onClick = actions.onFoodDiary) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -164,40 +184,53 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
         }
 
         item(key = "water", span = if (compactMetrics) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane) {
-            NutrixCard(onClick = actions.onWater) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    IconBadge(Icons.Rounded.WaterDrop, colors.water, size = 36.dp)
-                    Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.card_water), style = MaterialTheme.typography.titleSmall)
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            Text(Formatters.integer(state.water.totalMl.toLong()), style = MetricTextStyle.copy(fontSize = 26.sp, lineHeight = 32.sp))
-                            Text(state.water.goalMl?.let { " / ${Formatters.integer(it.toLong())} ${stringResource(R.string.unit_ml)}" } ?: " ${stringResource(R.string.unit_ml)}",
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 3.dp))
+            Box(Modifier.entrance(entrance, 2)) {
+                NutrixCard(onClick = actions.onWater) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        IconBadge(Icons.Rounded.WaterDrop, colors.water, size = 36.dp)
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(stringResource(R.string.card_water), style = MaterialTheme.typography.titleSmall)
+                                val goal = state.water.goalMl
+                                AnimatedVisibility(goal != null && state.water.totalMl >= goal,
+                                    enter = scaleIn(NutrixMotion.bouncy(), initialScale = 0.6f) + fadeIn(), exit = fadeOut()) {
+                                    Pill(stringResource(R.string.water_goal_reached), colors.water)
+                                }
+                            }
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(Formatters.integer(animatedInt(state.water.totalMl).toLong()), style = MetricTextStyle.copy(fontSize = 26.sp, lineHeight = 32.sp))
+                                Text(state.water.goalMl?.let { " / ${Formatters.integer(it.toLong())} ${stringResource(R.string.unit_ml)}" } ?: " ${stringResource(R.string.unit_ml)}",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 3.dp))
+                            }
                         }
+                        Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                state.water.goalMl?.let { goal ->
-                    Spacer(Modifier.height(8.dp))
-                    ProgressBar(state.water.totalMl / goal.toFloat(), colors.water, Modifier.fillMaxWidth().height(10.dp))
-                }
-                Spacer(Modifier.height(6.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    state.water.quickVolumes.forEach { v ->
-                        FilledTonalButton(onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            viewModel.addWater(v)
-                        }, shape = MaterialTheme.shapes.small,
-                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = colors.water.copy(alpha = 0.12f), contentColor = colors.water),
-                            contentPadding = PaddingValues(horizontal = 10.dp)) { Text("+$v", style = MaterialTheme.typography.labelMedium) }
+                    state.water.goalMl?.let { goal ->
+                        Spacer(Modifier.height(8.dp))
+                        ProgressBar(state.water.totalMl / goal.toFloat(), colors.water, Modifier.fillMaxWidth().height(10.dp))
                     }
-                    FilledTonalIconButton(onClick = actions.onAddDrink) { Icon(Icons.Rounded.Add, stringResource(R.string.card_water_custom)) }
+                    Spacer(Modifier.height(6.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        state.water.quickVolumes.forEach { v ->
+                            FilledTonalButton(onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                celebration.arm()
+                                waterDeltas.emit("+$v $ml")
+                                viewModel.addWater(v)
+                            }, shape = MaterialTheme.shapes.small,
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = colors.water.copy(alpha = 0.12f), contentColor = colors.water),
+                                contentPadding = PaddingValues(horizontal = 10.dp)) { Text("+$v", style = MaterialTheme.typography.labelMedium) }
+                        }
+                        FilledTonalIconButton(onClick = actions.onAddDrink) { Icon(Icons.Rounded.Add, stringResource(R.string.card_water_custom)) }
+                    }
                 }
+                FloatingDeltas(waterDeltas, colors.water)
+                CelebrationBurst(celebration.bursts, listOf(colors.water, colors.meal, colors.weight, colors.activity, colors.sleep), Modifier.matchParentSize())
             }
         }
 
         item(key = "weight") {
-            NutrixCard(modifier = if (compactMetrics) Modifier.heightIn(min = 148.dp) else Modifier, onClick = { actions.onWeight(false) }) {
+            NutrixCard(modifier = Modifier.entrance(entrance, 3).then(if (compactMetrics) Modifier.heightIn(min = 148.dp) else Modifier), onClick = { actions.onWeight(false) }) {
                 CardHeader(Icons.Rounded.MonitorWeight, stringResource(R.string.card_weight), colors.weight) {
                     FilledTonalIconButton(onClick = { actions.onWeight(true) }) { Icon(Icons.Rounded.Add, stringResource(R.string.weight_add)) }
                 }
@@ -231,7 +264,7 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
         }
 
         item(key = "sleep") {
-            NutrixCard(modifier = if (compactMetrics) Modifier.heightIn(min = 148.dp) else Modifier, onClick = actions.onSleepActivity) {
+            NutrixCard(modifier = Modifier.entrance(entrance, 4).then(if (compactMetrics) Modifier.heightIn(min = 148.dp) else Modifier), onClick = actions.onSleepActivity) {
                 CardHeader(Icons.Rounded.Bedtime, stringResource(R.string.card_sleep), colors.sleep) {
                     Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -257,7 +290,7 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
         }
 
         item(key = "activity", span = if (compactMetrics) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane) {
-            NutrixCard(onClick = if (state.activity.enabled) actions.onSleepActivity else actions.onIntegrations) {
+            NutrixCard(modifier = Modifier.entrance(entrance, 5), onClick = if (state.activity.enabled) actions.onSleepActivity else actions.onIntegrations) {
                 CardHeader(Icons.Rounded.DirectionsRun, stringResource(R.string.card_activity), colors.activity) {
                     Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -283,7 +316,7 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
         }
 
         item(key = "wellbeing", span = if (compactMetrics) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane) {
-            NutrixCard(onClick = { actions.onSymptoms(false) }) {
+            NutrixCard(modifier = Modifier.entrance(entrance, 6), onClick = { actions.onSymptoms(false) }) {
                 CardHeader(Icons.Rounded.Healing, stringResource(R.string.card_wellbeing), colors.symptom) {
                     FilledTonalIconButton(onClick = { actions.onSymptoms(true) }) { Icon(Icons.Rounded.Add, stringResource(R.string.card_wellbeing_add)) }
                 }
@@ -312,15 +345,16 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
         }
 
         item(key = "timeline-h", span = StaggeredGridItemSpan.FullLine) {
-            SectionHeader(stringResource(R.string.timeline_today), actionLabel = stringResource(R.string.calendar_open_day), onAction = actions.onOpenToday)
+            SectionHeader(stringResource(R.string.timeline_today), modifier = Modifier.entrance(entrance, 7), actionLabel = stringResource(R.string.calendar_open_day), onAction = actions.onOpenToday)
         }
         if (state.loaded && state.timeline.isEmpty()) {
             item(key = "timeline-empty", span = StaggeredGridItemSpan.FullLine) {
-                Text(stringResource(R.string.timeline_empty), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.timeline_empty), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.entrance(entrance, 8))
             }
         } else {
             item(key = "timeline", span = StaggeredGridItemSpan.FullLine) {
-                Column {
+                Column(Modifier.entrance(entrance, 8)) {
                     state.timeline.forEachIndexed { i, item ->
                         TimelineRow(item, unit, isLast = i == state.timeline.lastIndex, onClick = { actions.onTimeline(item.target()) })
                     }
@@ -332,7 +366,7 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
 }
 
 @Composable
-private fun Header(state: DashboardState, onSearch: () -> Unit) {
+private fun Header(state: DashboardState, onSearch: () -> Unit, modifier: Modifier = Modifier) {
     val hour = LocalTime.now().hour
     val greeting = stringResource(
         when (hour) {
@@ -343,7 +377,7 @@ private fun Header(state: DashboardState, onSearch: () -> Unit) {
         },
     )
     val name = state.settings.userName.trim()
-    Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.Top) {
+    Row(modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f)) {
             Text(
                 if (name.isNotEmpty()) stringResource(R.string.greeting_name, greeting, name) else greeting,

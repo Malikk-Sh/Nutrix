@@ -1,6 +1,21 @@
 package com.nutrix.app.feature.calendar
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import com.nutrix.app.core.ui.motion.NutrixMotion
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -189,7 +204,13 @@ fun MonthGrid(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { onShift(-1) }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, stringResource(R.string.calendar_prev)) }
-            Text(Formatters.monthYear(month.atDay(1)), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+            AnimatedContent(month, Modifier.weight(1f), transitionSpec = {
+                val forward = targetState > initialState
+                (slideInVertically(tween(NutrixMotion.MEDIUM, easing = NutrixMotion.EmphasizedDecelerate)) { if (forward) it else -it } + fadeIn(tween(NutrixMotion.MEDIUM))) togetherWith
+                    (slideOutVertically(tween(NutrixMotion.SHORT)) { if (forward) -it else it } + fadeOut(tween(NutrixMotion.SHORT)))
+            }, label = "monthTitle") { shown ->
+                Text(Formatters.monthYear(shown.atDay(1)), style = MaterialTheme.typography.titleMedium, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            }
             IconButton(onClick = { onShift(1) }, enabled = month < YearMonth.from(today)) {
                 Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, stringResource(R.string.calendar_next))
             }
@@ -206,17 +227,27 @@ fun MonthGrid(
             }
         }
         Spacer(Modifier.height(4.dp))
-        val first = month.atDay(1)
-        val offset = first.dayOfWeek.value - 1
-        val totalCells = ((offset + month.lengthOfMonth() + 6) / 7) * 7
-        for (week in 0 until totalCells / 7) {
-            Row(Modifier.fillMaxWidth()) {
-                for (dow in 0 until 7) {
-                    val index = week * 7 + dow - offset
-                    val date = if (index in 0 until month.lengthOfMonth()) month.atDay(index + 1) else null
-                    Box(Modifier.weight(1f).heightIn(min = 52.dp).aspectRatio(0.9f), contentAlignment = Alignment.Center) {
-                        if (date != null) {
-                            DayCell(date, date == selected, date == today, date.isAfter(today), markers[date.toEpochDay()].orEmpty(), onClick = { onSelect(date) })
+        // The grid slides in the direction of the month change, like turning a page.
+        AnimatedContent(month, transitionSpec = {
+            val forward = targetState > initialState
+            (slideInHorizontally(tween(NutrixMotion.MEDIUM, easing = NutrixMotion.EmphasizedDecelerate)) { if (forward) it / 3 else -it / 3 } + fadeIn(tween(NutrixMotion.MEDIUM))) togetherWith
+                (slideOutHorizontally(tween(NutrixMotion.SHORT, easing = NutrixMotion.EmphasizedAccelerate)) { if (forward) -it / 3 else it / 3 } + fadeOut(tween(NutrixMotion.SHORT))) using
+                SizeTransform(clip = true)
+        }, label = "monthGrid") { shown ->
+            Column {
+                val first = shown.atDay(1)
+                val offset = first.dayOfWeek.value - 1
+                val totalCells = ((offset + shown.lengthOfMonth() + 6) / 7) * 7
+                for (week in 0 until totalCells / 7) {
+                    Row(Modifier.fillMaxWidth()) {
+                        for (dow in 0 until 7) {
+                            val index = week * 7 + dow - offset
+                            val date = if (index in 0 until shown.lengthOfMonth()) shown.atDay(index + 1) else null
+                            Box(Modifier.weight(1f).heightIn(min = 52.dp).aspectRatio(0.9f), contentAlignment = Alignment.Center) {
+                                if (date != null) {
+                                    DayCell(date, date == selected, date == today, date.isAfter(today), markers[date.toEpochDay()].orEmpty(), onClick = { onSelect(date) })
+                                }
+                            }
                         }
                     }
                 }
@@ -228,14 +259,17 @@ fun MonthGrid(
 @Composable
 private fun DayCell(date: LocalDate, selected: Boolean, isToday: Boolean, future: Boolean, categories: Set<EntryCategory>, onClick: () -> Unit) {
     val primary = MaterialTheme.colorScheme.primary
+    val background by animateColorAsState(if (selected) primary else Color.Transparent, tween(NutrixMotion.MEDIUM), label = "dayBackground")
+    val pop by animateFloatAsState(if (selected) 1f else 0.94f, NutrixMotion.bouncy(), label = "dayPop")
     val labels = categories.sortedBy { it.ordinal }.map { stringResource(it.labelRes) }
     val description = Formatters.fullDate(date) + if (labels.isNotEmpty()) ": " + labels.joinToString() else ""
     Column(
         Modifier
             .padding(2.dp)
+            .graphicsLayer { if (selected) { scaleX = pop; scaleY = pop } }
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.small)
-            .background(if (selected) primary else androidx.compose.ui.graphics.Color.Transparent)
+            .background(background)
             .then(if (isToday && !selected) Modifier.border(1.5.dp, primary, MaterialTheme.shapes.small) else Modifier)
             .clickable(enabled = !future, onClick = onClick)
             .padding(vertical = 6.dp)

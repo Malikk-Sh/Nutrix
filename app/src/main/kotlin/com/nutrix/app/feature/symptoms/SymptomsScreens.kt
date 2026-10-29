@@ -1,5 +1,6 @@
 package com.nutrix.app.feature.symptoms
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -146,7 +147,7 @@ fun SymptomsScreen(
             list?.forEach { day ->
                 item(key = "h-${day.date}") { SectionHeader(dayTitle(day.date)) }
                 items(day.items, key = { it.id }) { s ->
-                    SymptomRow(s, meals[s.mealId], onClick = { onOpen(s.id) })
+                    Box(Modifier.animateItem()) { SymptomRow(s, meals[s.mealId], onClick = { onOpen(s.id) }) }
                 }
             }
             if (!list.isNullOrEmpty()) {

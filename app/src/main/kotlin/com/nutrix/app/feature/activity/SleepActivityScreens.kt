@@ -1,5 +1,6 @@
 package com.nutrix.app.feature.activity
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -273,11 +274,11 @@ fun SleepActivityScreen(
                 if (state.exercises.isEmpty()) {
                     item { Text(stringResource(R.string.exercise_empty), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium) }
                 }
-                items(state.exercises, key = { "ex-${it.id}" }) { ex -> ExerciseRow(ex) }
+                items(state.exercises, key = { "ex-${it.id}" }) { ex -> Box(Modifier.animateItem()) { ExerciseRow(ex) } }
             }
             if (state.sleeps.isNotEmpty()) {
                 item { SectionHeader(stringResource(R.string.alignment_sleep_history)) }
-                items(state.sleeps.take(14), key = { "sleep-${it.id}" }) { s -> SleepRow(s, onClick = { onOpenSleep(s.id) }) }
+                items(state.sleeps.take(14), key = { "sleep-${it.id}" }) { s -> Box(Modifier.animateItem()) { SleepRow(s, onClick = { onOpenSleep(s.id) }) } }
             }
 
         }
