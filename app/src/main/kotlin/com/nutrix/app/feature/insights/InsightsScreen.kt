@@ -68,6 +68,7 @@ import com.nutrix.app.core.ui.motion.scanSweep
 import com.nutrix.app.domain.insights.Insight
 import com.nutrix.app.domain.insights.InsightHistory
 import com.nutrix.app.domain.insights.InsightTopic
+import com.nutrix.app.domain.insights.evidenceDays
 import com.nutrix.app.domain.insights.Recurrence
 import com.nutrix.app.domain.insights.InsightTone
 import com.nutrix.app.feature.ai.messageRes
@@ -195,7 +196,8 @@ fun InsightCard(
                     Modifier.padding(top = 8.dp).testTag("insight-repeats-${insight.id}"))
                 Recurrence.CHANGED -> Pill(stringResource(R.string.insights_changed), MaterialTheme.colorScheme.secondary,
                     Modifier.padding(top = 8.dp).testTag("insight-changed-${insight.id}"))
-                null -> Unit
+                // Nothing comparable earlier: a note below says why, no status is claimed.
+                Recurrence.NO_BASELINE, Recurrence.OTHER_BASIS, null -> Unit
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -210,13 +212,16 @@ fun InsightCard(
             insight.isPattern -> stringResource(R.string.insights_repeats_same)
             else -> null
         }
-        if (previous != null) {
-            Text(previous,
+        val note = previous ?: when (recurrence) {
+            Recurrence.NEW -> stringResource(R.string.insights_new_note)
+            Recurrence.NO_BASELINE -> stringResource(R.string.insights_no_baseline)
+            Recurrence.OTHER_BASIS -> stringResource(R.string.insights_other_basis, basisLabel(history?.previousBasis))
+            else -> null
+        }
+        if (note != null) {
+            Text(note,
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 4.dp).testTag("insight-previous-${insight.id}"))
-        } else if (recurrence == Recurrence.NEW) {
-            Text(stringResource(R.string.insights_new_note), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
         }
         if (insight.chart.size >= 3) {
             Spacer(Modifier.height(4.dp))
@@ -234,7 +239,8 @@ fun InsightCard(
         }
         if (onShowDays != null) {
             OutlinedButton(onClick = onShowDays, shape = MaterialTheme.shapes.small, modifier = Modifier.testTag("insight-days-${insight.id}")) {
-                Text(stringResource(R.string.insights_show_days, insight.evidence.size))
+                // Days, not episodes: several meals or symptoms of one day are listed under that day.
+                Text(stringResource(R.string.insights_show_days, insight.evidenceDays.size))
             }
         }
     }
@@ -303,15 +309,19 @@ private fun EvidenceSheet(insight: Insight, unit: WeightUnit, onDismiss: () -> U
             Text(title, style = MaterialTheme.typography.titleSmall, color = topicColor(insight.topic))
             Text(stringResource(R.string.evidence_hint), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
-            insight.evidence.forEach { e ->
-                val date = LocalDate.ofEpochDay(e.day)
+            // Evidence is already newest first, so grouping keeps the order of days.
+            insight.evidence.groupBy { it.day }.forEach { (day, episodes) ->
+                val date = LocalDate.ofEpochDay(day)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { onOpenDay(e.day) }.padding(vertical = 6.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { onOpenDay(day) }.padding(vertical = 6.dp)
+                        .testTag("insight-evidence-day"),
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text("${Formatters.weekdayShort(date)}, ${Formatters.dayMonthShort(date)}", style = MaterialTheme.typography.titleSmall)
-                        Text(evidenceText(insight, e), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        episodes.sortedBy { it.clock ?: 0 }.forEach { e ->
+                            Text(evidenceText(insight, e), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                     Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -447,7 +457,9 @@ private fun OverviewCard(report: com.nutrix.app.data.repository.InsightReport, u
     val primary = MaterialTheme.colorScheme.primary
     NutrixCard(modifier = modifier.testTag("insight-overview")) {
         CardHeader(Icons.Rounded.Insights, stringResource(R.string.overview_title), primary)
-        Text(stringResource(R.string.overview_offline), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Text(stringResource(R.string.overview_offline, Formatters.dayMonthShort(LocalDate.ofEpochDay(report.from)),
+            Formatters.dayMonthShort(LocalDate.ofEpochDay(report.to))),
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp))
         Spacer(Modifier.height(10.dp))
         Text(stringResource(R.string.overview_highlights), style = MaterialTheme.typography.titleSmall)

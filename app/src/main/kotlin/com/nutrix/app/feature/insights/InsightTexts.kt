@@ -222,3 +222,13 @@ fun topicLabel(topic: InsightTopic): String = stringResource(when (topic) {
     InsightTopic.WELLBEING -> R.string.topic_wellbeing
     InsightTopic.DATA -> R.string.insight_coverage_title
 })
+
+/** The variant of a rule in words, for when two windows were checked differently. */
+@Composable
+fun basisLabel(basis: String?): String = stringResource(when (basis) {
+    LateMeals.BEFORE_SLEEP -> R.string.basis_before_sleep
+    LateMeals.AFTER_22 -> R.string.basis_after_22
+    MealDiscomfort.BY_GRAMS -> R.string.basis_grams
+    MealDiscomfort.BY_KCAL -> R.string.basis_kcal
+    else -> R.string.basis_other
+})

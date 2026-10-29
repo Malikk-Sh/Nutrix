@@ -142,7 +142,7 @@ class InsightsUiTest {
 
         // The offline overview is always there; the cloud review waits for a billed project (free-tier terms).
         compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasTestTag("insight-overview"))
-        waitFor("Обзор недели")
+        waitFor("Обзор за 4 недели")
         compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasTestTag("insight-review"))
         compose.onNodeWithTag("insight-review-unpaid").assertExists()
         assertThat(compose.onAllNodesWithText("Разобрать").fetchSemanticsNodes()).isEmpty()

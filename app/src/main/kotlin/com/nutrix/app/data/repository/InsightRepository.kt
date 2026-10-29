@@ -4,11 +4,12 @@ import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.model.DataSource
 import com.nutrix.app.core.time.TimeUtils
 import com.nutrix.app.domain.AnalyticsInput
-import com.nutrix.app.domain.insights.Coverage
+import com.nutrix.app.domain.insights.Analysis
 import com.nutrix.app.domain.insights.DataCoverage
 import com.nutrix.app.domain.insights.InsightComparison
 import com.nutrix.app.domain.insights.InsightHistory
 import com.nutrix.app.domain.insights.InsightTopic
+import com.nutrix.app.domain.insights.RuleCheck
 import com.nutrix.app.domain.insights.Insight
 import com.nutrix.app.domain.insights.WeeklyOverview
 import com.nutrix.app.domain.insights.InsightEngine
@@ -33,8 +34,10 @@ data class InsightReport(
     val hidden: Set<String>,
     val coverage: DataCoverage = DataCoverage(0, 0, 0, 0, 0, 0, 0, 0),
     val hasWaterGoal: Boolean = false,
-    /** Observations of the four weeks before [from], to tell repeating patterns from new ones. */
-    val previous: List<Insight> = emptyList(),
+    /** The four weeks before [from], to tell repeating patterns from new ones. */
+    val previous: Analysis = Analysis.EMPTY,
+    /** How every rule fared in the analysis window, including the ones that found nothing. */
+    val checks: Map<String, RuleCheck> = emptyMap(),
     /** Topics the user chose: their observations come first, the engine's order is kept within each group. */
     val interests: Set<InsightTopic> = emptySet(),
 ) {
@@ -43,7 +46,7 @@ data class InsightReport(
     val hiddenCount: Int get() = all.count { it.id in hidden }
     fun history(insight: Insight): InsightHistory = InsightComparison.history(insight, previous)
     /** Patterns of the previous weeks that did not show up again (hidden ones stay hidden). */
-    val faded: List<Insight> get() = InsightComparison.faded(all, previous, coverage).filterNot { it.id in hidden }
+    val faded: List<Insight> get() = InsightComparison.faded(Analysis(all, checks), previous).filterNot { it.id in hidden }
 }
 
 @Singleton
@@ -85,10 +88,10 @@ class InsightRepository @Inject constructor(
             activity = health.getActivityRange(earlier.first, window.last),
             notes = notes.getRange(earlier.first, window.last),
         )
-        val insights = InsightEngine.analyze(InsightInput(records, s.waterGoalMl, s.targetWeightKg))
-        val previous = InsightEngine.analyze(InsightInput(records.copy(from = earlier.first, to = earlier.last), s.waterGoalMl, s.targetWeightKg))
-            .filterNot { it is Coverage }
+        val current = InsightEngine.evaluate(InsightInput(records, s.waterGoalMl, s.targetWeightKg))
+        val previous = InsightEngine.evaluate(InsightInput(records.copy(from = earlier.first, to = earlier.last), s.waterGoalMl, s.targetWeightKg))
         val interests = InsightTopic.entries.filter { it.name in topics }.toSet()
-        InsightReport(window.first, window.last, insights, hidden, DataCoverage.of(records), s.waterGoalMl != null, previous, interests)
+        InsightReport(window.first, window.last, current.insights, hidden, DataCoverage.of(records), s.waterGoalMl != null,
+            previous, current.checks, interests)
     }
 }
