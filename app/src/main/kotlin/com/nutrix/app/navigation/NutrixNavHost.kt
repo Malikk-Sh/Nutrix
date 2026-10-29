@@ -160,6 +160,7 @@ fun NavHostController.handleAppAction(action: String) {
         AppActions.ADD_WEIGHT -> navigate(WeightRoute(openAdd = true))
         AppActions.ADD_SYMPTOM -> navigate(SymptomsRoute())
         AppActions.OPEN_TODAY -> navigate(DayRoute(TimeUtils.todayEpochDay()))
+        else -> AppActions.mealId(action)?.let { navigate(FoodEditorRoute(mealId = it)) }
     }
 }
 

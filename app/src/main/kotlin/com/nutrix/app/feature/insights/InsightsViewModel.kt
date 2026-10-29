@@ -25,6 +25,8 @@ data class InsightsUiState(
     val unit: WeightUnit = WeightUnit.KG,
     val hasKey: Boolean = false,
     val consent: Boolean = false,
+    /** Cloud review is offered only for keys of billed projects (see [com.nutrix.app.core.datastore.UserSettings.aiPaidProject]). */
+    val paidProject: Boolean = false,
     val review: CachedReview? = null,
     /** The facts changed since [review] was written. */
     val reviewStale: Boolean = false,
@@ -58,6 +60,7 @@ class InsightsViewModel @Inject constructor(
             unit = s.weightUnit,
             hasKey = hasKey,
             consent = s.aiReviewConsent,
+            paidProject = s.aiPaidProject,
             review = cached,
             reviewStale = cached != null && cached.payloadHash != InsightReviewPayload.fingerprint(payload),
             reviewing = r.running,
@@ -68,6 +71,11 @@ class InsightsViewModel @Inject constructor(
 
     fun setHidden(id: String, hidden: Boolean) {
         viewModelScope.launch { settings.setInsightHidden(id, hidden) }
+    }
+
+    fun setPaidProject(paid: Boolean) {
+        if (!paid) job?.cancel()
+        viewModelScope.launch { settings.setAiPaidProject(paid) }
     }
 
     fun revokeConsent() {
@@ -81,6 +89,8 @@ class InsightsViewModel @Inject constructor(
         job = viewModelScope.launch {
             run.value = ReviewRun(running = true)
             try {
+                // The free tier's terms forbid personal information: nothing leaves without a paid project.
+                if (!settings.current().aiPaidProject) { run.value = ReviewRun(); return@launch }
                 if (consentGiven) settings.setAiReviewConsent(true)
                 val report = insights.current()
                 val payload = InsightReviewPayload.build(report)

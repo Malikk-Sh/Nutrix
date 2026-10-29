@@ -42,6 +42,11 @@ data class UserSettings(
     val hiddenInsights: Set<String> = emptySet(),
     /** Consent to send aggregated observation facts to Gemini; asked again after a restore. */
     val aiReviewConsent: Boolean = false,
+    /**
+     * The user confirmed their Gemini key belongs to a billed Cloud project (Paid Services).
+     * The free tier's terms forbid sending personal information, so the cloud review needs this.
+     */
+    val aiPaidProject: Boolean = false,
 ) {
     companion object {
         val DEFAULT_QUICK_VOLUMES = listOf(100, 200, 250, 500)
@@ -49,7 +54,10 @@ data class UserSettings(
 }
 
 @Serializable
-enum class ReminderType { MEAL, WATER, WEIGHT, WELLBEING, MISSED_ENTRIES }
+enum class ReminderType { MEAL, WATER, WEIGHT, WELLBEING, MISSED_ENTRIES, AFTER_MEAL }
+
+/** Reminder types that can follow the learned routine. */
+val ReminderType.supportsAdaptive: Boolean get() = this == ReminderType.MEAL || this == ReminderType.WATER || this == ReminderType.WEIGHT
 
 @Serializable
 enum class ReminderMode { FIXED_TIMES, INTERVAL }
@@ -67,16 +75,20 @@ data class ReminderConfig(
     val windowEndMinutes: Int = 20 * 60,
     /** ISO days of week (1 = Monday ... 7 = Sunday). */
     val days: Set<Int> = ALL_DAYS,
+    /** Follow the user's learned routine (meal, water, weight); stored settings without it keep fixed times. */
+    val adaptive: Boolean = false,
 ) {
     companion object {
         val ALL_DAYS = (1..7).toSet()
 
         fun defaults(): List<ReminderConfig> = listOf(
-            ReminderConfig(ReminderType.MEAL, times = listOf(9 * 60, 13 * 60 + 30, 19 * 60)),
-            ReminderConfig(ReminderType.WATER, mode = ReminderMode.INTERVAL, intervalMinutes = 120),
-            ReminderConfig(ReminderType.WEIGHT, times = listOf(8 * 60 + 30)),
+            ReminderConfig(ReminderType.MEAL, times = listOf(9 * 60, 13 * 60 + 30, 19 * 60), adaptive = true),
+            ReminderConfig(ReminderType.WATER, mode = ReminderMode.INTERVAL, intervalMinutes = 120, adaptive = true),
+            ReminderConfig(ReminderType.WEIGHT, times = listOf(8 * 60 + 30), adaptive = true),
             ReminderConfig(ReminderType.WELLBEING, times = listOf(21 * 60)),
             ReminderConfig(ReminderType.MISSED_ENTRIES, times = listOf(20 * 60 + 30)),
+            // Asked once a day at most, [intervalMinutes] after a freshly logged meal; no fixed times.
+            ReminderConfig(ReminderType.AFTER_MEAL, times = emptyList(), intervalMinutes = 90),
         )
     }
 }

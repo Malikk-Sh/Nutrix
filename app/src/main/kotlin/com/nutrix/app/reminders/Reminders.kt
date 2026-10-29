@@ -21,16 +21,21 @@ import androidx.work.workDataOf
 import com.nutrix.app.MainActivity
 import com.nutrix.app.R
 import com.nutrix.app.core.ApplicationScope
+import com.nutrix.app.core.datastore.ReminderConfig
 import com.nutrix.app.core.datastore.ReminderType
 import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.datastore.UserSettings
+import com.nutrix.app.core.datastore.supportsAdaptive
 import com.nutrix.app.core.model.DrinkType
+import com.nutrix.app.core.time.Formatters
 import com.nutrix.app.core.time.TimeUtils
+import com.nutrix.app.core.ui.labelRes
 import com.nutrix.app.data.repository.DrinkRepository
 import com.nutrix.app.data.repository.MealRepository
 import com.nutrix.app.data.repository.NoteRepository
 import com.nutrix.app.data.repository.SymptomRepository
 import com.nutrix.app.data.repository.WeightRepository
+import com.nutrix.app.database.entity.MealEntity
 import com.nutrix.app.navigation.AppActions
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -63,21 +68,34 @@ object NotificationChannels {
 class ReminderScheduler @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settings: SettingsRepository,
+    private val routines: RoutineRepository,
 ) {
     private val wm get() = WorkManager.getInstance(context)
 
     suspend fun rescheduleAll() {
         val s = settings.current()
-        ReminderType.entries.forEach { schedule(it, s) }
+        val routine = routines.current()
+        val ignores = settings.reminderIgnores.first()
+        ReminderType.entries.forEach { schedule(it, s, routine, ignores[it] ?: 0) }
     }
 
-    fun nextFor(type: ReminderType, s: UserSettings, now: ZonedDateTime = ZonedDateTime.now()): ZonedDateTime? {
+    /** Next planned reminder: learned times for adaptive ones, quieter after reminders were ignored in a row. */
+    fun nextFor(type: ReminderType, s: UserSettings, routine: Routine, ignoredInARow: Int, now: ZonedDateTime = ZonedDateTime.now()): ZonedDateTime? {
         val config = s.reminders.firstOrNull { it.type == type } ?: return null
-        return ReminderPlanner.nextTrigger(config, quiet(s), now)
+        return ReminderPlanner.nextTrigger(config, quiet(s), now) { AdaptivePlan.timesFor(config, routine, ignoredInARow, it) }
     }
 
-    fun schedule(type: ReminderType, s: UserSettings) {
-        val next = nextFor(type, s)
+    suspend fun schedule(type: ReminderType, s: UserSettings? = null) {
+        schedule(type, s ?: settings.current(), routines.current(), settings.reminderIgnores.first()[type] ?: 0)
+    }
+
+    private fun schedule(type: ReminderType, s: UserSettings, routine: Routine, ignoredInARow: Int) {
+        if (type == ReminderType.AFTER_MEAL) {
+            // Planned per meal by AfterMealCheckIn; switching it off drops a pending question.
+            if (s.reminders.firstOrNull { it.type == type }?.enabled != true) wm.cancelUniqueWork(workName(type))
+            return
+        }
+        val next = nextFor(type, s, routine, ignoredInARow)
         if (next == null) {
             wm.cancelUniqueWork(workName(type))
             return
@@ -118,6 +136,7 @@ class ReminderWorker @AssistedInject constructor(
     private val settings: SettingsRepository,
     private val scheduler: ReminderScheduler,
     private val notifier: ReminderNotifier,
+    private val routines: RoutineRepository,
     private val meals: MealRepository,
     private val drinks: DrinkRepository,
     private val weights: WeightRepository,
@@ -132,31 +151,67 @@ class ReminderWorker @AssistedInject constructor(
         val config = s.reminders.firstOrNull { it.type == type }
         val now = ZonedDateTime.now()
         val quiet = ReminderScheduler.quiet(s)
-        if (config?.enabled == true && !quiet.contains(now.hour * 60 + now.minute) && shouldNotify(type, s)) {
-            notifier.show(type)
+        if (config?.enabled == true && !quiet.contains(now.hour * 60 + now.minute)) {
+            if (type == ReminderType.AFTER_MEAL) {
+                askAfterMeal(inputData.getLong(KEY_MEAL_ID, 0))
+                return Result.success()
+            }
+            val (notify, detail) = decide(config, s, now)
+            if (notify) notifier.show(type, detail)
         }
         // The regular chain continues; a snoozed one-off does not re-plan it.
-        if (!snoozed) scheduler.schedule(type, s)
+        if (!snoozed) scheduler.schedule(type)
         return Result.success()
     }
 
-    /** Skips reminders that would be pointless right now (never to blame the user). */
-    private suspend fun shouldNotify(type: ReminderType, s: UserSettings): Boolean {
+    /**
+     * Whether reminding now is useful, with a routine-based reason when there is one. Skips reminders
+     * that would be pointless right now (never to blame the user).
+     */
+    private suspend fun decide(config: ReminderConfig, s: UserSettings, now: ZonedDateTime): Pair<Boolean, String?> {
         val today = TimeUtils.todayEpochDay()
-        return when (type) {
-            ReminderType.WATER -> s.waterGoalMl?.let { goal -> drinks.totalForDay(today) < goal } ?: true
-            ReminderType.WEIGHT -> weights.observeDay(today).first().isEmpty()
-            ReminderType.MISSED_ENTRIES -> {
-                meals.getRange(today, today).isEmpty() && drinks.getRange(today, today).isEmpty() &&
-                    symptoms.getRange(today, today).isEmpty() && notes.getRange(today, today).isEmpty()
+        val minute = now.hour * 60 + now.minute
+        val routine = if (config.adaptive && config.type.supportsAdaptive) routines.current(today) else Routine()
+        fun time(m: Int) = Formatters.time(TimeUtils.timeOfMinutes(m))
+        return when (config.type) {
+            ReminderType.MEAL -> {
+                val slot = AdaptivePlan.slotFor(routine, now.toLocalDate(), minute) ?: return true to null
+                val logged = meals.getRange(today, today).map { TimeUtils.minutesOfDay(TimeUtils.localDateTime(it.meal.epochMillis, it.meal.zoneId).toLocalTime()) }
+                AdaptivePlan.mealMissing(slot, logged, minute) to applicationContext.getString(R.string.notif_meal_adaptive, time(slot.minute))
             }
-            ReminderType.MEAL, ReminderType.WELLBEING -> true
+            ReminderType.WATER -> {
+                val total = drinks.totalForDay(today)
+                val target = s.waterGoalMl ?: routine.fluidMedianMl
+                val expected = AdaptivePlan.expectedFluid(routine, s.waterGoalMl, minute)
+                if (target == null || expected == null) return (s.waterGoalMl?.let { total < it } ?: true) to null
+                val text = if (s.waterGoalMl != null) R.string.notif_water_pace_goal else R.string.notif_water_pace_usual
+                AdaptivePlan.fluidBehind(total, expected, target) to applicationContext.getString(text, expected, total)
+            }
+            ReminderType.WEIGHT -> weights.observeDay(today).first().isEmpty() to
+                routine.weighMinute?.let { applicationContext.getString(R.string.notif_weight_adaptive, time(it)) }
+            ReminderType.MISSED_ENTRIES -> {
+                (meals.getRange(today, today).isEmpty() && drinks.getRange(today, today).isEmpty() &&
+                    symptoms.getRange(today, today).isEmpty() && notes.getRange(today, today).isEmpty()) to null
+            }
+            ReminderType.WELLBEING, ReminderType.AFTER_MEAL -> true to null
         }
+    }
+
+    /** Once a day at most, only while the meal still has no feeling: "normal" is never assumed. */
+    private suspend fun askAfterMeal(mealId: Long) {
+        val meal = meals.get(mealId)?.meal ?: return
+        if (meal.feelings.isNotEmpty()) return
+        val today = TimeUtils.todayEpochDay()
+        val ignores = settings.reminderIgnores.first()[ReminderType.AFTER_MEAL] ?: 0
+        if (!AfterMealPlan.mayAsk(today, settings.afterMealAskedDay(), ignores)) return
+        settings.setAfterMealAskedDay(today)
+        notifier.showAfterMeal(meal)
     }
 
     companion object {
         const val KEY_TYPE = "type"
         const val KEY_SNOOZED = "snoozed"
+        const val KEY_MEAL_ID = "meal_id"
     }
 }
 
@@ -165,7 +220,8 @@ class ReminderNotifier @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settings: SettingsRepository,
 ) {
-    suspend fun show(type: ReminderType) {
+    /** [detail] replaces the generic text when the reminder is based on the user's routine. */
+    suspend fun show(type: ReminderType, detail: String? = null) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val (title, text, action) = when (type) {
             ReminderType.MEAL -> Triple(R.string.notif_meal_title, R.string.notif_meal_text, AppActions.ADD_FOOD_CAMERA)
@@ -173,22 +229,15 @@ class ReminderNotifier @Inject constructor(
             ReminderType.WEIGHT -> Triple(R.string.notif_weight_title, R.string.notif_weight_text, AppActions.ADD_WEIGHT)
             ReminderType.WELLBEING -> Triple(R.string.notif_wellbeing_title, R.string.notif_wellbeing_text, AppActions.ADD_SYMPTOM)
             ReminderType.MISSED_ENTRIES -> Triple(R.string.notif_missed_title, R.string.notif_missed_text, AppActions.OPEN_TODAY)
+            ReminderType.AFTER_MEAL -> return
         }
-        val id = NOTIFICATION_BASE + type.ordinal
-        val open = PendingIntent.getActivity(
-            context, id,
-            Intent(context, MainActivity::class.java).putExtra(AppActions.EXTRA_ACTION, action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val builder = NotificationCompat.Builder(context, NotificationChannels.REMINDERS)
-            .setSmallIcon(R.drawable.ic_notification)
+        val id = notificationId(type)
+        recordIfUnanswered(type, id)
+        val body = detail ?: context.getString(text)
+        val builder = base(type, id, action)
             .setContentTitle(context.getString(title))
-            .setContentText(context.getString(text))
-            .setStyle(NotificationCompat.BigTextStyle().bigText(context.getString(text)))
-            .setContentIntent(open)
-            .setAutoCancel(true)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .addAction(0, context.getString(R.string.notif_action_snooze), actionIntent(ReminderActionReceiver.ACTION_SNOOZE, type, id))
         if (type == ReminderType.WATER) {
             val volume = settings.current().quickVolumes.firstOrNull { it >= 200 } ?: 250
@@ -197,7 +246,49 @@ class ReminderNotifier @Inject constructor(
         NotificationManagerCompat.from(context).notify(id, builder.build())
     }
 
-    private fun actionIntent(action: String, type: ReminderType, id: Int, volume: Int = 0): PendingIntent =
+    /** "How was the meal?" with one-tap answers; "don't remember" records nothing, so the meal stays unrated. */
+    suspend fun showAfterMeal(meal: MealEntity) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        val type = ReminderType.AFTER_MEAL
+        val id = notificationId(type)
+        recordIfUnanswered(type, id)
+        val name = meal.title?.takeIf { it.isNotBlank() } ?: meal.items.firstOrNull() ?: context.getString(meal.mealType.labelRes)
+        val time = Formatters.time(TimeUtils.localDateTime(meal.epochMillis, meal.zoneId).toLocalTime())
+        val body = context.getString(R.string.notif_after_meal_text, name, time)
+        val builder = base(type, id, AppActions.openMeal(meal.id))
+            .setContentTitle(context.getString(R.string.notif_after_meal_title))
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .addAction(0, context.getString(R.string.notif_action_feel_normal), actionIntent(ReminderActionReceiver.ACTION_FEEL_NORMAL, type, id, mealId = meal.id))
+            .addAction(0, context.getString(R.string.notif_action_feel_mark), openIntent(type, id, AppActions.openMeal(meal.id)))
+            .addAction(0, context.getString(R.string.notif_action_feel_unsure), actionIntent(ReminderActionReceiver.ACTION_UNSURE, type, id))
+        NotificationManagerCompat.from(context).notify(id, builder.build())
+    }
+
+    private fun base(type: ReminderType, id: Int, action: String) = NotificationCompat.Builder(context, NotificationChannels.REMINDERS)
+        .setSmallIcon(R.drawable.ic_notification)
+        .setContentIntent(openIntent(type, id, action))
+        .setDeleteIntent(actionIntent(ReminderActionReceiver.ACTION_DISMISSED, type, id))
+        .setAutoCancel(true)
+        .setCategory(NotificationCompat.CATEGORY_REMINDER)
+        .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+
+    /** A reminder still in the shade when the next one of its kind comes was left unanswered. */
+    private suspend fun recordIfUnanswered(type: ReminderType, id: Int) {
+        val shown = runCatching { context.getSystemService(NotificationManager::class.java).activeNotifications.any { it.id == id } }.getOrDefault(false)
+        if (shown) settings.recordReminderIgnored(type)
+    }
+
+    private fun openIntent(type: ReminderType, id: Int, action: String): PendingIntent = PendingIntent.getActivity(
+        context, id,
+        Intent(context, MainActivity::class.java)
+            .putExtra(AppActions.EXTRA_ACTION, action)
+            .putExtra(EXTRA_REMINDER, type.name)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+
+    private fun actionIntent(action: String, type: ReminderType, id: Int, volume: Int = 0, mealId: Long = 0): PendingIntent =
         PendingIntent.getBroadcast(
             context,
             id * 10 + action.hashCode() % 10,
@@ -205,19 +296,25 @@ class ReminderNotifier @Inject constructor(
                 .setAction(action)
                 .putExtra(ReminderActionReceiver.EXTRA_TYPE, type.name)
                 .putExtra(ReminderActionReceiver.EXTRA_ID, id)
-                .putExtra(ReminderActionReceiver.EXTRA_VOLUME, volume),
+                .putExtra(ReminderActionReceiver.EXTRA_VOLUME, volume)
+                .putExtra(ReminderActionReceiver.EXTRA_MEAL_ID, mealId),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
     companion object {
         const val NOTIFICATION_BASE = 4100
+        /** Set on the content intent so opening a reminder counts as answering it. */
+        const val EXTRA_REMINDER = "nutrix_reminder"
+        fun notificationId(type: ReminderType) = NOTIFICATION_BASE + type.ordinal
     }
 }
 
 @AndroidEntryPoint
 class ReminderActionReceiver : BroadcastReceiver() {
     @Inject lateinit var scheduler: ReminderScheduler
+    @Inject lateinit var feedback: ReminderFeedback
     @Inject lateinit var drinks: DrinkRepository
+    @Inject lateinit var meals: MealRepository
     @Inject @ApplicationScope lateinit var scope: CoroutineScope
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -227,9 +324,16 @@ class ReminderActionReceiver : BroadcastReceiver() {
         val pending = goAsync()
         scope.launch {
             try {
-                when (intent.action) {
-                    ACTION_SNOOZE -> scheduler.snooze(type)
-                    ACTION_ADD_WATER -> drinks.quickAdd(DrinkType.WATER, intent.getIntExtra(EXTRA_VOLUME, 250))
+                if (intent.action == ACTION_DISMISSED) {
+                    feedback.ignored(type)
+                } else {
+                    feedback.engaged(type)
+                    when (intent.action) {
+                        ACTION_SNOOZE -> scheduler.snooze(type)
+                        ACTION_ADD_WATER -> drinks.quickAdd(DrinkType.WATER, intent.getIntExtra(EXTRA_VOLUME, 250))
+                        ACTION_FEEL_NORMAL -> meals.markFeelingNormal(intent.getLongExtra(EXTRA_MEAL_ID, 0))
+                        // ACTION_UNSURE: an answer, but nothing is recorded, so the meal stays unrated.
+                    }
                 }
             } finally {
                 pending.finish()
@@ -240,8 +344,12 @@ class ReminderActionReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_SNOOZE = "com.nutrix.app.SNOOZE"
         const val ACTION_ADD_WATER = "com.nutrix.app.ADD_WATER"
+        const val ACTION_DISMISSED = "com.nutrix.app.REMINDER_DISMISSED"
+        const val ACTION_FEEL_NORMAL = "com.nutrix.app.FEEL_NORMAL"
+        const val ACTION_UNSURE = "com.nutrix.app.FEEL_UNSURE"
         const val EXTRA_TYPE = "type"
         const val EXTRA_ID = "id"
         const val EXTRA_VOLUME = "volume"
+        const val EXTRA_MEAL_ID = "meal_id"
     }
 }

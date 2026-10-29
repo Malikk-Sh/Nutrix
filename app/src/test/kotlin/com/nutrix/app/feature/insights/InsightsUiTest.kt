@@ -140,6 +140,15 @@ class InsightsUiTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithText("Скрытые наблюдения: 1").fetchSemanticsNodes().isEmpty() }
         assertThat(runBlocking { settings.current().hiddenInsights }).isEmpty()
 
+        // The offline overview is always there; the cloud review waits for a billed project (free-tier terms).
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasTestTag("insight-overview"))
+        waitFor("Обзор недели")
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasTestTag("insight-review"))
+        compose.onNodeWithTag("insight-review-unpaid").assertExists()
+        assertThat(compose.onAllNodesWithText("Разобрать").fetchSemanticsNodes()).isEmpty()
+        click("Мой ключ — из платного проекта")
+        click("Оплата подключена")
+
         // Consent shows exactly what would be sent; diary text never appears in it.
         compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasTestTag("insight-review"))
         click("Разобрать")
@@ -166,5 +175,11 @@ class InsightsUiTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("insight-review-text").fetchSemanticsNodes().isEmpty() }
         assertThat(runBlocking { settings.aiReviewCache.first() }).isNull()
         assertThat(runBlocking { settings.current().aiReviewConsent }).isFalse()
+
+        // Saying the key is not from a paid project closes the cloud path again.
+        click("Ключ не из платного проекта")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("insight-review-unpaid").fetchSemanticsNodes().isNotEmpty() }
+        assertThat(runBlocking { settings.current().aiPaidProject }).isFalse()
+        assertThat(requests).isEqualTo(1)
     }
 }

@@ -2,6 +2,7 @@ package com.nutrix.app.reminders
 
 import com.nutrix.app.core.datastore.ReminderConfig
 import com.nutrix.app.core.datastore.ReminderMode
+import java.time.LocalDate
 import java.time.ZonedDateTime
 
 data class QuietHours(val enabled: Boolean, val startMinutes: Int, val endMinutes: Int) {
@@ -17,18 +18,24 @@ data class QuietHours(val enabled: Boolean, val startMinutes: Int, val endMinute
 object ReminderPlanner {
     private const val LOOKAHEAD_DAYS = 8L
 
-    fun nextTrigger(config: ReminderConfig, quiet: QuietHours, now: ZonedDateTime): ZonedDateTime? {
+    fun configuredTimes(config: ReminderConfig): List<Int> = when (config.mode) {
+        ReminderMode.FIXED_TIMES -> config.times.sorted()
+        ReminderMode.INTERVAL -> intervalTimes(config)
+    }
+
+    /** [timesFor] lets adaptive reminders use learned times that differ between weekdays and weekends. */
+    fun nextTrigger(
+        config: ReminderConfig,
+        quiet: QuietHours,
+        now: ZonedDateTime,
+        timesFor: (LocalDate) -> List<Int> = { configuredTimes(config) },
+    ): ZonedDateTime? {
         if (!config.enabled || config.days.isEmpty()) return null
-        val minutesList = when (config.mode) {
-            ReminderMode.FIXED_TIMES -> config.times.sorted()
-            ReminderMode.INTERVAL -> intervalTimes(config)
-        }.filter { !quiet.contains(it) }
-        if (minutesList.isEmpty()) return null
         val today = now.toLocalDate()
         for (offset in 0..LOOKAHEAD_DAYS) {
             val date = today.plusDays(offset)
             if (date.dayOfWeek.value !in config.days) continue
-            for (m in minutesList) {
+            for (m in timesFor(date).sorted().filter { !quiet.contains(it) }) {
                 val candidate = date.atStartOfDay(now.zone).plusMinutes(m.toLong())
                 if (candidate.isAfter(now.plusSeconds(30))) return candidate
             }

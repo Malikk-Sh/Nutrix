@@ -25,6 +25,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.NonCancellable
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -138,6 +141,9 @@ class DrinkEditorViewModel @Inject constructor(
     val closed = MutableStateFlow(false)
     private val _loaded = MutableStateFlow(route.drinkId == 0L)
     val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
+    /** While a save or delete runs, the form is locked: a second tap cannot insert a duplicate, and leaving cannot delete the photo being saved. */
+    private val _busy = MutableStateFlow(false)
+    val busy: StateFlow<Boolean> = _busy.asStateFlow()
     private var originalPhoto: String? = null
 
     init {
@@ -159,13 +165,16 @@ class DrinkEditorViewModel @Inject constructor(
     fun update(transform: (DrinkForm) -> DrinkForm) = _form.update(transform)
 
     fun consumeCamera(file: String): Boolean {
-        if (!_loaded.value || closed.value) return false
+        if (!_loaded.value || closed.value || _busy.value) return false
         setPhoto(file)
         return true
     }
 
     fun setPhotoFromUri(uri: android.net.Uri) {
-        viewModelScope.launch { runCatching { photos.importUri(uri) }.onSuccess(::setPhoto) }
+        if (_busy.value) return
+        viewModelScope.launch {
+            runCatching { photos.importUri(uri) }.onSuccess { file -> if (_busy.value || closed.value) photos.delete(file) else setPhoto(file) }
+        }
     }
 
     private fun setPhoto(file: String) {
@@ -176,6 +185,7 @@ class DrinkEditorViewModel @Inject constructor(
     }
 
     fun removePhoto() {
+        if (_busy.value) return
         val previous = _form.value.photo
         if (previous != null && previous != originalPhoto) photos.delete(previous)
         _form.update { it.copy(photo = null) }
@@ -184,32 +194,54 @@ class DrinkEditorViewModel @Inject constructor(
     fun save() {
         val f = _form.value
         val volume = f.volume ?: return
-        viewModelScope.launch {
-            val rt = RecordTime.of(f.date, f.time, TimeUtils.zoneOrDefault(f.zoneId))
-            drinks.save(
-                DrinkEntity(
-                    id = f.id, epochMillis = rt.epochMillis, zoneId = rt.zoneId, localDate = rt.epochDay,
-                    drinkType = f.type, name = f.name.trim().ifBlank { null }, volumeMl = volume,
-                    photoFile = f.photo, note = f.note.trim().ifBlank { null }, templateId = f.templateId,
-                    createdAt = if (f.createdAt > 0) f.createdAt else System.currentTimeMillis(),
-                ),
-            )
-            messages.show(R.string.drink_saved)
-            closed.value = true
+        if (!_loaded.value || _busy.value || closed.value) return
+        _busy.value = true
+        // ATOMIC: even if the screen is cleared before this starts, the write below still runs to the end.
+        viewModelScope.launch(start = CoroutineStart.ATOMIC) {
+            val saved = withContext(NonCancellable) {
+                try {
+                    val rt = RecordTime.of(f.date, f.time, TimeUtils.zoneOrDefault(f.zoneId))
+                    drinks.save(
+                        DrinkEntity(
+                            id = f.id, epochMillis = rt.epochMillis, zoneId = rt.zoneId, localDate = rt.epochDay,
+                            drinkType = f.type, name = f.name.trim().ifBlank { null }, volumeMl = volume,
+                            photoFile = f.photo, note = f.note.trim().ifBlank { null }, templateId = f.templateId,
+                            createdAt = if (f.createdAt > 0) f.createdAt else System.currentTimeMillis(),
+                        ),
+                    )
+                    true
+                } catch (_: Exception) {
+                    false
+                }
+            }
+            if (saved) {
+                messages.show(R.string.drink_saved)
+                closed.value = true
+            } else {
+                messages.show(R.string.food_save_error)
+                _busy.value = false
+            }
         }
     }
 
     fun delete() {
         val id = _form.value.id
-        if (id == 0L) return
-        viewModelScope.launch {
-            val removed = drinks.delete(id) ?: return@launch
+        if (id == 0L || _busy.value) return
+        _busy.value = true
+        viewModelScope.launch(start = CoroutineStart.ATOMIC) {
+            val removed = withContext(NonCancellable) { runCatching { drinks.delete(id) }.getOrNull() }
+            if (removed == null) {
+                _busy.value = false
+                return@launch
+            }
             undo.offer(undo = { drinks.restore(removed) }, commit = { drinks.purge(removed) })
             closed.value = true
         }
     }
 
+    /** Leaving while a save runs is ignored: the save closes the screen itself and keeps the photo. */
     fun cancel() {
+        if (_busy.value) return
         val f = _form.value
         if (f.photo != null && f.photo != originalPhoto) photos.delete(f.photo)
         closed.value = true

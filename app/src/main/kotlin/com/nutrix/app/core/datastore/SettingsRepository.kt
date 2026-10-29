@@ -76,6 +76,7 @@ class SettingsRepository @Inject constructor(
         val geminiKeyBlob = stringPreferencesKey("gemini_api_key_blob")
         val hiddenInsights = stringPreferencesKey("hidden_insights")
         val aiReviewConsent = booleanPreferencesKey("ai_review_consent")
+        val aiPaidProject = booleanPreferencesKey("ai_paid_project")
         // Regenerable caches start with "cache_" and are left out of backups.
         val aiReviewCache = stringPreferencesKey("cache_ai_review")
 
@@ -149,6 +150,7 @@ class SettingsRepository @Inject constructor(
             geminiModel = this[Keys.geminiModel] ?: d.geminiModel,
             hiddenInsights = this[Keys.hiddenInsights]?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet() ?: d.hiddenInsights,
             aiReviewConsent = this[Keys.aiReviewConsent] ?: d.aiReviewConsent,
+            aiPaidProject = this[Keys.aiPaidProject] ?: d.aiPaidProject,
         )
     }
 
@@ -233,12 +235,35 @@ class SettingsRepository @Inject constructor(
         if (next.isEmpty()) it.remove(Keys.hiddenInsights) else it[Keys.hiddenInsights] = next.sorted().joinToString(",")
     }
 
+    suspend fun setAiPaidProject(paid: Boolean) = edit {
+        it[Keys.aiPaidProject] = paid
+        // Without a paid project nothing may be sent, so consent and the cached review go too.
+        if (!paid) {
+            it[Keys.aiReviewConsent] = false
+            it.remove(Keys.aiReviewCache)
+        }
+    }
+
     suspend fun setAiReviewConsent(consent: Boolean) = edit {
         it[Keys.aiReviewConsent] = consent
         if (!consent) it.remove(Keys.aiReviewCache)
     }
 
     val aiReviewCache: Flow<String?> = store.data.map { it[Keys.aiReviewCache] }
+
+    // Device-local reminder state (prefix "cache_": left out of backups).
+    private fun ignoresKey(type: ReminderType) = intPreferencesKey("cache_reminder_ignored_${type.name}")
+    private val afterMealDay = longPreferencesKey("cache_after_meal_last_day")
+
+    /** Reminders swiped away in a row per type; reset when the user opens or acts on one. */
+    val reminderIgnores: Flow<Map<ReminderType, Int>> = store.data.map { prefs ->
+        ReminderType.entries.associateWith { prefs[ignoresKey(it)] ?: 0 }
+    }
+    suspend fun recordReminderIgnored(type: ReminderType) = edit { it[ignoresKey(type)] = (it[ignoresKey(type)] ?: 0) + 1 }
+    suspend fun resetReminderIgnores(type: ReminderType) = edit { it.remove(ignoresKey(type)) }
+
+    suspend fun afterMealAskedDay(): Long? = store.data.first()[afterMealDay]
+    suspend fun setAfterMealAskedDay(day: Long) = edit { it[afterMealDay] = day }
     suspend fun setAiReviewCache(json: String?) = edit { it.setOrRemove(Keys.aiReviewCache, json) }
 
     // Secrets
