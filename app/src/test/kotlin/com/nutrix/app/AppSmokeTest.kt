@@ -145,7 +145,11 @@ class AppSmokeTest {
         // Weight from the dashboard card
         clickDescription("Записать вес")
         waitForText("Записать вес")
-        compose.onNode(hasSetTextAction() and hasText("Вес")).performTextReplacement("55,2")
+        // The screen's add button has the same text as the dialog title. Wait for the
+        // editable field, so the assertion cannot race navigation/dialog creation.
+        val weightField = hasSetTextAction() and hasText("Вес")
+        compose.waitUntil(10_000) { compose.onAllNodes(weightField).fetchSemanticsNodes().size == 1 }
+        compose.onNode(weightField).performTextReplacement("55,2")
         compose.onAllNodesWithText("Сохранить").onFirst().performClick()
         waitForText("55,2 кг", substring = true)
         clickDescription("Назад")
