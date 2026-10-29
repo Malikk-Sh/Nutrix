@@ -107,7 +107,8 @@ class DataExporters @Inject constructor(@ApplicationContext private val context:
                 m.portion?.let { "${s(R.string.food_portion)}: ${s(it.labelRes)}" },
                 m.satiety?.let { s(it.labelRes) },
                 m.feelings.takeIf { it.isNotEmpty() }?.joinToString { s(it.labelRes) },
-                m.items.takeIf { it.isNotEmpty() }?.joinToString(),
+                m.dishes?.takeIf { it.size > 1 }?.let { d -> s(R.string.food_dishes_title).format(d.size) + ": " + d.joinToString { it.name } }
+                    ?: m.items.takeIf { it.isNotEmpty() }?.joinToString(),
                 m.caloriesEstimate?.let { "≈$it ${s(R.string.unit_kcal)}" },
                 m.portionGrams?.let { "$it ${s(R.string.unit_g)}" },
                 m.nutrition?.proteinGrams?.let { "${s(R.string.ai_protein)}: ≈$it" },
@@ -170,6 +171,17 @@ class DataExporters @Inject constructor(@ApplicationContext private val context:
                     c.row(m.id, d, t, z, s(m.mealType.labelRes), m.title, m.items.joinToString("; "), m.appetite, m.portion?.let { s(it.labelRes) },
                         m.satiety?.let { s(it.labelRes) }, m.feelings.joinToString("; ") { s(it.labelRes) }, m.feelingOther, m.weightKg,
                         m.portionGrams, m.caloriesEstimate, m.note, mw.photos.size, m.nutrition?.proteinGrams, m.nutrition?.fatGrams, m.nutrition?.carbsGrams, m.nutrition?.estimateModel)
+                }
+            }
+            // Served amounts per dish; the meal row above holds their eaten totals.
+            entry("meal_dishes.csv") { c ->
+                c.row("meal_id", "dish_id", "name", "components", "served_g", "eaten_share", "kcal_served", "protein_g_served", "fat_g_served",
+                    "carbs_g_served", "source", "estimate_model", "photos")
+                data.meals.forEach { mw ->
+                    mw.meal.dishes.orEmpty().forEach { d ->
+                        c.row(mw.meal.id, d.id, d.name, d.components.joinToString("; "), d.servedGrams, d.eatenShare, d.kcal, d.proteinGrams, d.fatGrams,
+                            d.carbsGrams, d.source.name.lowercase(), d.estimateModel, d.photos.size)
+                    }
                 }
             }
             entry("drinks.csv") { c ->

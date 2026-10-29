@@ -100,7 +100,10 @@ fun FoodAiCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onSetti
                 }
                 Spacer(Modifier.height(12.dp))
             }
-            if (success) {
+            val choice = state.aiChoice
+            if (success && choice != null) {
+                AiChoice(choice, state, viewModel)
+            } else if (success) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     val pop = remember { androidx.compose.animation.core.Animatable(0.4f) }
                     LaunchedEffect(Unit) { pop.animateTo(1f, NutrixMotion.bouncy()) }
@@ -132,6 +135,37 @@ fun FoodAiCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onSetti
         }
     }
     if (showDetails) state.aiResult?.let { FoodAiResultDialog(it, onDismiss = { showDetails = false }) }
+}
+
+/**
+ * A recognised photo that would change numbers already in the meal: the user picks a new dish, the same
+ * dish seen again (with the change shown first) or, for a whole-meal estimate, a replacement.
+ */
+@Composable
+private fun AiChoice(result: FoodPhotoResult, state: FoodEditorUiState, viewModel: FoodEditorViewModel) {
+    val form = state.form
+    @Composable fun kcal(value: String) = value.takeIf { it.isNotBlank() }?.let { stringResource(R.string.kcal_value, it) } ?: stringResource(R.string.kcal_unknown)
+    val newKcal = kcal(result.estimate.caloriesKcal?.let { kotlin.math.round(it).toInt().toString() }.orEmpty())
+    Column(Modifier.testTag("food-ai-choice"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(stringResource(R.string.ai_choice_title, result.estimate.dishName), style = MaterialTheme.typography.titleSmall)
+        Text(stringResource(R.string.ai_choice_text), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Button(onClick = viewModel::applyAiAsNewDish, modifier = Modifier.fillMaxWidth().testTag("food-ai-new-dish"), shape = MaterialTheme.shapes.medium) {
+            Text(stringResource(R.string.ai_choice_new_dish))
+        }
+        // Dishes already shown on this photo first: those are the likely "same dish from another angle".
+        form.dishes.sortedByDescending { result.photoFile in it.photos }.forEach { dish ->
+            OutlinedButton(onClick = { viewModel.applyAiToDish(dish.id) }, modifier = Modifier.fillMaxWidth().testTag("food-ai-update-${dish.id}"),
+                shape = MaterialTheme.shapes.medium) {
+                Text(stringResource(R.string.ai_choice_update, dish.name.ifBlank { stringResource(R.string.food_dish_name) }, kcal(dish.kcalText), newKcal))
+            }
+        }
+        if (!form.hasDishes) {
+            OutlinedButton(onClick = viewModel::applyAiReplace, modifier = Modifier.fillMaxWidth().testTag("food-ai-replace"), shape = MaterialTheme.shapes.medium) {
+                Text(stringResource(R.string.ai_choice_replace, kcal(form.kcalText), newKcal))
+            }
+        }
+        TextButton(onClick = viewModel::dismissAiChoice) { Text(stringResource(R.string.ai_choice_dismiss)) }
+    }
 }
 
 @Composable

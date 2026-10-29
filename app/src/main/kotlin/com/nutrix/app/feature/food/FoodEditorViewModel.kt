@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.model.AfterMealFeeling
+import com.nutrix.app.core.model.DishSource
 import com.nutrix.app.core.model.MealNutrition
 import com.nutrix.app.core.model.MealType
 import com.nutrix.app.core.model.PortionEaten
@@ -88,7 +89,15 @@ data class MealForm(
     val aiHint: String = "",
     val saveAsFavorite: Boolean = false,
     val createdAt: Long = 0,
+    /**
+     * Dishes of the meal. Empty keeps the whole-meal estimate above (grams, kcal, macros); with dishes the
+     * meal's totals are computed from them and the whole-meal fields are not used, so nothing counts twice.
+     */
+    val dishes: List<DishForm> = emptyList(),
 ) {
+    val hasDishes: Boolean get() = dishes.isNotEmpty()
+    /** A whole-meal estimate has been entered (by hand, from the reference table or from a photo). */
+    val hasMealEstimate: Boolean get() = listOf(gramsText, kcalText, proteinText, fatText, carbsText).any(String::isNotBlank)
     val date: LocalDate get() = LocalDate.ofEpochDay(epochDay)
     val time: LocalTime get() = TimeUtils.timeOfMinutes(minuteOfDay)
     val recordTime: RecordTime get() = RecordTime.of(date, time, TimeUtils.zoneOrDefault(zoneId))
@@ -112,6 +121,8 @@ data class FoodEditorUiState(
     val aiAttempt: Int = 0,
     val aiRetrying: Boolean = false,
     val aiResult: FoodPhotoResult? = null,
+    /** A recognised photo that would change values already in the meal: applied only after the user picks how. */
+    val aiChoice: FoodPhotoResult? = null,
     val aiError: FoodAiError? = null,
     val hasGeminiKey: Boolean = false,
     val error: String? = null,
@@ -195,7 +206,12 @@ class FoodEditorViewModel @Inject constructor(
             route.repeatMealId != 0L -> {
                 val source = meals.get(route.repeatMealId)?.meal
                 MealForm(mealType = source?.mealType ?: SmartSuggestions.guessMealType(history, now)).let { base ->
-                    if (source == null) base else base.copy(
+                    if (source == null) base
+                    else if (!source.dishes.isNullOrEmpty()) base.copy(
+                        title = source.title.orEmpty(),
+                        dishes = source.dishes.map { DishForm.copyOf(it, it.source) },
+                    )
+                    else base.copy(
                         title = source.title.orEmpty(),
                         items = source.items,
                         gramsText = source.portionGrams?.toString().orEmpty(),
@@ -232,6 +248,12 @@ class FoodEditorViewModel @Inject constructor(
 
     private fun fromEntity(m: MealEntity, photos: List<String>, unit: WeightUnit): MealForm {
         val rt = m.time
+        val dishes = m.dishes.orEmpty()
+        if (dishes.isNotEmpty()) {
+            // The stored totals are derived from the dishes; the editor recomputes them instead of showing them as inputs.
+            return fromEntity(m.copy(dishes = null, portionGrams = null, caloriesEstimate = null, nutrition = null, items = emptyList()), photos, unit)
+                .copy(dishes = dishes.map(DishForm::of))
+        }
         return MealForm(
             mealId = m.id,
             epochDay = rt.epochDay,
@@ -258,7 +280,24 @@ class FoodEditorViewModel @Inject constructor(
         )
     }
 
-    private fun applyFavorite(form: MealForm, fav: FavoriteMealEntity?): MealForm = if (fav == null) form else form.copy(
+    private fun applyFavorite(form: MealForm, fav: FavoriteMealEntity?): MealForm = when {
+        fav == null -> form
+        // A favorite made of dishes adds them; a meal that already has dishes or an estimate keeps them.
+        !fav.dishes.isNullOrEmpty() -> asDishes(form).let { f ->
+            f.copy(title = f.title.ifBlank { fav.title }, mealType = fav.mealType ?: f.mealType,
+                dishes = f.dishes + fav.dishes.map { DishForm.copyOf(it, DishSource.FAVORITE) })
+        }
+        form.hasDishes -> form.copy(dishes = form.dishes + favoriteDish(fav))
+        else -> applyWholeFavorite(form, fav)
+    }
+
+    private fun favoriteDish(fav: FavoriteMealEntity) = DishForm(
+        name = fav.title, components = fav.items, gramsText = fav.portionGrams?.toString().orEmpty(), kcalText = fav.caloriesEstimate?.toString().orEmpty(),
+        proteinText = macroText(fav.nutrition?.proteinGrams), fatText = macroText(fav.nutrition?.fatGrams), carbsText = macroText(fav.nutrition?.carbsGrams),
+        source = DishSource.FAVORITE,
+    )
+
+    private fun applyWholeFavorite(form: MealForm, fav: FavoriteMealEntity): MealForm = form.copy(
         title = fav.title,
         items = fav.items,
         mealType = fav.mealType ?: form.mealType,
@@ -396,7 +435,85 @@ class FoodEditorViewModel @Inject constructor(
         savedStateHandle[NavResults.CROP_SOURCE] = fileName
     }
 
-    fun removePhoto(fileName: String) = update { it.copy(photos = it.photos - fileName) }
+    fun removePhoto(fileName: String) = update { form ->
+        form.copy(photos = form.photos - fileName, dishes = form.dishes.map { d -> d.copy(photos = d.photos - fileName) })
+    }
+
+    // Dishes
+
+    /**
+     * Switches to dishes. A whole-meal estimate already entered becomes the first dish as it is (no split is
+     * invented and nothing is re-read with the eaten share), so the two can never be added together.
+     */
+    private fun asDishes(form: MealForm): MealForm {
+        // Products typed for the whole meal belong to it too; only a bare name stays the meal's name.
+        if (form.hasDishes || (!form.hasMealEstimate && form.items.isEmpty())) return form
+        val first = DishForm(
+            name = form.title.ifBlank { form.items.firstOrNull().orEmpty() }, components = form.items,
+            gramsText = form.gramsText, kcalText = form.kcalText, proteinText = form.proteinText, fatText = form.fatText, carbsText = form.carbsText,
+            source = DishSource.MEAL_ESTIMATE, estimateModel = form.nutritionInfo?.estimateModel, uncertainty = form.nutritionInfo?.uncertainty,
+        )
+        return form.copy(dishes = listOf(first), gramsText = "", kcalText = "", proteinText = "", fatText = "", carbsText = "",
+            kcalFromReference = false, nutritionInfo = null, items = emptyList())
+    }
+
+    fun addDish() = update { asDishes(it).let { f -> f.copy(dishes = f.dishes + DishForm()) } }
+
+    fun updateDish(id: String, transform: (DishForm) -> DishForm) =
+        update { form -> form.copy(dishes = form.dishes.map { if (it.id == id) transform(it) else it }) }
+
+    /** Removing a dish removes only its numbers; the others and the meal stay as they are. */
+    fun removeDish(id: String) = update { form -> form.copy(dishes = form.dishes.filterNot { it.id == id }) }
+
+    fun toggleDishPhoto(id: String, photo: String) = updateDish(id) { d ->
+        if (photo in d.photos) d.copy(photos = d.photos - photo) else d.copy(photos = d.photos + photo)
+    }
+
+    fun addFavoriteAsDish(fav: FavoriteMealEntity) {
+        viewModelScope.launch { meals.markFavoriteUsed(fav.id) }
+        update { form ->
+            val f = asDishes(form)
+            f.copy(title = f.title.ifBlank { fav.title },
+                dishes = f.dishes + (fav.dishes?.takeIf { it.isNotEmpty() }?.map { DishForm.copyOf(it, DishSource.FAVORITE) } ?: listOf(favoriteDish(fav))))
+        }
+    }
+
+    private fun dishFromAi(result: FoodPhotoResult): DishForm {
+        val e = result.estimate
+        return DishForm(
+            name = e.dishName, components = e.ingredients.map { it.name }.distinct(),
+            gramsText = e.portionGrams?.roundToInt()?.coerceAtLeast(1)?.toString().orEmpty(), kcalText = e.caloriesKcal?.roundToInt()?.toString().orEmpty(),
+            proteinText = macroText(e.proteinGrams), fatText = macroText(e.fatGrams), carbsText = macroText(e.carbsGrams),
+            source = DishSource.PHOTO, photos = listOf(result.photoFile), estimateModel = result.model, uncertainty = e.uncertainty,
+        )
+    }
+
+    /** The recognised photo becomes a new dish; an earlier whole-meal estimate becomes the first dish. */
+    fun applyAiAsNewDish() {
+        val result = _state.value.aiChoice ?: return
+        update { form -> asDishes(form).let { f -> f.copy(title = f.title.ifBlank { result.estimate.dishName }, dishes = f.dishes + dishFromAi(result)) } }
+        _state.update { it.copy(aiChoice = null) }
+    }
+
+    /** Another view of a dish already in the meal: its numbers are replaced, its name and photos kept. */
+    fun applyAiToDish(id: String) {
+        val result = _state.value.aiChoice ?: return
+        val fresh = dishFromAi(result)
+        updateDish(id) { d ->
+            fresh.copy(id = d.id, name = d.name.ifBlank { fresh.name }, photos = (d.photos + result.photoFile).distinct())
+        }
+        _state.update { it.copy(aiChoice = null) }
+    }
+
+    /** Replaces the whole-meal estimate, as the only change the user asked for. */
+    fun applyAiReplace() {
+        val result = _state.value.aiChoice ?: return
+        if (_state.value.form.hasDishes) return
+        fillAiFields(result, MealForm(), overwrite = true)
+        _state.update { it.copy(aiChoice = null) }
+    }
+
+    fun dismissAiChoice() = _state.update { it.copy(aiChoice = null) }
 
     fun movePhotoFirst(fileName: String) = update { it.copy(photos = listOf(fileName) + (it.photos - fileName)) }
 
@@ -481,8 +598,13 @@ class FoodEditorViewModel @Inject constructor(
                         if (result.photoFile != fileName || result.photoFile !in _state.value.form.photos) {
                             throw FoodAiException(FoodAiError.PHOTO_CHANGED)
                         }
-                        fillAiFields(result, s.form)
-                        _state.update { it.copy(aiResult = result, aiError = null) }
+                        // A result never silently replaces values already in the meal: the user chooses how to use it.
+                        if (s.form.hasDishes || s.form.hasMealEstimate) {
+                            _state.update { it.copy(aiResult = result, aiChoice = result, aiError = null) }
+                        } else {
+                            fillAiFields(result, s.form)
+                            _state.update { it.copy(aiResult = result, aiError = null) }
+                        }
                         return@launch
                     } catch (cancelled: CancellationException) { throw cancelled }
                     catch (error: Exception) {
@@ -509,21 +631,22 @@ class FoodEditorViewModel @Inject constructor(
         aiJob?.cancel()
         aiJob = null
         requestedPhoto = null
-        _state.update { it.copy(analyzingPhoto = false, aiAttempt = 0, aiRetrying = false, aiResult = null, aiError = null) }
+        _state.update { it.copy(analyzingPhoto = false, aiAttempt = 0, aiRetrying = false, aiResult = null, aiChoice = null, aiError = null) }
     }
 
-    private fun fillAiFields(result: FoodPhotoResult, requestedForm: MealForm) {
+    private fun fillAiFields(result: FoodPhotoResult, requestedForm: MealForm, overwrite: Boolean = false) {
         val e = result.estimate
-        // Inputs changed by the user while a request was in flight take precedence.
+        // Inputs changed by the user while a request was in flight take precedence, unless the user chose to replace them.
+        fun <T> keep(now: T, then: T, new: T) = if (overwrite || now == then) new else now
         update { it.copy(
-            title = if (it.title == requestedForm.title) e.dishName else it.title,
-            items = if (it.items == requestedForm.items) e.ingredients.map { ingredient -> ingredient.name }.distinct() else it.items,
-            gramsText = if (it.gramsText == requestedForm.gramsText) e.portionGrams?.roundToInt()?.coerceAtLeast(1)?.toString().orEmpty() else it.gramsText,
-            kcalText = if (it.kcalText == requestedForm.kcalText) e.caloriesKcal?.roundToInt()?.toString().orEmpty() else it.kcalText,
+            title = if (overwrite) it.title.ifBlank { e.dishName } else keep(it.title, requestedForm.title, e.dishName),
+            items = keep(it.items, requestedForm.items, e.ingredients.map { ingredient -> ingredient.name }.distinct()),
+            gramsText = keep(it.gramsText, requestedForm.gramsText, e.portionGrams?.roundToInt()?.coerceAtLeast(1)?.toString().orEmpty()),
+            kcalText = keep(it.kcalText, requestedForm.kcalText, e.caloriesKcal?.roundToInt()?.toString().orEmpty()),
             kcalFromReference = false,
-            proteinText = if (it.proteinText == requestedForm.proteinText) macroText(e.proteinGrams) else it.proteinText,
-            fatText = if (it.fatText == requestedForm.fatText) macroText(e.fatGrams) else it.fatText,
-            carbsText = if (it.carbsText == requestedForm.carbsText) macroText(e.carbsGrams) else it.carbsText,
+            proteinText = keep(it.proteinText, requestedForm.proteinText, macroText(e.proteinGrams)),
+            fatText = keep(it.fatText, requestedForm.fatText, macroText(e.fatGrams)),
+            carbsText = keep(it.carbsText, requestedForm.carbsText, macroText(e.carbsGrams)),
             nutritionInfo = MealNutrition(estimateModel = result.model, estimatedAt = System.currentTimeMillis(), uncertainty = e.uncertainty),
         ) }
     }
@@ -531,7 +654,7 @@ class FoodEditorViewModel @Inject constructor(
     private fun macroText(value: Double?): String = value?.let { Units.roundTo(it, 1).toString().replace('.', ',') }.orEmpty()
     private fun macroValue(text: String): Double? = Units.parseDecimal(text)?.takeIf { it.isFinite() && it in 0.0..10_000.0 }
     fun isNutritionInvalid(): Boolean = _state.value.form.let { form ->
-        listOf(form.proteinText, form.fatText, form.carbsText).any { it.isNotBlank() && macroValue(it) == null }
+        listOf(form.proteinText, form.fatText, form.carbsText).any { it.isNotBlank() && macroValue(it) == null } || form.dishes.any { it.invalid }
     }
 
     fun parsedWeightKg(): Double? {
@@ -575,6 +698,7 @@ class FoodEditorViewModel @Inject constructor(
                                 proteinGrams = macroValue(form.proteinText), fatGrams = macroValue(form.fatText), carbsGrams = macroValue(form.carbsText),
                             ).takeIf { form.nutritionInfo != null || listOf(form.proteinText, form.fatText, form.carbsText).any(String::isNotBlank) },
                             createdAt = if (form.createdAt > 0) form.createdAt else System.currentTimeMillis(),
+                            dishes = form.dishes.map(DishForm::toDish).takeIf { it.isNotEmpty() },
                         )
                         meals.save(entity, form.photos, form.alsoSaveWeight, form.saveAsFavorite, draftKind, form.saveToken)
                         finished = true

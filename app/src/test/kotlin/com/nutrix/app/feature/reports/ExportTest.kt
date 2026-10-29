@@ -97,7 +97,7 @@ class ExportTest {
                 names += e.name
             }
         }
-        assertThat(names).containsExactly("meals.csv", "drinks.csv", "weights.csv", "symptoms.csv", "sleep.csv", "activity.csv", "exercises.csv", "notes.csv")
+        assertThat(names).containsExactly("meals.csv", "meal_dishes.csv", "drinks.csv", "weights.csv", "symptoms.csv", "sleep.csv", "activity.csv", "exercises.csv", "notes.csv")
 
         val json = ByteArrayOutputStream().also { exporters.writeJson(data, it) }.toString(Charsets.UTF_8)
         val parsed = Json.decodeFromString(JsonExport.serializer(), json)

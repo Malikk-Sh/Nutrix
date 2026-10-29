@@ -14,6 +14,7 @@ import com.nutrix.app.database.entity.FavoriteMealEntity
 import com.nutrix.app.database.entity.MealEntity
 import com.nutrix.app.database.entity.MealPhotoEntity
 import com.nutrix.app.database.entity.MealWithPhotos
+import com.nutrix.app.domain.MealTotals
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
@@ -46,13 +47,15 @@ class MealRepository @Inject constructor(
      * attached before but are no longer part of the meal are deleted.
      */
     suspend fun save(
-        meal: MealEntity,
+        input: MealEntity,
         photoFiles: List<String>,
         alsoSaveWeight: Boolean = false,
         saveAsFavorite: Boolean = false,
         draftKind: String? = null,
         saveToken: String? = null,
     ): Long = gate.exclusive {
+        // A meal made of dishes stores their eaten totals; dishes only link photos the meal keeps.
+        val meal = MealTotals.apply(input.copy(dishes = input.dishes?.map { d -> d.copy(photos = d.photos.filter { it in photoFiles }) }))
         withContext(NonCancellable) {
             val now = System.currentTimeMillis()
             val previousSave = saveToken?.let { dao.getDraft(SAVE_RECEIPT_PREFIX + it)?.payload?.toLongOrNull() }
@@ -87,6 +90,7 @@ class MealRepository @Inject constructor(
                             portionGrams = meal.portionGrams, caloriesEstimate = meal.caloriesEstimate, nutrition = meal.nutrition,
                             photoFile = favoritePhoto, useCount = previous?.useCount ?: 0,
                             createdAt = previous?.createdAt ?: now,
+                            dishes = favoriteDishes(meal),
                         ))
                     }
                     draftKind?.let { dao.deleteDraft(it) }
@@ -190,9 +194,13 @@ class MealRepository @Inject constructor(
                 nutrition = meal.nutrition,
                 note = null,
                 photoFile = photoCopy,
+                dishes = favoriteDishes(meal),
             ),
         )
     }
+
+    /** A favorite keeps what to eat again, not the photos of that particular day. */
+    private fun favoriteDishes(meal: MealEntity) = meal.dishes?.map { it.copy(photos = emptyList()) }
 
     suspend fun deleteFavorite(favorite: FavoriteMealEntity) {
         dao.deleteFavorite(favorite)

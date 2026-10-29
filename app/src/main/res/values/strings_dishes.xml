@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="food_dishes_title">Блюда · %1$d</string>
+    <string name="food_dishes_hint">У каждого блюда своя порция и пищевая ценность. Итог приёма считается сам: поданная порция × сколько съели. Фото на числа не влияют.</string>
+    <string name="food_split_title">Несколько блюд?</string>
+    <string name="food_split_hint">Суп, второе, напиток — у каждого своя порция и БЖУ, итог посчитается сам. Уже введённая оценка станет первым блюдом.</string>
+    <string name="food_split_action">Разбить по блюдам</string>
+    <string name="food_dish_name">Блюдо</string>
+    <string name="food_dish_name_hint">Например, суп</string>
+    <string name="food_dish_served">Порция</string>
+    <string name="food_dish_eaten">Съели</string>
+    <string name="food_dish_add">Добавить блюдо</string>
+    <string name="food_dish_from_favorite">Из избранного</string>
+    <string name="food_dish_remove">Удалить блюдо %1$s</string>
+    <string name="food_dish_photos">На каких фото</string>
+    <string name="food_dish_components">Состав: %1$s</string>
+    <string name="dish_source_manual">Введено вручную</string>
+    <string name="dish_source_photo">Оценка по фото</string>
+    <string name="dish_source_reference">По справочнику</string>
+    <string name="dish_source_favorite">Из избранного</string>
+    <string name="dish_source_meal">Бывшая общая оценка приёма</string>
+    <string name="food_total_title">Итого съедено</string>
+    <string name="food_total_none">Итог появится, когда у блюд будут масса или калорийность.</string>
+    <string name="food_total_partial">%1$s: известно для %2$d из %3$d блюд, итог неполный.</string>
+    <string name="food_total_kcal_name">Калории</string>
+    <string name="food_total_grams_name">Масса</string>
+    <string name="food_total_macros_name">БЖУ</string>
+    <plurals name="dishes_count">
+        <item quantity="one">%1$d блюдо</item>
+        <item quantity="few">%1$d блюда</item>
+        <item quantity="many">%1$d блюд</item>
+        <item quantity="other">%1$d блюд</item>
+    </plurals>
+    <string name="meal_photos_more">+%1$d фото</string>
+    <string name="meal_kcal_partial">известно ≈%1$d ккал, оценены %2$d из %3$d</string>
+    <string name="ai_choice_title">Распознано: %1$s</string>
+    <string name="ai_choice_text">В приёме уже есть числа, поэтому результат не заменит их сам. Как его использовать?</string>
+    <string name="ai_choice_new_dish">Добавить как отдельное блюдо</string>
+    <string name="ai_choice_update">Это «%1$s» с другого ракурса: %2$s → %3$s</string>
+    <string name="ai_choice_replace">Заменить общую оценку: %1$s → %2$s</string>
+    <string name="ai_choice_dismiss">Не применять</string>
+    <string name="kcal_value">%1$s ккал</string>
+    <string name="kcal_unknown">\? ккал</string>
+</resources>

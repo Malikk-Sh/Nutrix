@@ -69,11 +69,16 @@ fun NutritionCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onEs
                 form.nutritionInfo?.uncertainty?.takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             }
         }
+        Spacer(Modifier.height(8.dp))
+        Text(stringResource(R.string.food_split_title), style = MaterialTheme.typography.labelLarge)
+        Text(stringResource(R.string.food_split_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        TextButton(onClick = viewModel::addDish, enabled = state.loaded && !state.isSaving && state.pendingDraft == null,
+            modifier = Modifier.testTag("food-split")) { Text(stringResource(R.string.food_split_action)) }
     }
 }
 
 @Composable
-private fun NutritionValue(label: String, value: String, unit: String, tag: String, onValue: (String) -> Unit,
+internal fun NutritionValue(label: String, value: String, unit: String, tag: String, onValue: (String) -> Unit,
     modifier: Modifier, keyboard: KeyboardType = KeyboardType.Decimal) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

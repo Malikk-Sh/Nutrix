@@ -285,7 +285,11 @@ fun FoodEditorScreen(
                 DishCard(state, viewModel)
             }
 
-            item(key = "nutrition") { NutritionCard(state, viewModel, onEstimateFailed = { kcalNotFound = true }) }
+            // A meal of several dishes counts them one by one; otherwise one estimate covers the whole meal.
+            item(key = "nutrition") {
+                if (form.hasDishes) DishesCard(state, viewModel)
+                else NutritionCard(state, viewModel, onEstimateFailed = { kcalNotFound = true })
+            }
 
             item(key = "when") {
                 NutrixCard {
@@ -323,6 +327,8 @@ fun FoodEditorScreen(
                         caption = { stringResource(appetiteLabel(it)) },
                         accent = colors.meal,
                     )
+                    // With dishes, how much was eaten is set per dish, so it is never applied twice.
+                    if (!form.hasDishes) {
                     Spacer(Modifier.height(16.dp))
                     Text(stringResource(R.string.food_portion), style = MaterialTheme.typography.labelLarge)
                     Spacer(Modifier.height(6.dp))
@@ -333,6 +339,7 @@ fun FoodEditorScreen(
                         onSelect = { p -> viewModel.update { it.copy(portion = p) } },
                         accent = colors.meal,
                     )
+                    }
                     Spacer(Modifier.height(12.dp))
                     Text(stringResource(R.string.food_satiety), style = MaterialTheme.typography.labelLarge)
                     Spacer(Modifier.height(6.dp))
@@ -534,6 +541,8 @@ private fun DishCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel) {
                 }
             }
         }
+        // With dishes, products belong to each dish; the meal keeps only its name.
+        if (!form.hasDishes) {
         Spacer(Modifier.height(12.dp))
         Text(stringResource(R.string.food_items_label), style = MaterialTheme.typography.labelLarge)
         if (form.items.isNotEmpty()) {
@@ -562,6 +571,7 @@ private fun DishCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel) {
             IconButton(onClick = { viewModel.addItem(itemText); itemText = "" }, enabled = itemText.isNotBlank()) {
                 Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.food_item_add))
             }
+        }
         }
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {

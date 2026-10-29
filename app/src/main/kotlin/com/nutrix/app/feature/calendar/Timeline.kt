@@ -187,7 +187,7 @@ fun TimelineRow(item: TimelineItem, unit: WeightUnit, isLast: Boolean, onClick: 
                 if (item is TimelineItem.Meal) {
                     val meal = item.meal.meal
                     val values = listOfNotNull(meal.portionGrams?.let { "$it ${stringResource(R.string.unit_g)}" },
-                        meal.caloriesEstimate?.let { "≈$it ${stringResource(R.string.unit_kcal)}" })
+                        com.nutrix.app.feature.food.mealKcalText(meal))
                     if (values.isNotEmpty()) Text(values.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     meal.nutrition?.let { n ->
                         Text(listOfNotNull(n.proteinGrams?.let { "Б ${Formatters.decimal(it)}" }, n.fatGrams?.let { "Ж ${Formatters.decimal(it)}" },

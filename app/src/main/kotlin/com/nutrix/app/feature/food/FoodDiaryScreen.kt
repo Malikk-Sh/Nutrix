@@ -1,5 +1,7 @@
 package com.nutrix.app.feature.food
 
+import com.nutrix.app.domain.kcalIfComplete
+
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -152,7 +154,8 @@ fun FoodDiaryScreen(
             }
             list?.firstOrNull { it.date == LocalDate.now() }?.let { today ->
                 item(key = "today-summary") {
-                    val knownCalories = today.meals.mapNotNull { it.meal.caloriesEstimate }
+                    // A meal whose dishes are only partly estimated does not count as known.
+                    val knownCalories = today.meals.mapNotNull { it.meal.kcalIfComplete }
                     NutrixCard {
                         CardHeader(Icons.Rounded.Restaurant, pluralStringResource(R.plurals.meals_count, today.meals.size, today.meals.size), LocalCategoryColors.current.meal)
                         if (knownCalories.isNotEmpty()) {
@@ -224,14 +227,18 @@ fun MealRow(meal: MealWithPhotos, onClick: () -> Unit, modifier: Modifier = Modi
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
+                    // Dishes and photos are counted apart: one photo may show three dishes.
+                    m.dishes?.takeIf { it.size > 1 }?.let { dishes ->
+                        Spacer(Modifier.width(6.dp))
+                        Pill(pluralStringResource(R.plurals.dishes_count, dishes.size, dishes.size), colors.meal)
+                    }
                     if (meal.photos.size > 1) {
                         Spacer(Modifier.width(6.dp))
-                        Pill("+${meal.photos.size - 1}", MaterialTheme.colorScheme.onSurfaceVariant)
+                        Pill(stringResource(R.string.meal_photos_more, meal.photos.size - 1), MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 Text(
-                    "${Formatters.time(m.time)} · ${stringResource(m.mealType.labelRes)}" +
-                        (m.caloriesEstimate?.let { " · ≈$it ${stringResource(R.string.unit_kcal)}" } ?: ""),
+                    "${Formatters.time(m.time)} · ${stringResource(m.mealType.labelRes)}" + (mealKcalText(m)?.let { " · $it" } ?: ""),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -330,4 +337,13 @@ class FavoritesViewModel @Inject constructor(private val meals: MealRepository) 
     fun delete(fav: FavoriteMealEntity) {
         viewModelScope.launch { meals.deleteFavorite(fav) }
     }
+}
+
+/** "≈750 ккал", or "известно ≈650 ккал, оценены 2 из 3" when only some dishes have calories. */
+@Composable
+fun mealKcalText(m: com.nutrix.app.database.entity.MealEntity): String? {
+    val kcal = m.caloriesEstimate ?: return null
+    val n = m.nutrition
+    return if (n?.dishCount != null && n.kcalKnown != n.dishCount) stringResource(R.string.meal_kcal_partial, kcal, n.kcalKnown ?: 0, n.dishCount)
+    else "≈$kcal ${stringResource(R.string.unit_kcal)}"
 }
