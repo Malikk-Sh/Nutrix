@@ -69,22 +69,7 @@ class GeminiProtocol(val schema: JsonObject, private val systemPrompt: String) {
     }
 
     fun response(body: String): FoodEstimate = try {
-        val root = json.parseToJsonElement(body).jsonObject
-        val block = root["promptFeedback"]?.jsonObject?.get("blockReason")?.jsonPrimitive?.content
-        if (block != null && block != "BLOCK_REASON_UNSPECIFIED") throw FoodAiException(FoodAiError.BLOCKED)
-        val candidate = root["candidates"]?.jsonArray?.firstOrNull()?.jsonObject
-            ?: throw FoodAiException(FoodAiError.INVALID_RESPONSE)
-        when (candidate["finishReason"]?.jsonPrimitive?.content) {
-            "STOP" -> Unit
-            "MAX_TOKENS", "CONTINUATION" -> throw FoodAiException(FoodAiError.TRUNCATED)
-            "SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "RECITATION" -> throw FoodAiException(FoodAiError.BLOCKED)
-            else -> throw FoodAiException(FoodAiError.INVALID_RESPONSE)
-        }
-        val text = candidate["content"]?.jsonObject?.get("parts")?.jsonArray.orEmpty()
-            .map { it.jsonObject }.filter { it["thought"]?.jsonPrimitive?.booleanOrNull != true }
-            .mapNotNull { it["text"]?.jsonPrimitive?.content }.joinToString("")
-        if (text.length > 32_768) throw FoodAiException(FoodAiError.INVALID_RESPONSE)
-        validate(json.decodeFromString<FoodEstimate>(text))
+        validate(json.decodeFromString<FoodEstimate>(candidateText(body)))
     } catch (error: FoodAiException) { throw error }
     catch (_: Exception) { throw FoodAiException(FoodAiError.INVALID_RESPONSE) }
 
@@ -111,3 +96,26 @@ class GeminiProtocol(val schema: JsonObject, private val systemPrompt: String) {
         fun validKey(key: String): Boolean = GeminiConfig.validKey(key)
     }
 }
+
+private val responseJson = Json { ignoreUnknownKeys = true }
+
+/** The model's text from a generateContent response; blocked, cut-off or malformed answers become typed errors. */
+internal fun candidateText(body: String): String = try {
+    val root = responseJson.parseToJsonElement(body).jsonObject
+    val block = root["promptFeedback"]?.jsonObject?.get("blockReason")?.jsonPrimitive?.content
+    if (block != null && block != "BLOCK_REASON_UNSPECIFIED") throw FoodAiException(FoodAiError.BLOCKED)
+    val candidate = root["candidates"]?.jsonArray?.firstOrNull()?.jsonObject
+        ?: throw FoodAiException(FoodAiError.INVALID_RESPONSE)
+    when (candidate["finishReason"]?.jsonPrimitive?.content) {
+        "STOP" -> Unit
+        "MAX_TOKENS", "CONTINUATION" -> throw FoodAiException(FoodAiError.TRUNCATED)
+        "SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "RECITATION" -> throw FoodAiException(FoodAiError.BLOCKED)
+        else -> throw FoodAiException(FoodAiError.INVALID_RESPONSE)
+    }
+    val text = candidate["content"]?.jsonObject?.get("parts")?.jsonArray.orEmpty()
+        .map { it.jsonObject }.filter { it["thought"]?.jsonPrimitive?.booleanOrNull != true }
+        .mapNotNull { it["text"]?.jsonPrimitive?.content }.joinToString("")
+    if (text.length > 32_768) throw FoodAiException(FoodAiError.INVALID_RESPONSE)
+    text
+} catch (error: FoodAiException) { throw error }
+catch (_: Exception) { throw FoodAiException(FoodAiError.INVALID_RESPONSE) }

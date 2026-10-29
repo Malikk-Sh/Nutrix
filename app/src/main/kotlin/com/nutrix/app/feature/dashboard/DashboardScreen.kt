@@ -93,6 +93,7 @@ import com.nutrix.app.feature.activity.sourceLabel
 import com.nutrix.app.feature.calendar.TimelineRow
 import com.nutrix.app.feature.calendar.TimelineTarget
 import com.nutrix.app.feature.calendar.target
+import com.nutrix.app.feature.insights.InsightTeaser
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -110,11 +111,13 @@ data class DashboardActions(
     val onSymptoms: (add: Boolean) -> Unit,
     val onTimeline: (TimelineTarget) -> Unit,
     val onOpenToday: () -> Unit,
+    val onInsights: () -> Unit = {},
 )
 
 @Composable
 fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, viewModel: DashboardViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val insight by viewModel.topInsight.collectAsStateWithLifecycle()
     val colors = LocalCategoryColors.current
     val haptic = LocalHapticFeedback.current
     val unit = state.settings.weightUnit
@@ -286,6 +289,12 @@ fun DashboardScreen(contentPadding: PaddingValues, actions: DashboardActions, vi
                     if (compactMetrics && state.sleepSessions.size > 1) Text(stringResource(R.string.sleep_session_count, state.sleepSessions.size),
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            }
+        }
+
+        insight?.let { top ->
+            item(key = "insight", span = StaggeredGridItemSpan.FullLine) {
+                InsightTeaser(top, unit, onOpen = actions.onInsights, modifier = Modifier.entrance(entrance, 5))
             }
         }
 

@@ -49,6 +49,11 @@ import com.nutrix.app.core.ui.components.IconBadge
 import com.nutrix.app.core.ui.icons.*
 import com.nutrix.app.core.ui.components.InfoBanner
 import com.nutrix.app.core.ui.components.NutrixCard
+import androidx.compose.material3.Icon
+import androidx.compose.ui.platform.testTag
+import com.nutrix.app.core.ui.icons.ChevronRight
+import com.nutrix.app.core.ui.icons.Insights
+import com.nutrix.app.core.ui.components.CardHeader
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.ScreenList
 import com.nutrix.app.core.ui.components.SectionHeader
@@ -64,12 +69,21 @@ import java.time.ZoneOffset
 import kotlin.math.max
 
 @Composable
-fun AnalyticsScreen(contentPadding: PaddingValues, viewModel: AnalyticsViewModel = hiltViewModel()) {
+fun AnalyticsScreen(contentPadding: PaddingValues, onOpenInsights: () -> Unit = {}, viewModel: AnalyticsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val period by viewModel.period.collectAsStateWithLifecycle()
     var customDialog by rememberSaveable { mutableStateOf(false) }
     NutrixScreen(title = stringResource(R.string.analytics_title), onBack = null) { padding ->
         ScreenList(PaddingValues(top = padding.calculateTopPadding(), bottom = contentPadding.calculateBottomPadding())) {
+            item(key = "insights") {
+                NutrixCard(onClick = onOpenInsights, modifier = Modifier.testTag("open-insights")) {
+                    CardHeader(Icons.Rounded.Insights, stringResource(R.string.insights_title), MaterialTheme.colorScheme.primary) {
+                        Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(stringResource(R.string.insights_analytics_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             item(key = "periods") {
                 val days = listOf(7, 14, 30, 90, 0)
                 SegmentedChoices(days, (period as? AnalyticsPeriod.LastDays)?.days ?: 0,

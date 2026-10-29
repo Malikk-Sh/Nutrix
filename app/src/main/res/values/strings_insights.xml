@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="insights_title">Наблюдения</string>
+    <string name="insights_open">Все наблюдения</string>
+    <string name="insights_period">За 4 недели: %1$s – %2$s</string>
+    <string name="insights_about_summary">Как появляются наблюдения</string>
+    <string name="insights_about">Наблюдения считаются на телефоне по вашим записям за последние 4 полные недели. Сегодняшний день ещё не закончен, поэтому в расчёт не входит. Ваши дни сравниваются с вашими же днями, без общих «норм». Связь между двумя показателями — это совпадение в записях, а не доказанная причина. Приложение не ставит диагнозы и не заменяет консультацию врача.</string>
+    <string name="insights_link_note">Совпадение в записях, а не доказанная причина.</string>
+    <string name="insights_hide">Скрыть</string>
+    <string name="insights_show_hidden">Скрытые наблюдения: %1$d</string>
+    <string name="insights_restore">Вернуть</string>
+    <string name="insights_empty">Пока нечего показать</string>
+    <string name="insights_empty_text">Наблюдения появятся, когда наберётся хотя бы неделя записей о еде, напитках или сне.</string>
+    <string name="insights_tone_attention">Стоит посмотреть</string>
+    <string name="insights_tone_positive">Хорошая тенденция</string>
+    <string name="insights_card_title">Наблюдение</string>
+    <string name="insights_analytics_hint">Режим питания, сна и напитков по вашим записям за 4 недели</string>
+
+    <plurals name="insights_of_days">
+        <item quantity="one">из %d дня</item>
+        <item quantity="few">из %d дней</item>
+        <item quantity="many">из %d дней</item>
+        <item quantity="other">из %d дней</item>
+    </plurals>
+    <plurals name="insights_by_days">
+        <item quantity="one">По %d дню</item>
+        <item quantity="few">По %d дням</item>
+        <item quantity="many">По %d дням</item>
+        <item quantity="other">По %d дням</item>
+    </plurals>
+    <plurals name="insights_by_nights">
+        <item quantity="one">По %d ночи</item>
+        <item quantity="few">По %d ночам</item>
+        <item quantity="many">По %d ночам</item>
+        <item quantity="other">По %d ночам</item>
+    </plurals>
+
+    <string name="insight_rhythm_title">Режим питания</string>
+    <string name="insight_rhythm_body">Первый приём пищи обычно в %1$s, последний — в %2$s. Окно питания около %3$s, в среднем %4$s приёма в день.</string>
+    <string name="insight_rhythm_spread">Время первого приёма заметно меняется: разброс около %1$s.</string>
+    <string name="insight_rhythm_steady">Начало дня стабильное: разброс около %1$s.</string>
+    <string name="insight_rhythm_late_start">Первый приём пищи после 12:00 — в %1$d %2$s.</string>
+
+    <string name="insight_late_title">Поздний последний приём пищи</string>
+    <string name="insight_late_sleep">В %1$d %2$s последний приём пищи был меньше чем за 2 часа до сна.</string>
+    <string name="insight_late_clock">В %1$d %2$s последний приём пищи был после 22:00.</string>
+    <string name="insight_late_shorter">В такие ночи сон в среднем на %1$s короче.</string>
+    <string name="insight_late_longer">В такие ночи сон в среднем на %1$s длиннее.</string>
+
+    <string name="insight_gaps_title">Длинные перерывы в еде</string>
+    <string name="insight_gaps_body">В %1$d %2$s между приёмами пищи был перерыв больше 6 часов. Самый длинный перерыв дня обычно около %3$s.</string>
+
+    <string name="insight_nutrition_title">Питание по оценкам</string>
+    <string name="insight_nutrition_body">В среднем ≈%1$s ккал в день.</string>
+    <string name="insight_nutrition_macros">Б %1$s / Ж %2$s / У %3$s г в день.</string>
+    <string name="insight_nutrition_evening">После 18:00 — около %1$d%% калорий дня.</string>
+    <string name="insight_nutrition_evidence">По %1$d дням, где у большинства приёмов есть оценка ккал. Оценки приблизительные.</string>
+
+    <string name="insight_sleep_eating_title">Сон и питание</string>
+    <string name="insight_sleep_eating_more">После коротких ночей (меньше %1$s) вы съедаете в среднем на %2$s ккал больше, чем в другие дни.</string>
+    <string name="insight_sleep_eating_less">После коротких ночей (меньше %1$s) вы съедаете в среднем на %2$s ккал меньше, чем в другие дни.</string>
+    <string name="insight_sleep_eating_evidence">Коротких ночей: %1$d %2$s</string>
+
+    <string name="insight_fluid_title">Напитки</string>
+    <string name="insight_fluid_body">Обычно за день — %1$s мл; к 14:00 выпито около %2$d%%.</string>
+    <string name="insight_fluid_goal">Ваш ориентир %1$s мл достигнут в %2$d %3$s.</string>
+
+    <string name="insight_caffeine_title">Кофе после 16:00</string>
+    <string name="insight_caffeine_body">После дней с кофе после 16:00 засыпание в среднем на %1$s позже.</string>
+    <string name="insight_caffeine_shorter">Сон в такие ночи на %1$s короче.</string>
+    <string name="insight_caffeine_evidence">Таких ночей: %1$d %2$s</string>
+
+    <string name="insight_sleep_title">Режим сна</string>
+    <string name="insight_sleep_body">Сон обычно длится %1$s, отход ко сну около %2$s, разброс — около %3$s.</string>
+    <string name="insight_sleep_weekend">В выходные подъём в среднем на %1$s позже.</string>
+
+    <string name="insight_weight_title">Тенденция веса</string>
+    <string name="insight_weight_body">По %1$d измерениям за %2$d дн. вес меняется примерно на %3$s в неделю.</string>
+    <string name="insight_weight_stable">По %1$d измерениям за %2$d дн. вес почти не меняется.</string>
+    <string name="insight_weight_target">До вашего ориентира — %1$s.</string>
+    <string name="insight_weight_note">Колебания от дня ко дню обычны, важнее тенденция.</string>
+
+    <string name="insight_steps_title">Шаги</string>
+    <string name="insight_steps_body">Обычно %1$s шагов в день. За последние 7 дней — в среднем %2$s (%3$s к предыдущим дням).</string>
+
+    <string name="insight_discomfort_title">Самочувствие после больших порций</string>
+    <string name="insight_discomfort_body">Неприятные ощущения отмечены после %1$d из %2$d больших порций (от %3$s) и после %4$d из %5$d остальных приёмов.</string>
+
+    <string name="insight_gap_symptoms_title">Слабость и перерывы в еде</string>
+    <string name="insight_gap_symptoms_body">%1$d из %2$d эпизодов слабости, головокружения, дрожи или потливости — больше чем через 5 часов после еды. Обычно такие перерывы занимают около %3$d%% дневного времени.</string>
+
+    <string name="insight_coverage_title">Нужно больше записей</string>
+    <string name="insight_coverage_body">Записи есть в %1$d %2$s. Чем регулярнее записи, тем точнее наблюдения.</string>
+
+    <!-- Gemini weekly review -->
+    <string name="ai_review_title">Разбор недели с Gemini</string>
+    <string name="ai_review_text">Gemini коротко объяснит наблюдения и предложит, на что обратить внимание в режиме. Отправляются только числа из карточек ниже — без записей, заметок, фото и имени.</string>
+    <string name="ai_review_action">Разобрать</string>
+    <string name="ai_review_again">Обновить разбор</string>
+    <string name="ai_review_loading">Gemini разбирает наблюдения…</string>
+    <string name="ai_review_from">Разбор от %1$s · %2$s</string>
+    <string name="ai_review_stale">Данные изменились после разбора.</string>
+    <string name="ai_review_no_key">Чтобы получить разбор, настройте ключ Gemini.</string>
+    <string name="ai_review_need_insights">Разбор станет доступен, когда появятся наблюдения.</string>
+    <string name="ai_review_quota_hint">Один разбор — один запрос к Gemini; повторный запрос по тем же данным не нужен.</string>
+    <string name="ai_review_consent_title">Что будет отправлено в Google</string>
+    <string name="ai_review_consent_text">Gemini получит только эти числа. На бесплатном тарифе Google может использовать отправленные данные для улучшения своих продуктов, в том числе с участием людей. Согласие можно отозвать в любой момент.</string>
+    <string name="ai_review_consent_accept">Согласен, отправить</string>
+    <string name="ai_review_revoke">Отозвать согласие</string>
+    <string name="ai_review_suggestion">Можно попробовать</string>
+    <string name="ai_review_disclaimer">Текст написан Gemini по вашим числам и может ошибаться. Это не медицинская рекомендация.</string>
+    <string name="ai_review_safety">Если вас беспокоит самочувствие, обсудите это с врачом.</string>
+</resources>

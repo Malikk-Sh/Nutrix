@@ -74,6 +74,10 @@ class SettingsRepository @Inject constructor(
         val reportPhotos = booleanPreferencesKey("report_photos")
         val geminiModel = stringPreferencesKey("gemini_model")
         val geminiKeyBlob = stringPreferencesKey("gemini_api_key_blob")
+        val hiddenInsights = stringPreferencesKey("hidden_insights")
+        val aiReviewConsent = booleanPreferencesKey("ai_review_consent")
+        // Regenerable caches start with "cache_" and are left out of backups.
+        val aiReviewCache = stringPreferencesKey("cache_ai_review")
 
         // Secrets (never exported in backups): Keystore-encrypted blobs.
         val pinBlob = stringPreferencesKey("pin_blob")
@@ -99,6 +103,7 @@ class SettingsRepository @Inject constructor(
         Keys.sourcePriority.name to "s", Keys.autoBackup.name to "b", Keys.autoBackupUri.name to "s",
         Keys.autoBackupInterval.name to "i", Keys.autoBackupKeep.name to "i", Keys.autoBackupEncrypted.name to "b",
         Keys.lastAutoBackup.name to "l", Keys.reportPhotos.name to "b", Keys.geminiModel.name to "s",
+        Keys.hiddenInsights.name to "s",
     )
 
     val settings: Flow<UserSettings> = store.data.map { it.toSettings() }
@@ -142,6 +147,8 @@ class SettingsRepository @Inject constructor(
             lastAutoBackupMillis = this[Keys.lastAutoBackup],
             includePhotosInReports = this[Keys.reportPhotos] ?: d.includePhotosInReports,
             geminiModel = this[Keys.geminiModel] ?: d.geminiModel,
+            hiddenInsights = this[Keys.hiddenInsights]?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet() ?: d.hiddenInsights,
+            aiReviewConsent = this[Keys.aiReviewConsent] ?: d.aiReviewConsent,
         )
     }
 
@@ -220,6 +227,20 @@ class SettingsRepository @Inject constructor(
     suspend fun setLastAutoBackup(millis: Long) = edit { it[Keys.lastAutoBackup] = millis }
     suspend fun setIncludePhotosInReports(enabled: Boolean) = edit { it[Keys.reportPhotos] = enabled }
 
+    suspend fun setInsightHidden(id: String, hidden: Boolean) = edit {
+        val current = it[Keys.hiddenInsights]?.split(',')?.filter { s -> s.isNotBlank() }?.toSet().orEmpty()
+        val next = if (hidden) current + id else current - id
+        if (next.isEmpty()) it.remove(Keys.hiddenInsights) else it[Keys.hiddenInsights] = next.sorted().joinToString(",")
+    }
+
+    suspend fun setAiReviewConsent(consent: Boolean) = edit {
+        it[Keys.aiReviewConsent] = consent
+        if (!consent) it.remove(Keys.aiReviewCache)
+    }
+
+    val aiReviewCache: Flow<String?> = store.data.map { it[Keys.aiReviewCache] }
+    suspend fun setAiReviewCache(json: String?) = edit { it.setOrRemove(Keys.aiReviewCache, json) }
+
     // Secrets
     suspend fun geminiKeyBlob(): String? = store.data.first()[Keys.geminiKeyBlob]
     val hasGeminiKey: Flow<Boolean> = store.data.map { !it[Keys.geminiKeyBlob].isNullOrBlank() }
@@ -282,7 +303,8 @@ class SettingsRepository @Inject constructor(
     /** Exports non-secret preferences for backups. */
     suspend fun exportForBackup(): JsonObject {
         val prefs = store.data.first().asMap()
-        val map = prefs.filterKeys { it.name !in secretKeys && !it.name.startsWith("token_") && !it.name.startsWith("sync_") }
+        val map = prefs.filterKeys { it.name !in secretKeys && !it.name.startsWith("token_") && !it.name.startsWith("sync_") &&
+            !it.name.startsWith("cache_") }
             .mapNotNull { (key, value) ->
                 val element = when (value) {
                     is Boolean -> JsonPrimitive(value)
