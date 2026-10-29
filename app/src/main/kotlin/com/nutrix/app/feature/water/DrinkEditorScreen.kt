@@ -72,6 +72,7 @@ fun DrinkEditorScreen(
     val closed by viewModel.closed.collectAsStateWithLifecycle()
     val camera by photoResults.cameraPhoto.collectAsStateWithLifecycle()
     val loaded by viewModel.loaded.collectAsStateWithLifecycle()
+    val busy by viewModel.busy.collectAsStateWithLifecycle()
     val colors = LocalCategoryColors.current
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     var allVolumes by rememberSaveable { mutableStateOf(false) }
@@ -87,7 +88,7 @@ fun DrinkEditorScreen(
             if (form.id != 0L) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete)) }
         },
         bottomBar = {
-            NutrixBottomAction(stringResource(R.string.action_save), viewModel::save, enabled = loaded && form.volume != null)
+            NutrixBottomAction(stringResource(R.string.action_save), viewModel::save, enabled = loaded && form.volume != null, loading = busy)
         },
     ) { padding ->
         ScreenList(padding, bottomExtra = 24.dp) {

@@ -52,4 +52,8 @@ object AppActions {
     const val ADD_WEIGHT = "add_weight"
     const val ADD_SYMPTOM = "add_symptom"
     const val OPEN_TODAY = "open_today"
+    private const val OPEN_MEAL = "open_meal:"
+
+    fun openMeal(id: Long) = OPEN_MEAL + id
+    fun mealId(action: String): Long? = action.takeIf { it.startsWith(OPEN_MEAL) }?.removePrefix(OPEN_MEAL)?.toLongOrNull()
 }

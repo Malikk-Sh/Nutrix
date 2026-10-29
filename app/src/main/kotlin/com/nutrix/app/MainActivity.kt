@@ -25,12 +25,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.activity.viewModels
+import com.nutrix.app.core.datastore.ReminderType
 import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.datastore.UserSettings
 import com.nutrix.app.core.security.AppLockManager
@@ -43,6 +45,8 @@ import com.nutrix.app.data.repository.UserMessages
 import com.nutrix.app.feature.lock.LockScreen
 import com.nutrix.app.navigation.AppActions
 import com.nutrix.app.navigation.NutrixNavHost
+import com.nutrix.app.reminders.ReminderFeedback
+import com.nutrix.app.reminders.ReminderNotifier
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +62,7 @@ class RootViewModel @Inject constructor(
     val lock: AppLockManager,
     val undo: UndoManager,
     val messages: UserMessages,
+    val reminderFeedback: ReminderFeedback,
 ) : ViewModel() {
     val settings: StateFlow<UserSettings?> = settings.settings.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val pendingAction = MutableStateFlow<String?>(null)
@@ -95,6 +100,15 @@ class MainActivity : FragmentActivity() {
     private fun handleIntent(intent: Intent?) {
         intent?.getStringExtra(AppActions.EXTRA_ACTION)?.let { rootViewModel.pendingAction.value = it }
         intent?.removeExtra(AppActions.EXTRA_ACTION)
+        // Opening a reminder answers it, so it is not quieted for being ignored. Action buttons do not
+        // auto-cancel, so the notification is removed here too.
+        intent?.getStringExtra(ReminderNotifier.EXTRA_REMINDER)
+            ?.let { name -> ReminderType.entries.firstOrNull { it.name == name } }
+            ?.let { type ->
+                NotificationManagerCompat.from(this).cancel(ReminderNotifier.notificationId(type))
+                rootViewModel.reminderFeedback.opened(type)
+            }
+        intent?.removeExtra(ReminderNotifier.EXTRA_REMINDER)
     }
 }
 

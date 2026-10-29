@@ -4,7 +4,9 @@ import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.model.DataSource
 import com.nutrix.app.core.time.TimeUtils
 import com.nutrix.app.domain.AnalyticsInput
+import com.nutrix.app.domain.insights.DataCoverage
 import com.nutrix.app.domain.insights.Insight
+import com.nutrix.app.domain.insights.WeeklyOverview
 import com.nutrix.app.domain.insights.InsightEngine
 import com.nutrix.app.domain.insights.InsightInput
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +22,15 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /** Observations over [from]..[to] (completed days). [hidden] are the ones the user chose not to see. */
-data class InsightReport(val from: Long, val to: Long, val all: List<Insight>, val hidden: Set<String>) {
+data class InsightReport(
+    val from: Long,
+    val to: Long,
+    val all: List<Insight>,
+    val hidden: Set<String>,
+    val coverage: DataCoverage = DataCoverage(0, 0, 0, 0, 0, 0, 0, 0),
+    val hasWaterGoal: Boolean = false,
+) {
+    val overview: WeeklyOverview get() = WeeklyOverview.build(visible, coverage, hasWaterGoal)
     val visible: List<Insight> get() = all.filterNot { it.id in hidden }
     val hiddenCount: Int get() = all.count { it.id in hidden }
 }
@@ -63,6 +73,6 @@ class InsightRepository @Inject constructor(
             notes = notes.getRange(window.first, window.last),
         )
         val insights = InsightEngine.analyze(InsightInput(records, s.waterGoalMl, s.targetWeightKg))
-        InsightReport(window.first, window.last, insights, hidden)
+        InsightReport(window.first, window.last, insights, hidden, DataCoverage.of(records), s.waterGoalMl != null)
     }
 }

@@ -68,6 +68,7 @@ import java.time.LocalDate
 fun InsightsScreen(onBack: () -> Unit, onOpenGeminiSettings: () -> Unit, viewModel: InsightsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var consentDialog by rememberSaveable { mutableStateOf(false) }
+    var paidDialog by rememberSaveable { mutableStateOf(false) }
     var showHidden by rememberSaveable { mutableStateOf(false) }
     val report = state.report
     val entrance = rememberEntranceState(ready = report != null)
@@ -87,10 +88,12 @@ fun InsightsScreen(onBack: () -> Unit, onOpenGeminiSettings: () -> Unit, viewMod
                 item(key = "loading") { CircularProgressIndicator(Modifier.padding(16.dp)) }
                 return@ScreenList
             }
+            item(key = "overview") { OverviewCard(report, state.unit, Modifier.entrance(entrance, 1)) }
             item(key = "review") {
-                ReviewCard(state, Modifier.entrance(entrance, 1),
+                ReviewCard(state, Modifier.entrance(entrance, 2),
                     onReview = { if (state.consent) viewModel.review() else consentDialog = true },
-                    onCancel = viewModel::cancelReview, onRevoke = viewModel::revokeConsent, onSettings = onOpenGeminiSettings)
+                    onCancel = viewModel::cancelReview, onRevoke = viewModel::revokeConsent, onSettings = onOpenGeminiSettings,
+                    onPaid = { paidDialog = true }, onNotPaid = { viewModel.setPaidProject(false) })
             }
             val visible = report.visible
             if (visible.isEmpty()) {
@@ -98,7 +101,7 @@ fun InsightsScreen(onBack: () -> Unit, onOpenGeminiSettings: () -> Unit, viewMod
             }
             visible.forEachIndexed { index, insight ->
                 item(key = insight.id) {
-                    InsightCard(insight, state.unit, Modifier.animateItem().entrance(entrance, index + 2),
+                    InsightCard(insight, state.unit, Modifier.animateItem().entrance(entrance, index + 3),
                         action = { TextButton(onClick = { viewModel.setHidden(insight.id, true) }) { Text(stringResource(R.string.insights_hide)) } })
                 }
             }
@@ -118,6 +121,15 @@ fun InsightsScreen(onBack: () -> Unit, onOpenGeminiSettings: () -> Unit, viewMod
                 }
             }
         }
+    }
+    if (paidDialog) {
+        AlertDialog(
+            onDismissRequest = { paidDialog = false },
+            title = { Text(stringResource(R.string.ai_review_paid_title)) },
+            text = { Text(stringResource(R.string.ai_review_paid_text), modifier = Modifier.verticalScroll(rememberScrollState())) },
+            confirmButton = { TextButton(onClick = { paidDialog = false; viewModel.setPaidProject(true) }) { Text(stringResource(R.string.ai_review_paid_confirm)) } },
+            dismissButton = { TextButton(onClick = { paidDialog = false }) { Text(stringResource(R.string.action_cancel)) } },
+        )
     }
     if (consentDialog) {
         ConsentDialog(state.payloadPreview, onDismiss = { consentDialog = false }, onAccept = {
@@ -160,11 +172,18 @@ fun InsightCard(insight: Insight, unit: WeightUnit, modifier: Modifier = Modifie
 }
 
 @Composable
-private fun ReviewCard(state: InsightsUiState, modifier: Modifier, onReview: () -> Unit, onCancel: () -> Unit, onRevoke: () -> Unit, onSettings: () -> Unit) {
+private fun ReviewCard(state: InsightsUiState, modifier: Modifier, onReview: () -> Unit, onCancel: () -> Unit, onRevoke: () -> Unit,
+    onSettings: () -> Unit, onPaid: () -> Unit, onNotPaid: () -> Unit) {
     val primary = MaterialTheme.colorScheme.primary
     NutrixCard(modifier = modifier.animateContentSize().testTag("insight-review")) {
         CardHeader(Icons.Rounded.AutoAwesome, stringResource(R.string.ai_review_title), primary)
         Spacer(Modifier.height(8.dp))
+        if (!state.paidProject) {
+            Text(stringResource(R.string.ai_review_unpaid), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag("insight-review-unpaid"))
+            if (state.hasKey) TextButton(onClick = onPaid) { Text(stringResource(R.string.ai_review_paid_action)) }
+            return@NutrixCard
+        }
         val review = state.review
         when {
             state.reviewing -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -201,10 +220,9 @@ private fun ReviewCard(state: InsightsUiState, modifier: Modifier, onReview: () 
                         color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
                 }
             }
-            if (state.consent) {
-                FlowRow {
-                    TextButton(onClick = onRevoke) { Text(stringResource(R.string.ai_review_revoke)) }
-                }
+            FlowRow {
+                if (state.consent) TextButton(onClick = onRevoke) { Text(stringResource(R.string.ai_review_revoke)) }
+                TextButton(onClick = onNotPaid) { Text(stringResource(R.string.ai_review_paid_revoke)) }
             }
         }
     }
@@ -271,3 +289,55 @@ fun InsightTeaser(insight: Insight, unit: WeightUnit, onOpen: () -> Unit, modifi
         }
     }
 }
+
+/** Offline weekly overview: notable observations, the main data limitation and one diary step. */
+@Composable
+private fun OverviewCard(report: com.nutrix.app.data.repository.InsightReport, unit: WeightUnit, modifier: Modifier) {
+    val overview = report.overview
+    val primary = MaterialTheme.colorScheme.primary
+    NutrixCard(modifier = modifier.testTag("insight-overview")) {
+        CardHeader(Icons.Rounded.Insights, stringResource(R.string.overview_title), primary)
+        Text(stringResource(R.string.overview_offline), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp))
+        Spacer(Modifier.height(10.dp))
+        Text(stringResource(R.string.overview_highlights), style = MaterialTheme.typography.titleSmall)
+        if (overview.highlights.isEmpty()) {
+            Text(stringResource(R.string.overview_none), style = MaterialTheme.typography.bodySmall)
+        }
+        overview.highlights.forEach { insight ->
+            val text = insightText(insight, unit)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                Icon(topicIcon(insight.topic), null, tint = topicColor(insight.topic), modifier = Modifier.size(18.dp).padding(top = 2.dp))
+                Text(text.title + ": " + text.lines.first().replaceFirstChar { it.lowercase() }, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(stringResource(R.string.overview_limitation), style = MaterialTheme.typography.titleSmall)
+        Text(limitationText(overview.limitation), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+        Spacer(Modifier.height(10.dp))
+        Text(stringResource(R.string.overview_action), style = MaterialTheme.typography.titleSmall)
+        Text(actionText(overview.action), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+@Composable
+private fun limitationText(limitation: com.nutrix.app.domain.insights.DataLimitation): String {
+    @Composable fun ofDays(count: Int) = androidx.compose.ui.res.pluralStringResource(R.plurals.insights_of_days, count, count)
+    return when (limitation) {
+        is com.nutrix.app.domain.insights.DataLimitation.FewMealDays -> stringResource(R.string.limit_few_meals, limitation.days, ofDays(limitation.of))
+        com.nutrix.app.domain.insights.DataLimitation.NoSleep -> stringResource(R.string.limit_no_sleep)
+        is com.nutrix.app.domain.insights.DataLimitation.FewEstimates -> stringResource(R.string.limit_few_estimates, limitation.days, ofDays(limitation.of))
+        is com.nutrix.app.domain.insights.DataLimitation.FewRatedMeals -> stringResource(R.string.limit_few_rated, limitation.rated, limitation.of)
+        com.nutrix.app.domain.insights.DataLimitation.OnlyRecorded -> stringResource(R.string.limit_only_recorded)
+    }
+}
+
+@Composable
+private fun actionText(action: com.nutrix.app.domain.insights.DiaryAction): String = stringResource(when (action) {
+    com.nutrix.app.domain.insights.DiaryAction.KEEP_RECORDING -> R.string.action_keep_recording
+    com.nutrix.app.domain.insights.DiaryAction.LOG_MEALS -> R.string.action_log_meals
+    com.nutrix.app.domain.insights.DiaryAction.ADD_SLEEP -> R.string.action_add_sleep
+    com.nutrix.app.domain.insights.DiaryAction.RATE_MEALS -> R.string.action_rate_meals
+    com.nutrix.app.domain.insights.DiaryAction.ESTIMATE_MEALS -> R.string.action_estimate_meals
+    com.nutrix.app.domain.insights.DiaryAction.SET_WATER_GUIDELINE -> R.string.action_set_water_guideline
+})

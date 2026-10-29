@@ -17,6 +17,7 @@ import com.nutrix.app.data.repository.DataChangeNotifier
 import com.nutrix.app.data.repository.DrinkRepository
 import com.nutrix.app.data.repository.MealRepository
 import com.nutrix.app.integration.sync.HealthSyncCoordinator
+import com.nutrix.app.reminders.AfterMealCheckIn
 import com.nutrix.app.reminders.NotificationChannels
 import com.nutrix.app.reminders.ReminderScheduler
 import com.nutrix.app.widget.WidgetUpdater
@@ -38,6 +39,7 @@ class AppStartup @Inject constructor(
     private val lockManager: AppLockManager,
     private val settings: SettingsRepository,
     private val reminders: ReminderScheduler,
+    private val afterMeal: AfterMealCheckIn,
     private val sync: HealthSyncCoordinator,
     private val autoBackup: AutoBackupScheduler,
     private val notifier: DataChangeNotifier,
@@ -55,6 +57,7 @@ class AppStartup @Inject constructor(
         scope.launch {
             notifier.changes.debounce(800).collect { WidgetUpdater.updateAll(context) }
         }
+        scope.launch { afterMeal.watch() }
     }
 }
 

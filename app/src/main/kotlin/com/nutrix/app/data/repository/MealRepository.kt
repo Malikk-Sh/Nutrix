@@ -1,6 +1,7 @@
 package com.nutrix.app.data.repository
 
 import com.nutrix.app.core.DataOperationGate
+import com.nutrix.app.core.model.AfterMealFeeling
 import com.nutrix.app.core.photo.PhotoStorage
 import com.nutrix.app.database.entity.WeightEntity
 import kotlinx.coroutines.NonCancellable
@@ -127,6 +128,17 @@ class MealRepository @Inject constructor(
             dao.insertPhotos(snapshot.photos)
         }
         notifier.notifyChanged()
+    }
+
+    /** Quick answer from the after-meal question: fills only a meal that has no feeling yet. */
+    suspend fun markFeelingNormal(id: Long): Boolean = gate.exclusive {
+        withContext(NonCancellable) {
+            val meal = dao.get(id)?.meal ?: return@withContext false
+            if (meal.feelings.isNotEmpty()) return@withContext false
+            dao.update(meal.copy(feelings = listOf(AfterMealFeeling.NORMAL), updatedAt = System.currentTimeMillis()))
+            notifier.notifyChanged()
+            true
+        }
     }
 
     /** Final clean-up once undo is no longer possible. */
