@@ -93,6 +93,7 @@ import com.nutrix.app.feature.food.CropScreen
 import com.nutrix.app.feature.food.FavoritesScreen
 import com.nutrix.app.feature.food.FoodDiaryScreen
 import com.nutrix.app.feature.food.FoodEditorScreen
+import com.nutrix.app.feature.insights.InsightsScreen
 import com.nutrix.app.feature.notes.NoteEditorScreen
 import com.nutrix.app.feature.reports.ReportsScreen
 import com.nutrix.app.feature.search.SearchScreen
@@ -243,13 +244,17 @@ fun NutrixNavHost(
                                 onSymptoms = { add -> nav.navigate(SymptomsRoute(openAdd = add)) },
                                 onTimeline = nav::openTarget,
                                 onOpenToday = { nav.navigate(DayRoute(TimeUtils.todayEpochDay())) },
+                                onInsights = { nav.navigate(InsightsRoute) },
                             ),
                         )
                     }
                     composable<CalendarRoute> {
                         CalendarScreen(bottomPadding, onOpenDay = { nav.navigate(DayRoute(it)) }, onTarget = nav::openTarget)
                     }
-                    composable<AnalyticsRoute> { AnalyticsScreen(bottomPadding) }
+                    composable<AnalyticsRoute> { AnalyticsScreen(bottomPadding, onOpenInsights = { nav.navigate(InsightsRoute) }) }
+                    composable<InsightsRoute> {
+                        InsightsScreen(onBack = nav::popBackStack, onOpenGeminiSettings = { nav.navigate(GeminiSettingsRoute) })
+                    }
                     composable<ProfileRoute> {
                         ProfileScreen(
                             bottomPadding,

@@ -71,7 +71,7 @@
 
     <string name="about_title">О приложении</string>
     <string name="about_version">Версия %1$s</string>
-    <string name="about_offline">Дневник работает без интернета и регистрации. Распознавание еды Gemini использует интернет только по вашей команде. Нет рекламы, аналитики и трекеров.</string>
+    <string name="about_offline">Дневник работает без интернета и регистрации. Распознавание еды и разбор недели Gemini используют интернет только по вашей команде. Нет рекламы, аналитики и трекеров.</string>
     <string name="about_samsung_sdk">Samsung Health Data SDK: %1$s</string>
     <string name="about_sdk_bundled">включён в сборку</string>
     <string name="about_sdk_missing">не включён в сборку</string>

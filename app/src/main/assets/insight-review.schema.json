@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "properties": {
+    "summary": { "type": "string", "description": "2-3 short sentences in Russian." },
+    "points": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "properties": {
+          "insightId": { "type": "string", "description": "id of the observation this point explains" },
+          "text": { "type": "string", "description": "One or two sentences in Russian." }
+        },
+        "required": ["insightId", "text"]
+      }
+    },
+    "suggestions": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "properties": {
+          "insightId": { "type": "string" },
+          "text": { "type": "string", "description": "A small routine step to try for 1-2 weeks, in Russian." }
+        },
+        "required": ["insightId", "text"]
+      }
+    }
+  },
+  "required": ["summary", "points", "suggestions"]
+}

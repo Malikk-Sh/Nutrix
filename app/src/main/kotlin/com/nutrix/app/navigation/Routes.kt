@@ -24,6 +24,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class SleepEditorRoute(val sleepId: Long = 0)
 @Serializable data class DayRoute(val epochDay: Long)
 @Serializable object SearchRoute
+@Serializable object InsightsRoute
 
 // Settings & tools
 @Serializable object ProfileEditRoute

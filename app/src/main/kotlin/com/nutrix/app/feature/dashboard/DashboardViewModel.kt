@@ -1,6 +1,9 @@
 package com.nutrix.app.feature.dashboard
 
 import androidx.lifecycle.ViewModel
+import com.nutrix.app.data.repository.InsightRepository
+import com.nutrix.app.domain.insights.Coverage
+import com.nutrix.app.domain.insights.Insight
 import androidx.lifecycle.viewModelScope
 import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.datastore.UserSettings
@@ -64,7 +67,12 @@ class DashboardViewModel @Inject constructor(
     private val timeline: TimelineRepository,
     private val settings: SettingsRepository,
     private val sync: HealthSyncCoordinator,
+    insights: InsightRepository,
 ) : ViewModel() {
+
+    /** The most relevant visible observation; the coverage hint is left to the insights screen. */
+    val topInsight: StateFlow<Insight?> = insights.reports.map { r -> r.visible.firstOrNull { it !is Coverage } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     /** Emits the current day and switches automatically after midnight. */
     private val today: Flow<Long> = flow {

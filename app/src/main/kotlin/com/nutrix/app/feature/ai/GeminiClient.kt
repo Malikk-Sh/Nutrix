@@ -38,6 +38,14 @@ class GeminiClient internal constructor(
         return protocol.response(execute(key, Request.Builder().url(url).post(body)))
     }
 
+    /** Sends an already built generateContent request and returns the raw response body. */
+    suspend fun generate(key: String, model: String, request: JsonObject): String {
+        if (!GeminiProtocol.validModel(model)) throw FoodAiException(FoodAiError.MODEL_UNAVAILABLE)
+        val url = baseUrl.newBuilder().addPathSegments("v1beta/models").addPathSegment("$model:generateContent").build()
+        val body = request.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+        return execute(key, Request.Builder().url(url).post(body))
+    }
+
     /** Listing models validates credentials without sending a photo or generating paid content. */
     suspend fun models(key: String): List<String> {
         val names = mutableSetOf<String>()
