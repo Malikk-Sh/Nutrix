@@ -122,7 +122,7 @@ fun NoteEditorScreen(onClose: () -> Unit, viewModel: NoteEditorViewModel = hiltV
                 NutrixCard {
                     DateTimeRow(form.date, form.time, { d -> viewModel.update { it.copy(date = d) } }, { t -> viewModel.update { it.copy(time = t) } })
                     Spacer(Modifier.height(12.dp))
-                    NutrixTextField(form.text, { v -> viewModel.update { it.copy(text = v) } }, stringResource(R.string.label_note), placeholder = stringResource(R.string.note_text_hint), singleLine = false, minLines = 6)
+                    NutrixTextField(form.text, { v -> viewModel.update { it.copy(text = v) } }, stringResource(R.string.label_note), placeholder = stringResource(R.string.note_text_hint), singleLine = false, minLines = 14)
                 }
             }
         }

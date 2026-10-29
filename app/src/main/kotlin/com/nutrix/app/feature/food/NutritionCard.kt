@@ -58,16 +58,15 @@ fun NutritionCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onEs
             fields.indices.forEach { field(it, Modifier.fillMaxWidth()) }
         }
         if (viewModel.isNutritionInvalid()) Text(stringResource(R.string.ai_invalid_macros), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-        if (state.calorieEstimatesEnabled) TextButton(onClick = { if (!viewModel.estimateCalories()) onEstimateFailed() }) {
-            Text(stringResource(R.string.food_kcal_estimate))
+        val hasTable = listOf(form.proteinText, form.fatText, form.carbsText).any(String::isNotBlank) || form.nutritionInfo != null
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (state.calorieEstimatesEnabled) TextButton(onClick = { if (!viewModel.estimateCalories()) onEstimateFailed() }) { Text(stringResource(R.string.food_kcal_estimate)) }
+            if (hasTable) TextButton(onClick = { showTable = !showTable }) { Text(stringResource(R.string.ai_per100)) }
         }
-        if (listOf(form.proteinText, form.fatText, form.carbsText).any(String::isNotBlank) || form.nutritionInfo != null) {
-            TextButton(onClick = { showTable = !showTable }) { Text(stringResource(R.string.ai_per100)) }
-            AnimatedVisibility(showTable) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    NutritionTable(form.kcalText.toDoubleOrNull(), Units.parseDecimal(form.proteinText), Units.parseDecimal(form.fatText), Units.parseDecimal(form.carbsText), form.gramsText.toDoubleOrNull())
-                    form.nutritionInfo?.uncertainty?.takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                }
+        AnimatedVisibility(showTable && hasTable) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                NutritionTable(form.kcalText.toDoubleOrNull(), Units.parseDecimal(form.proteinText), Units.parseDecimal(form.fatText), Units.parseDecimal(form.carbsText), form.gramsText.toDoubleOrNull())
+                form.nutritionInfo?.uncertainty?.takeIf(String::isNotBlank)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             }
         }
     }

@@ -53,6 +53,7 @@ import com.nutrix.app.R
 import com.nutrix.app.core.model.DataSource
 import com.nutrix.app.core.time.Formatters
 import com.nutrix.app.core.ui.components.CardHeader
+import com.nutrix.app.core.ui.components.InfoDisclosure
 import com.nutrix.app.core.ui.components.InfoBanner
 import com.nutrix.app.core.ui.components.NutrixCard
 import com.nutrix.app.core.ui.components.NutrixScreen
@@ -89,7 +90,7 @@ fun IntegrationsScreen(onBack: () -> Unit, viewModel: IntegrationsViewModel = hi
 
     NutrixScreen(title = stringResource(R.string.integrations_title), onBack = onBack) { padding ->
         ScreenList(padding) {
-            item { InfoBanner(stringResource(R.string.integrations_intro), Icons.Rounded.Shield, tint = colors.weight) }
+            item { InfoDisclosure(stringResource(R.string.alignment_source_privacy), stringResource(R.string.integrations_intro), Icons.Rounded.Shield, tint = colors.weight) }
 
             // ---------- Health Connect ----------
             item(key = "hc") {

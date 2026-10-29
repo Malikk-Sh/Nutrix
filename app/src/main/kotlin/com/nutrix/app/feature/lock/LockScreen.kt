@@ -2,6 +2,9 @@ package com.nutrix.app.feature.lock
 
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -125,9 +128,7 @@ fun LockScreen(lockManager: AppLockManager, biometricEnabled: Boolean) {
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(Modifier.size(72.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.Lock, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp))
-            }
+            Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(88.dp))
             Spacer(Modifier.height(16.dp))
             Text(stringResource(R.string.lock_title), style = MaterialTheme.typography.titleLarge)
             Text(stringResource(R.string.lock_enter_pin), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -163,6 +164,7 @@ fun LockScreen(lockManager: AppLockManager, biometricEnabled: Boolean) {
                                         if (pin.length < 8) pin += key
                                     },
                                     shape = CircleShape,
+                                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh, contentColor = MaterialTheme.colorScheme.onSurface),
                                     modifier = Modifier.size(64.dp),
                                 ) { Text(key, style = MaterialTheme.typography.titleLarge) }
                             }

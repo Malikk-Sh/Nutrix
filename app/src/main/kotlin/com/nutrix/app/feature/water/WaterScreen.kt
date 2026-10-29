@@ -1,6 +1,13 @@
 package com.nutrix.app.feature.water
 
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import com.nutrix.app.core.ui.components.ProgressBar
+import com.nutrix.app.core.ui.components.InfoDisclosure
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -81,6 +88,7 @@ fun WaterScreen(
     val quickType by viewModel.quickType.collectAsStateWithLifecycle()
     val colors = LocalCategoryColors.current
     val haptic = LocalHapticFeedback.current
+    var typeMenu by remember { mutableStateOf(false) }
     var goalDialog by rememberSaveable { mutableStateOf(false) }
     var volumesDialog by rememberSaveable { mutableStateOf(false) }
     var templateDialog by remember { mutableStateOf<DrinkTemplateEntity?>(null) }
@@ -100,53 +108,48 @@ fun WaterScreen(
         ScreenList(padding) {
             item(key = "summary") {
                 NutrixCard {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val goal = state.goalMl
-                        ProgressRing(
-                            fraction = if (goal != null && goal > 0) state.totalMl / goal.toFloat() else 0f,
-                            color = colors.water,
-                            size = 96.dp,
-                            stroke = 10.dp,
-                        ) {
-                            Icon(Icons.Rounded.WaterDrop, null, tint = colors.water, modifier = Modifier.size(30.dp))
-                        }
-                        Spacer(Modifier.width(18.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        IconBadge(Icons.Rounded.WaterDrop, colors.water, size = 44.dp)
                         Column(Modifier.weight(1f)) {
                             Text(stringResource(R.string.water_today), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("${Formatters.integer(state.totalMl.toLong())} ${stringResource(R.string.unit_ml)}", style = MetricTextStyle)
-                            if (goal != null) {
-                                Text(stringResource(R.string.water_of_goal, Formatters.integer(goal.toLong())), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            TextButton(onClick = { goalDialog = true }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-                                Text(stringResource(if (goal == null) R.string.water_set_goal else R.string.water_goal_title))
-                            }
+                            state.goalMl?.let { Text(stringResource(R.string.water_of_goal, Formatters.integer(it.toLong())), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
+                        IconButton(onClick = { goalDialog = true }) { Icon(Icons.Rounded.Tune, stringResource(R.string.water_goal_title)) }
                     }
-                    Spacer(Modifier.height(12.dp))
+                    state.goalMl?.let { goal ->
+                        Spacer(Modifier.height(12.dp))
+                        ProgressBar(state.totalMl / goal.toFloat(), colors.water, Modifier.fillMaxWidth().height(8.dp))
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.water_quick), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                        Box {
+                            TextButton(onClick = { typeMenu = true }) { Text(stringResource(quickType.labelRes) + " ▾") }
+                            DropdownMenu(typeMenu, onDismissRequest = { typeMenu = false }) {
+                                DrinkType.entries.forEach { type -> DropdownMenuItem(text = { Text(stringResource(type.labelRes)) },
+                                    onClick = { viewModel.quickType.value = type; typeMenu = false }) }
+                            }
+                        }
                         IconButton(onClick = { volumesDialog = true }) { Icon(Icons.Rounded.Tune, stringResource(R.string.water_quick_edit)) }
                     }
-                    ChoiceChips(
-                        options = DrinkType.entries,
-                        selected = quickType,
-                        label = { stringResource(it.labelRes) },
-                        onSelect = { t -> if (t != null) viewModel.quickType.value = t },
-                        allowDeselect = false,
-                        accent = colors.water,
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         state.quickVolumes.forEach { v ->
                             FilledTonalButton(onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 viewModel.quickAdd(v)
-                            }) { Text("+$v ${stringResource(R.string.unit_ml)}") }
+                            }, shape = MaterialTheme.shapes.small,
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = colors.water.copy(alpha = 0.12f), contentColor = colors.water),
+                                contentPadding = PaddingValues(horizontal = 10.dp)) { Text("+$v ${stringResource(R.string.unit_ml)}", style = MaterialTheme.typography.labelMedium) }
                         }
                     }
-                    Spacer(Modifier.height(10.dp))
-                    InfoBanner(stringResource(R.string.water_all_fluids_note), Icons.Rounded.Info, tint = colors.water)
                 }
+            }
+            item(key = "today-h") { SectionHeader(stringResource(R.string.water_today_list)) }
+            if (state.todayDrinks.isEmpty()) {
+                item { EmptyState(Icons.Rounded.WaterDrop, stringResource(R.string.water_empty), null) }
+            }
+            items(state.todayDrinks, key = { it.id }) { drink ->
+                DrinkRow(drink, onClick = { onOpenDrink(drink.id) }, onDelete = { viewModel.delete(drink) })
             }
 
             item(key = "templates") {
@@ -190,13 +193,7 @@ fun WaterScreen(
                 }
             }
 
-            item(key = "today-h") { SectionHeader(stringResource(R.string.water_today_list)) }
-            if (state.todayDrinks.isEmpty()) {
-                item { EmptyState(Icons.Rounded.WaterDrop, stringResource(R.string.water_empty), null) }
-            }
-            items(state.todayDrinks, key = { it.id }) { drink ->
-                DrinkRow(drink, onClick = { onOpenDrink(drink.id) }, onDelete = { viewModel.delete(drink) })
-            }
+            item { InfoDisclosure(stringResource(R.string.alignment_fluid_note), stringResource(R.string.water_all_fluids_note), Icons.Rounded.Info, tint = colors.water) }
         }
     }
 

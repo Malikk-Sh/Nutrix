@@ -39,7 +39,7 @@ fun QuickAddFab(expanded: Boolean, onExpandedChange: (Boolean) -> Unit, onAction
         onClick = { focus.clearFocus(); keyboard?.hide(); haptic.performHapticFeedback(HapticFeedbackType.LongPress); onExpandedChange(!expanded) },
         containerColor = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
-        shape = MaterialTheme.shapes.large,
+        shape = androidx.compose.foundation.shape.CircleShape,
     ) { Icon(Icons.Rounded.Add, stringResource(R.string.quick_add)) }
     if (expanded) {
         ModalBottomSheet(
@@ -49,7 +49,7 @@ fun QuickAddFab(expanded: Boolean, onExpandedChange: (Boolean) -> Unit, onAction
         ) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 20.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.quick_add_title), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.quick_add_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                     IconButton(onClick = { onExpandedChange(false) }) { Icon(Icons.Rounded.Close, stringResource(R.string.action_close)) }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -70,9 +70,9 @@ private fun QuickItem(action: QuickAction, title: String, hint: String, icon: Im
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = MaterialTheme.shapes.medium,
     ) {
-        Row(Modifier.testTag("quick-action-" + action.name).clickable(role = Role.Button) { onAction(action) }.padding(14.dp),
+        Row(Modifier.testTag("quick-action-" + action.name).clickable(role = Role.Button) { onAction(action) }.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            IconBadge(icon, tint, 42.dp)
+            IconBadge(icon, tint, 36.dp)
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleMedium)
                 Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

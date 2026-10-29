@@ -6,6 +6,8 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -28,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,6 +52,13 @@ import com.nutrix.app.core.datastore.UserSettings
 import com.nutrix.app.core.time.AppLocale
 import com.nutrix.app.core.time.Formatters
 import com.nutrix.app.core.time.TimeUtils
+import com.nutrix.app.core.ui.components.InfoDisclosure
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.padding
+import com.nutrix.app.core.ui.components.IconBadge
+import com.nutrix.app.core.ui.icons.*
+import com.nutrix.app.core.ui.theme.LocalCategoryColors
 import com.nutrix.app.core.ui.components.InfoBanner
 import com.nutrix.app.core.ui.components.NutrixCard
 import com.nutrix.app.core.ui.components.NutrixScreen
@@ -111,7 +121,7 @@ fun RemindersScreen(onBack: () -> Unit, viewModel: RemindersViewModel = hiltView
 
     NutrixScreen(title = stringResource(R.string.reminders_title), onBack = onBack) { padding ->
         ScreenList(padding) {
-            item { InfoBanner(stringResource(R.string.reminders_intro), Icons.Rounded.Info) }
+            item { InfoDisclosure(stringResource(R.string.alignment_reminders_details), stringResource(R.string.reminders_intro), Icons.Rounded.Info) }
             if (!permissionGranted) {
                 item {
                     NutrixCard {
@@ -216,15 +226,45 @@ private fun ReminderCard(
             ReminderType.MISSED_ENTRIES -> R.string.reminder_missed
         },
     )
+    var showEditor by rememberSaveable { mutableStateOf(false) }
     NutrixCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            val colors = LocalCategoryColors.current
+            val (icon, tint) = when (config.type) {
+                ReminderType.MEAL -> Icons.Rounded.Restaurant to colors.meal
+                ReminderType.WATER -> Icons.Rounded.WaterDrop to colors.water
+                ReminderType.WEIGHT -> Icons.Rounded.MonitorWeight to colors.weight
+                ReminderType.WELLBEING -> Icons.Rounded.Healing to colors.symptom
+                ReminderType.MISSED_ENTRIES -> Icons.Rounded.StickyNote2 to colors.note
+            }
+            IconBadge(icon, tint, size = 36.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                Text(if (!config.enabled) stringResource(R.string.alignment_disabled) else if (config.mode == ReminderMode.FIXED_TIMES)
+                    config.times.sorted().joinToString(" · ") { Formatters.time(TimeUtils.timeOfMinutes(it)) }
+                    else stringResource(R.string.reminder_every, Formatters.duration(config.intervalMinutes.toLong(), stringResource(R.string.unit_hour_short), stringResource(R.string.unit_minute_short))),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = { showEditor = true }) { Icon(Icons.Rounded.Tune, stringResource(R.string.alignment_configure) + ": " + title) }
             Switch(config.enabled, { onChange(config.copy(enabled = it)) })
         }
         if (config.type == ReminderType.MISSED_ENTRIES) {
             Text(stringResource(R.string.reminder_missed_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        AnimatedVisibility(config.enabled) {
+    }
+    if (showEditor) androidx.compose.material3.ModalBottomSheet(onDismissRequest = { showEditor = false },
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                IconButton(onClick = { showEditor = false }) { Icon(Icons.Rounded.Close, stringResource(R.string.action_close)) }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.alignment_configure), modifier = Modifier.weight(1f))
+                Switch(config.enabled, { onChange(config.copy(enabled = it)) })
+            }
+            if (config.enabled) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(config.mode == ReminderMode.FIXED_TIMES, { onChange(config.copy(mode = ReminderMode.FIXED_TIMES, times = config.times.ifEmpty { listOf(12 * 60) })) }, label = { Text(stringResource(R.string.reminder_mode_fixed)) })
@@ -281,6 +321,8 @@ private fun ReminderCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            }
+            Button(onClick = { showEditor = false }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Text(stringResource(R.string.action_done)) }
         }
     }
 }

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -43,6 +44,10 @@ import com.nutrix.app.AppRestarter
 import com.nutrix.app.R
 import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.time.Formatters
+import com.nutrix.app.core.ui.components.CardHeader
+import com.nutrix.app.core.ui.icons.Backup
+import androidx.compose.material.icons.rounded.Lock
+import com.nutrix.app.core.ui.components.InfoDisclosure
 import com.nutrix.app.core.ui.components.InfoBanner
 import com.nutrix.app.core.ui.components.NutrixCard
 import com.nutrix.app.core.ui.components.NutrixScreen
@@ -168,10 +173,10 @@ fun BackupScreen(onBack: () -> Unit, viewModel: BackupViewModel = hiltViewModel(
 
     NutrixScreen(title = stringResource(R.string.backup_title), onBack = onBack) { padding ->
         ScreenList(padding) {
-            item { InfoBanner(stringResource(R.string.backup_intro), Icons.Rounded.Info) }
+            item { InfoDisclosure(stringResource(R.string.alignment_backup_details), stringResource(R.string.backup_intro), Icons.Rounded.Info) }
             item {
                 NutrixCard {
-                    Text(stringResource(R.string.backup_create), style = MaterialTheme.typography.titleMedium)
+                    CardHeader(Icons.Rounded.Backup, stringResource(R.string.backup_create), MaterialTheme.colorScheme.primary)
                     Text(stringResource(R.string.backup_create_text), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
                     PasswordField(password, { password = it }, stringResource(R.string.backup_password))
@@ -184,18 +189,18 @@ fun BackupScreen(onBack: () -> Unit, viewModel: BackupViewModel = hiltViewModel(
                         onClick = {
                             createLauncher.launch("nutrix-backup-${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm"))}.zip")
                         },
-                        enabled = !mismatch && ui !is BackupUi.Working,
+                        enabled = !mismatch && ui !is BackupUi.Working, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium,
                     ) { Text(stringResource(R.string.backup_save)) }
                 }
             }
             item {
                 NutrixCard {
-                    Text(stringResource(R.string.restore_title), style = MaterialTheme.typography.titleMedium)
+                    CardHeader(Icons.Rounded.Backup, stringResource(R.string.restore_title), MaterialTheme.colorScheme.tertiary)
                     Text(stringResource(R.string.restore_text), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(onClick = {
                         openLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
-                    }, enabled = ui !is BackupUi.Working) { Text(stringResource(R.string.restore_pick)) }
+                    }, enabled = ui !is BackupUi.Working, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Text(stringResource(R.string.restore_pick)) }
                 }
             }
             s?.let { st ->

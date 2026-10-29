@@ -239,6 +239,8 @@ fun NutrixNavHost(
                             onOpenMeal = { nav.navigate(FoodEditorRoute(mealId = it)) },
                             onFavorites = { nav.navigate(FavoritesRoute) },
                             onSearch = { nav.navigate(SearchRoute) },
+                            onRepeat = { nav.navigate(FoodEditorRoute(repeatMealId = it)) },
+                            onAddSymptom = { nav.navigate(SymptomEditorRoute(mealId = it)) },
                         )
                     }
                     composable<FoodEditorRoute> { entry ->

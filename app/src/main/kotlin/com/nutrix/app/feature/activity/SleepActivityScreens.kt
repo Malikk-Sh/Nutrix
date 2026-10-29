@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import com.nutrix.app.domain.SleepTotals
@@ -32,6 +33,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -56,6 +58,7 @@ import com.nutrix.app.core.ui.components.ConfirmDialog
 import com.nutrix.app.core.ui.components.DateTimeRow
 import com.nutrix.app.core.ui.components.EmptyState
 import com.nutrix.app.core.ui.components.IconBadge
+import com.nutrix.app.core.ui.components.InfoDisclosure
 import com.nutrix.app.core.ui.components.InfoBanner
 import com.nutrix.app.core.ui.components.LabeledValue
 import com.nutrix.app.core.ui.components.MiniBars
@@ -145,6 +148,7 @@ fun SleepActivityScreen(
     NutrixScreen(
         title = stringResource(R.string.activity_title),
         onBack = onBack,
+        bottomBar = { NutrixBottomAction(stringResource(R.string.sleep_add), onAddSleep) },
         actions = {
             if (state.anySourceEnabled) {
                 if (syncing) CircularProgressIndicator(Modifier.size(24.dp).padding(2.dp))
@@ -156,7 +160,7 @@ fun SleepActivityScreen(
             if (!state.anySourceEnabled) {
                 item {
                     NutrixCard {
-                        Text(stringResource(R.string.activity_no_source), style = MaterialTheme.typography.bodyMedium)
+                        InfoDisclosure(stringResource(R.string.activity_connect), stringResource(R.string.activity_no_source), Icons.Rounded.Info)
                         TextButton(onClick = onOpenIntegrations) { Text(stringResource(R.string.activity_connect)) }
                     }
                 }
@@ -180,7 +184,18 @@ fun SleepActivityScreen(
                             val day = TimeUtils.todayEpochDay() - back
                             day to (state.sleepMinutes[day] ?: 0) / 60.0
                         }
+                        val day = state.sleeps.maxOf { it.localDate }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            IconBadge(Icons.Rounded.Bedtime, colors.sleep, size = 44.dp)
+                            Column {
+                                Text(stringResource(R.string.alignment_sleep_summary), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(Formatters.duration((state.sleepMinutes[day] ?: SleepTotals.minutes(state.sleeps.filter { it.localDate == day })).toLong(), h, m), style = MaterialTheme.typography.headlineMedium)
+                                Text(Formatters.dayMonthShort(LocalDate.ofEpochDay(day)), style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
                         MiniBars(
+                            height = 64.dp,
                             values = last14.map { it.second },
                             labels = last14.map { Formatters.dayMonthShort(LocalDate.ofEpochDay(it.first)) },
                             color = colors.sleep,
@@ -188,7 +203,6 @@ fun SleepActivityScreen(
                         )
                     }
                 }
-                items(state.sleeps.take(14), key = { "sleep-${it.id}" }) { s -> SleepRow(s, onClick = { onOpenSleep(s.id) }) }
             }
 
             if (state.anySourceEnabled) {
@@ -261,6 +275,11 @@ fun SleepActivityScreen(
                 }
                 items(state.exercises, key = { "ex-${it.id}" }) { ex -> ExerciseRow(ex) }
             }
+            if (state.sleeps.isNotEmpty()) {
+                item { SectionHeader(stringResource(R.string.alignment_sleep_history)) }
+                items(state.sleeps.take(14), key = { "sleep-${it.id}" }) { s -> SleepRow(s, onClick = { onOpenSleep(s.id) }) }
+            }
+
         }
     }
 }
@@ -276,10 +295,11 @@ fun sourceLabel(source: DataSource, app: String?): String {
 
 @Composable
 fun SleepRow(s: SleepEntity, onClick: () -> Unit) {
+    var showSource by remember { mutableStateOf(false) }
     val colors = LocalCategoryColors.current
     val h = stringResource(R.string.unit_hour_short)
     val m = stringResource(R.string.unit_minute_short)
-    NutrixCard(onClick = if (s.source == DataSource.MANUAL) onClick else null, contentPadding = 12.dp) {
+    NutrixCard(onClick = { if (s.source == DataSource.MANUAL) onClick() else showSource = true }, contentPadding = 12.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBadge(Icons.Rounded.Bedtime, colors.sleep, size = 40.dp)
             Spacer(Modifier.width(12.dp))
@@ -294,6 +314,23 @@ fun SleepRow(s: SleepEntity, onClick: () -> Unit) {
             Pill(sourceLabel(s.source, s.sourceApp), if (s.source == DataSource.MANUAL) colors.sleep else colors.activity)
         }
     }
+    if (showSource) androidx.compose.material3.ModalBottomSheet(onDismissRequest = { showSource = false },
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text(Formatters.duration(s.durationMinutes.toLong(), h, m), style = MaterialTheme.typography.headlineMedium)
+            Text(Formatters.dateTime(s.startMillis, s.zoneId) + " — " + Formatters.dateTime(s.endMillis, s.zoneId), style = MaterialTheme.typography.bodyMedium)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                IconBadge(Icons.Rounded.Bedtime, colors.sleep, size = 44.dp)
+                Column {
+                    Text(stringResource(R.string.label_source), style = MaterialTheme.typography.labelMedium)
+                    Text(sourceLabel(s.source, s.sourceApp), style = MaterialTheme.typography.titleMedium)
+                }
+            }
+            Text(stringResource(R.string.imported_readonly), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = { showSource = false }) { Text(stringResource(R.string.action_close)) }
+        }
+    }
+
 }
 
 @Composable

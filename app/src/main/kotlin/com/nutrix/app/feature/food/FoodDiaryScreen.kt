@@ -16,6 +16,16 @@ import androidx.compose.material.icons.rounded.Delete
 import com.nutrix.app.core.ui.icons.Restaurant
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.MoreVert
+import com.nutrix.app.core.ui.icons.Repeat
+import com.nutrix.app.core.ui.icons.Healing
+import com.nutrix.app.core.ui.components.NutrixActionSheet
+import com.nutrix.app.core.ui.components.NutrixContextAction
+import com.nutrix.app.core.ui.components.CardHeader
+import com.nutrix.app.data.repository.UndoManager
+import com.nutrix.app.data.repository.UserMessages
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -68,7 +78,7 @@ import javax.inject.Inject
 data class MealDay(val date: LocalDate, val meals: List<MealWithPhotos>)
 
 @HiltViewModel
-class FoodDiaryViewModel @Inject constructor(meals: MealRepository) : ViewModel() {
+class FoodDiaryViewModel @Inject constructor(private val meals: MealRepository, private val undo: UndoManager, private val messages: UserMessages) : ViewModel() {
     private val window = MutableStateFlow(30)
 
     val days = window.flatMapLatest { days ->
@@ -83,6 +93,26 @@ class FoodDiaryViewModel @Inject constructor(meals: MealRepository) : ViewModel(
     fun loadMore() {
         window.value += 30
     }
+
+    fun favorite(meal: MealWithPhotos) {
+        viewModelScope.launch {
+            try {
+                val id = meals.favoriteFromMeal(meal.meal, meal.sortedPhotos.firstOrNull()?.fileName)
+                messages.show(if (id == 0L) R.string.food_favorite_needs_title else R.string.alignment_favorite_saved)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { messages.show(R.string.food_save_error) }
+        }
+    }
+
+    fun delete(id: Long) {
+        viewModelScope.launch {
+            try {
+                val snapshot = meals.delete(id) ?: return@launch
+                undo.offer(undo = { meals.restore(snapshot) }, commit = { meals.purge(snapshot) })
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { messages.show(R.string.food_save_error) }
+        }
+    }
 }
 
 @Composable
@@ -92,9 +122,13 @@ fun FoodDiaryScreen(
     onOpenMeal: (Long) -> Unit,
     onFavorites: () -> Unit,
     onSearch: () -> Unit,
+    onRepeat: (Long) -> Unit = onOpenMeal,
+    onAddSymptom: (Long) -> Unit = onOpenMeal,
     viewModel: FoodDiaryViewModel = hiltViewModel(),
 ) {
     val days by viewModel.days.collectAsStateWithLifecycle()
+    var actionMeal by remember { mutableStateOf<MealWithPhotos?>(null) }
+    var deleteMeal by remember { mutableStateOf<MealWithPhotos?>(null) }
     NutrixScreen(
         title = stringResource(R.string.food_diary_title),
         onBack = onBack,
@@ -115,6 +149,18 @@ fun FoodDiaryScreen(
                     )
                 }
             }
+            list?.firstOrNull { it.date == LocalDate.now() }?.let { today ->
+                item(key = "today-summary") {
+                    val knownCalories = today.meals.mapNotNull { it.meal.caloriesEstimate }
+                    NutrixCard {
+                        CardHeader(Icons.Rounded.Restaurant, pluralStringResource(R.plurals.meals_count, today.meals.size, today.meals.size), LocalCategoryColors.current.meal)
+                        if (knownCalories.isNotEmpty()) {
+                            Text("≈${knownCalories.sum()} ${stringResource(R.string.unit_kcal)}", style = MaterialTheme.typography.headlineSmall)
+                            if (knownCalories.size < today.meals.size) Text(stringResource(R.string.alignment_known_meals, knownCalories.size, today.meals.size), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
             list?.forEach { day ->
                 item(key = "h-${day.date}") {
                     SectionHeader(
@@ -122,7 +168,7 @@ fun FoodDiaryScreen(
                     )
                 }
                 items(day.meals, key = { it.meal.id }) { meal ->
-                    MealRow(meal, onClick = { onOpenMeal(meal.meal.id) })
+                    MealRow(meal, onClick = { onOpenMeal(meal.meal.id) }, onActions = { actionMeal = meal })
                 }
             }
             if (list != null) {
@@ -134,6 +180,19 @@ fun FoodDiaryScreen(
             }
         }
     }
+    actionMeal?.let { meal ->
+        NutrixActionSheet(meal.meal.title ?: stringResource(R.string.alignment_meal_actions), listOf(
+            NutrixContextAction(stringResource(R.string.food_repeat), Icons.Rounded.Repeat) { onRepeat(meal.meal.id) },
+            NutrixContextAction(stringResource(R.string.food_save_favorite), Icons.Rounded.Star) { viewModel.favorite(meal) },
+            NutrixContextAction(stringResource(R.string.food_add_symptom), Icons.Rounded.Healing) { onAddSymptom(meal.meal.id) },
+            NutrixContextAction(stringResource(R.string.action_delete), Icons.Rounded.Delete, destructive = true) { deleteMeal = meal },
+        ), onDismiss = { actionMeal = null })
+    }
+    deleteMeal?.let { meal ->
+        ConfirmDialog(stringResource(R.string.confirm_delete_title), stringResource(R.string.confirm_delete_text), stringResource(R.string.action_delete),
+            onConfirm = { deleteMeal = null; viewModel.delete(meal.meal.id) }, onDismiss = { deleteMeal = null })
+    }
+
 }
 
 @Composable
@@ -148,7 +207,7 @@ fun dayTitle(date: LocalDate): String {
 
 /** Compact meal card used in the diary, the day timeline and search. */
 @Composable
-fun MealRow(meal: MealWithPhotos, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun MealRow(meal: MealWithPhotos, onClick: () -> Unit, modifier: Modifier = Modifier, onActions: (() -> Unit)? = null) {
     val m = meal.meal
     val colors = LocalCategoryColors.current
     NutrixCard(modifier = modifier, onClick = onClick, contentPadding = 12.dp) {
@@ -194,13 +253,11 @@ fun MealRow(meal: MealWithPhotos, onClick: () -> Unit, modifier: Modifier = Modi
                     m.satiety?.let { add(stringResource(it.labelRes) to colors.water) }
                     m.feelings.filter { it != AfterMealFeeling.NORMAL }.forEach { add(stringResource(it.labelRes) to colors.symptom) }
                 }
-                if (chips.isNotEmpty()) {
-                    FlowRow(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        chips.take(3).forEach { (text, color) -> Pill(text, color) }
-                        if (chips.size > 3) Pill("+${chips.size - 3}", MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
+                if (chips.isNotEmpty()) Text(chips.joinToString(" · ") { it.first }, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            if (onActions != null) IconButton(onClick = onActions) { Icon(Icons.Rounded.MoreVert, stringResource(R.string.alignment_meal_actions)) }
+
         }
     }
 }
@@ -221,7 +278,7 @@ fun FavoritesScreen(
             items(favorites, key = { it.id }) { fav ->
                 NutrixCard(onClick = { onUse(fav.id) }, contentPadding = 12.dp) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        PhotoThumb(fav.photoFile, size = 56.dp)
+                        PhotoThumb(fav.photoFile, size = 72.dp)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(fav.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -233,11 +290,23 @@ fun FavoritesScreen(
                             if (details.isNotEmpty()) {
                                 Text(details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
                             }
+                            val nutrition = fav.nutrition
+                            val amounts = listOfNotNull(fav.portionGrams?.let { "$it ${stringResource(R.string.unit_g)}" },
+                                nutrition?.proteinGrams?.let { "Б ${Formatters.decimal(it)}" }, nutrition?.fatGrams?.let { "Ж ${Formatters.decimal(it)}" }, nutrition?.carbsGrams?.let { "У ${Formatters.decimal(it)}" })
+                            if (amounts.isNotEmpty()) Text(amounts.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
                         }
                         IconButton(onClick = { toDelete = fav }) {
                             Icon(Icons.Rounded.Delete, stringResource(R.string.food_favorite_delete), modifier = Modifier.size(22.dp))
                         }
                     }
+                    Spacer(Modifier.height(10.dp))
+                    FilledTonalButton(onClick = { onUse(fav.id) }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small) {
+                        Icon(Icons.Rounded.Add, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.food_favorite_use))
+                    }
+
                 }
             }
         }

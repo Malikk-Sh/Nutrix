@@ -105,6 +105,7 @@ import com.nutrix.app.core.ui.components.NutrixContextAction
 import com.nutrix.app.core.ui.components.NutrixBottomAction
 import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.NutrixTextField
+import com.nutrix.app.core.ui.components.PhotoHero
 import com.nutrix.app.core.ui.components.PhotoThumb
 import com.nutrix.app.core.ui.components.ScaleSelector
 import com.nutrix.app.core.ui.components.ScreenList
@@ -201,8 +202,12 @@ fun FoodEditorScreen(
         ScreenList(padding, state = listState, bottomExtra = 24.dp) {
             if (state.error == "save" || state.error == "draft") {
                 item(key = "save-error") {
-                    Text(stringResource(if (state.error == "save") R.string.food_save_error else R.string.food_draft_error),
-                        color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
+                    NutrixCard(color = MaterialTheme.colorScheme.errorContainer) {
+                        Text(stringResource(if (state.error == "save") R.string.food_save_error else R.string.food_draft_error), color = MaterialTheme.colorScheme.onErrorContainer)
+                        if (state.error == "save") TextButton(onClick = viewModel::save, enabled = !state.isSaving && !state.processingPhoto && !state.analyzingPhoto && state.pendingDraft == null && !viewModel.isWeightInvalid() && !viewModel.isNutritionInvalid()) {
+                            Text(stringResource(R.string.alignment_retry_save))
+                        }
+                    }
                 }
             }
             state.pendingDraft?.let {
@@ -220,8 +225,16 @@ fun FoodEditorScreen(
 
             item(key = "photos") {
                 NutrixCard {
-                    Text(stringResource(R.string.food_photo_section), style = MaterialTheme.typography.titleSmall)
-                    Spacer(Modifier.height(10.dp))
+                    if (form.photos.isEmpty()) {
+                        Text(stringResource(R.string.food_photo_section), style = MaterialTheme.typography.titleSmall)
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    if (form.photos.size == 1) {
+                        val photo = form.photos.first()
+                        PhotoWithMenu(photo, isCover = true,
+                            onCrop = { if (!state.isSaving && !state.processingPhoto && !state.analyzingPhoto && state.pendingDraft == null) { viewModel.prepareCrop(photo); onCrop(photo) } },
+                            onRemove = { viewModel.removePhoto(photo) }, onCover = { viewModel.movePhotoFirst(photo) }, hero = true)
+                    } else {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         items(form.photos, key = { it }) { photo ->
                             PhotoWithMenu(
@@ -235,6 +248,7 @@ fun FoodEditorScreen(
                         if (state.processingPhoto) {
                             item { Box(Modifier.size(96.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
                         }
+                    }
                     }
                     if (form.photos.isNotEmpty() || state.processingPhoto) Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -262,10 +276,16 @@ fun FoodEditorScreen(
 
             if (form.photos.isNotEmpty()) {
                 item(key = "food-ai") { FoodAiCard(state, viewModel, onOpenGeminiSettings, onReview = {
-                    val beforeNutrition = 4 + (if (state.error == "save" || state.error == "draft") 1 else 0) + (if (state.pendingDraft != null) 1 else 0)
+                    val beforeNutrition = 3 + (if (state.error == "save" || state.error == "draft") 1 else 0) + (if (state.pendingDraft != null) 1 else 0)
                     scope.launch { listState.animateScrollToItem(beforeNutrition) }
                 }) }
             }
+
+            item(key = "dish") {
+                DishCard(state, viewModel)
+            }
+
+            item(key = "nutrition") { NutritionCard(state, viewModel, onEstimateFailed = { kcalNotFound = true }) }
 
             item(key = "when") {
                 NutrixCard {
@@ -285,12 +305,6 @@ fun FoodEditorScreen(
                     )
                 }
             }
-
-            item(key = "dish") {
-                DishCard(state, viewModel)
-            }
-
-            item(key = "nutrition") { NutritionCard(state, viewModel, onEstimateFailed = { kcalNotFound = true }) }
 
             item(key = "details") {
                 NutrixCard {
@@ -406,12 +420,13 @@ fun FoodEditorScreen(
 }
 
 @Composable
-private fun PhotoWithMenu(fileName: String, isCover: Boolean, onCrop: () -> Unit, onRemove: () -> Unit, onCover: () -> Unit) {
+private fun PhotoWithMenu(fileName: String, isCover: Boolean, onCrop: () -> Unit, onRemove: () -> Unit, onCover: () -> Unit, hero: Boolean = false) {
     var menu by remember { mutableStateOf(false) }
     var preview by remember { mutableStateOf(false) }
     if (preview) PhotoPreviewDialog(fileName) { preview = false }
     Box {
-        PhotoThumb(fileName, size = 112.dp, shape = MaterialTheme.shapes.medium, contentDescription = stringResource(R.string.food_photo_actions), onClick = { menu = true })
+        if (hero) PhotoHero(fileName, onClick = { menu = true })
+        else PhotoThumb(fileName, size = 112.dp, shape = MaterialTheme.shapes.medium, contentDescription = stringResource(R.string.food_photo_actions), onClick = { menu = true })
         if (isCover) {
             Icon(
                 Icons.Rounded.Star,
@@ -474,23 +489,10 @@ fun PhotoPreviewDialog(fileName: String, onDismiss: () -> Unit) {
 @Composable
 private fun DishCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel) {
     val form = state.form
+    var showFavorites by rememberSaveable { mutableStateOf(false) }
     var itemText by rememberSaveable { mutableStateOf("") }
     var titleFocused by remember { mutableStateOf(false) }
     NutrixCard {
-        if (state.favorites.isNotEmpty()) {
-            Text(stringResource(R.string.food_favorites), style = MaterialTheme.typography.labelLarge)
-            Spacer(Modifier.height(4.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(state.favorites.take(12), key = { it.id }) { fav ->
-                    SuggestionChip(
-                        onClick = { viewModel.applyFavorite(fav) },
-                        label = { Text(fav.title) },
-                        icon = { Icon(Icons.Rounded.Star, null, Modifier.size(16.dp)) },
-                    )
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-        }
         if (state.timeSuggestions.isNotEmpty() && form.title.isBlank()) {
             Text(stringResource(R.string.food_suggestions_time), style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.height(4.dp))
@@ -580,6 +582,20 @@ private fun DishCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel) {
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
+        if (state.favorites.isNotEmpty()) {
+            TextButton(onClick = { showFavorites = !showFavorites }) { Text(stringResource(R.string.alignment_choose_favorite)) }
+            if (showFavorites) LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(state.favorites.take(12), key = { it.id }) { fav ->
+                    SuggestionChip(
+                        onClick = { viewModel.applyFavorite(fav) },
+                        label = { Text(fav.title) },
+                        icon = { Icon(Icons.Rounded.Star, null, Modifier.size(16.dp)) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
     }
 }
 

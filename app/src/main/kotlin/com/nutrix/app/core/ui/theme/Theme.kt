@@ -175,7 +175,7 @@ private val NutrixShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(12.dp),
     medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(24.dp),
+    large = RoundedCornerShape(20.dp),
     extraLarge = RoundedCornerShape(28.dp),
 )
 
@@ -211,7 +211,7 @@ fun NutrixTheme(themeMode: ThemeMode = ThemeMode.DARK, content: @Composable () -
 }
 
 object NutrixTokens {
-    val ScreenPadding = 20.dp
-    val CardPadding = 16.dp
-    val CardSpacing = 14.dp
+    val ScreenPadding = 16.dp
+    val CardPadding = 14.dp
+    val CardSpacing = 10.dp
 }

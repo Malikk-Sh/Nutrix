@@ -28,6 +28,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -57,6 +58,9 @@ import com.nutrix.app.core.ui.components.ConfirmDialog
 import com.nutrix.app.core.ui.components.DateTimeRow
 import com.nutrix.app.core.ui.components.EmptyState
 import com.nutrix.app.core.ui.components.IconBadge
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import com.nutrix.app.core.ui.components.PhotoThumb
 import com.nutrix.app.core.ui.components.InfoBanner
 import com.nutrix.app.core.ui.components.MultiChoiceChips
 import com.nutrix.app.core.ui.components.NutrixCard
@@ -106,6 +110,7 @@ fun SymptomsScreen(
         }
     }
 
+    var allQuickSymptoms by rememberSaveable { mutableStateOf(false) }
     NutrixScreen(
         title = stringResource(R.string.symptoms_title),
         onBack = onBack,
@@ -119,11 +124,17 @@ fun SymptomsScreen(
                     Text(stringResource(R.string.symptoms_quick_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(10.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SymptomType.entries.filter { it != SymptomType.OTHER }.forEach { type ->
+                        SymptomType.entries.filter { it != SymptomType.OTHER }.let { if (allQuickSymptoms) it else listOf(SymptomType.NAUSEA, SymptomType.BLOATING, SymptomType.DIZZINESS) }.forEach { type ->
                             FilledTonalButton(onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 viewModel.quickAdd(type)
-                            }) { Text(stringResource(type.labelRes)) }
+                            }, colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
+                                containerColor = colors.symptom.copy(alpha = 0.12f), contentColor = colors.symptom), shape = MaterialTheme.shapes.small) {
+                                Text(stringResource(type.labelRes), style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                        TextButton(onClick = { allQuickSymptoms = !allQuickSymptoms }) {
+                            Text(stringResource(if (allQuickSymptoms) R.string.alignment_collapse else R.string.alignment_all_symptoms))
                         }
                     }
                 }
@@ -182,6 +193,8 @@ fun SymptomEditorScreen(onClose: () -> Unit, viewModel: SymptomEditorViewModel =
     val candidateMeals by viewModel.candidateMeals.collectAsStateWithLifecycle()
     val colors = LocalCategoryColors.current
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    var showMealPicker by rememberSaveable { mutableStateOf(false) }
+    var showAllTypes by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(closed) { if (closed) onClose() }
 
     NutrixScreen(
@@ -203,7 +216,9 @@ fun SymptomEditorScreen(onClose: () -> Unit, viewModel: SymptomEditorViewModel =
                         Text(stringResource(R.string.symptom_select_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Spacer(Modifier.height(8.dp))
-                    MultiChoiceChips(SymptomType.entries, form.types, { stringResource(it.labelRes) }, viewModel::toggleType, accent = colors.symptom)
+                    val visibleTypes = if (showAllTypes) SymptomType.entries else (listOf(SymptomType.NAUSEA, SymptomType.BLOATING, SymptomType.DIZZINESS) + form.types + SymptomType.OTHER).distinct()
+                    MultiChoiceChips(visibleTypes, form.types, { stringResource(it.labelRes) }, viewModel::toggleType, accent = colors.symptom)
+                    TextButton(onClick = { showAllTypes = !showAllTypes }) { Text(stringResource(if (showAllTypes) R.string.alignment_collapse else R.string.alignment_all_symptoms)) }
                     AnimatedVisibility(SymptomType.OTHER in form.types) {
                         NutrixTextField(form.customName, { v -> viewModel.update { it.copy(customName = v) } }, stringResource(R.string.symptom_other_name), modifier = Modifier.padding(top = 8.dp))
                     }
@@ -255,20 +270,13 @@ fun SymptomEditorScreen(onClose: () -> Unit, viewModel: SymptomEditorViewModel =
                     if (candidateMeals.isEmpty()) {
                         Text(stringResource(R.string.symptom_meal_none_available), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
-                        val noneLabel = stringResource(R.string.symptom_meal_none)
-                        val options: List<Long?> = listOf<Long?>(null) + candidateMeals.map { it.meal.id }
-                        val byId = candidateMeals.associateBy { it.meal.id }
-                        ChoiceChips(
-                            options = options,
-                            selected = form.mealId,
-                            label = { id ->
-                                if (id == null) noneLabel else byId[id]?.let { m ->
-                                    "${Formatters.time(m.meal.time)} · ${m.meal.title ?: stringResource(m.meal.mealType.labelRes)}"
-                                } ?: ""
-                            },
-                            onSelect = { id -> viewModel.update { it.copy(mealId = id) } },
-                            accent = colors.meal,
-                        )
+                        val linked = candidateMeals.firstOrNull { it.meal.id == form.mealId }
+                        if (linked != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            PhotoThumb(linked.sortedPhotos.firstOrNull()?.fileName, size = 56.dp)
+                            Text(linked.meal.title ?: stringResource(linked.meal.mealType.labelRes), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                        }
+                        TextButton(onClick = { showMealPicker = true }) { Text(stringResource(if (linked == null) R.string.symptom_meal_none else R.string.action_change)) }
+
                     }
                     Spacer(Modifier.height(12.dp))
                     Text(stringResource(R.string.symptom_position), style = MaterialTheme.typography.titleSmall)
@@ -278,6 +286,30 @@ fun SymptomEditorScreen(onClose: () -> Unit, viewModel: SymptomEditorViewModel =
                     NutrixTextField(form.note, { v -> viewModel.update { it.copy(note = v) } }, stringResource(R.string.label_note), singleLine = false, minLines = 2)
                 }
             }
+        }
+    }
+    if (showMealPicker) androidx.compose.material3.ModalBottomSheet(onDismissRequest = { showMealPicker = false },
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(stringResource(R.string.symptom_meal_link), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.alignment_relation_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = { viewModel.update { it.copy(mealId = null) } }) {
+                androidx.compose.material3.RadioButton(form.mealId == null, onClick = null)
+                Text(stringResource(R.string.symptom_meal_none))
+            }
+            candidateMeals.forEach { meal ->
+                NutrixCard(onClick = { viewModel.update { it.copy(mealId = meal.meal.id) } }) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PhotoThumb(meal.sortedPhotos.firstOrNull()?.fileName, size = 64.dp)
+                        Column(Modifier.weight(1f)) {
+                            Text(meal.meal.title ?: stringResource(meal.meal.mealType.labelRes), style = MaterialTheme.typography.titleSmall)
+                            Text(Formatters.time(meal.meal.time), style = MaterialTheme.typography.bodySmall)
+                        }
+                        androidx.compose.material3.RadioButton(form.mealId == meal.meal.id, onClick = null)
+                    }
+                }
+            }
+            Button(onClick = { showMealPicker = false }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Text(stringResource(R.string.action_done)) }
         }
     }
     if (confirmDelete) {

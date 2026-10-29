@@ -31,6 +31,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
@@ -67,9 +72,9 @@ fun <T> ChoiceChips(
                 label = { Text(label(option)) },
                 leadingIcon = if (isSelected) ({ Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }) else null,
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = accent.copy(alpha = 0.22f),
-                    selectedLabelColor = MaterialTheme.colorScheme.onSurface,
-                    selectedLeadingIconColor = accent,
+                    selectedContainerColor = accent,
+                    selectedLabelColor = if (accent.luminance() > 0.3f) Color(0xFF101619) else Color.White,
+                    selectedLeadingIconColor = if (accent.luminance() > 0.3f) Color(0xFF101619) else Color.White,
                 ),
                 shape = MaterialTheme.shapes.small,
                 border = BorderStroke(1.dp, if (isSelected) accent.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant),
@@ -100,14 +105,38 @@ fun <T> MultiChoiceChips(
                 label = { Text(label(option)) },
                 leadingIcon = if (isSelected) ({ Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }) else null,
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = accent.copy(alpha = 0.22f),
-                    selectedLabelColor = MaterialTheme.colorScheme.onSurface,
-                    selectedLeadingIconColor = accent,
+                    selectedContainerColor = accent,
+                    selectedLabelColor = if (accent.luminance() > 0.3f) Color(0xFF101619) else Color.White,
+                    selectedLeadingIconColor = if (accent.luminance() > 0.3f) Color(0xFF101619) else Color.White,
                 ),
                 shape = MaterialTheme.shapes.small,
                 border = BorderStroke(1.dp, if (isSelected) accent.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant),
             )
         }
+    }
+}
+
+/** Equal-width options stay visible; large text wraps into accessible rows. */
+@Composable
+fun <T> SegmentedChoices(options: List<T>, selected: T?, label: @Composable (T) -> String,
+    onSelect: (T) -> Unit, modifier: Modifier = Modifier) {
+    val largeText = LocalDensity.current.fontScale > 1.2f
+    @Composable fun choice(option: T, itemModifier: Modifier) {
+        val active = option == selected
+        Box(itemModifier.clip(MaterialTheme.shapes.small)
+            .background(if (active) MaterialTheme.colorScheme.primary else Color.Transparent)
+            .selectable(active, role = Role.RadioButton, onClick = { onSelect(option) })
+            .heightIn(min = 48.dp).padding(horizontal = 6.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+            Text(label(option), style = MaterialTheme.typography.labelMedium,
+                color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center)
+        }
+    }
+    if (largeText) FlowRow(modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        options.forEach { choice(it, Modifier) }
+    } else Row(modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(4.dp).selectableGroup()) {
+        options.forEach { choice(it, Modifier.weight(1f)) }
     }
 }
 

@@ -23,6 +23,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,7 +83,7 @@ fun CardHeader(
     trailing: @Composable (() -> Unit)? = null,
 ) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconBadge(icon = icon, tint = tint)
+        IconBadge(icon = icon, tint = tint, size = 30.dp)
         Spacer(Modifier.width(10.dp))
         Text(
             title,
@@ -203,5 +209,23 @@ fun LabeledValue(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.titleMedium)
+    }
+}
+
+/** Keep guidance available without pushing the user's records below a paragraph of help. */
+@Composable
+fun InfoDisclosure(summary: String, details: String, icon: ImageVector, modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.tertiary) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    Column(modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small)
+            .clickable(role = Role.Button) { expanded = !expanded }.heightIn(min = 48.dp).padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+            Text(if (expanded) "−" else "+", style = MaterialTheme.typography.titleMedium, color = tint)
+        }
+        AnimatedVisibility(expanded) { InfoBanner(details, icon, tint = tint) }
     }
 }

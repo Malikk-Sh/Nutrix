@@ -54,6 +54,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import com.nutrix.app.R
 import com.nutrix.app.core.photo.PhotoStorage
+import com.nutrix.app.core.ui.components.NutrixBottomAction
 import com.nutrix.app.core.ui.components.NutrixScreen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -108,8 +109,8 @@ fun CropScreen(fileName: String, onDone: (String) -> Unit, onBack: () -> Unit, v
     NutrixScreen(
         title = stringResource(R.string.crop_title),
         onBack = onBack,
-        actions = {
-            TextButton(
+        bottomBar = {
+            NutrixBottomAction(text = stringResource(R.string.action_done), loading = saving,
                 onClick = {
                     saving = true
                     saveFailed = false
@@ -123,10 +124,7 @@ fun CropScreen(fileName: String, onDone: (String) -> Unit, onBack: () -> Unit, v
                     }
                 },
                 enabled = !saving && bitmap != null,
-            ) {
-                Icon(Icons.Rounded.Check, null)
-                Text(stringResource(R.string.action_done))
-            }
+            )
         },
     ) { padding ->
         Box(

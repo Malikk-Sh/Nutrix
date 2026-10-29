@@ -157,7 +157,7 @@ fun CalendarScreen(contentPadding: PaddingValues, onOpenDay: (Long) -> Unit, onT
                 item { EmptyState(Icons.Rounded.EventBusy, stringResource(R.string.day_empty), null) }
             } else {
                 item(key = "day") {
-                    NutrixCard(contentPadding = 8.dp) {
+                    Column {
                         items.forEachIndexed { i, it -> TimelineRow(it, unit, i == items.lastIndex) { onTarget(it.target()) } }
                     }
                 }
@@ -301,7 +301,7 @@ fun DayScreen(onBack: () -> Unit, onTarget: (TimelineTarget) -> Unit, viewModel:
                 item { EmptyState(Icons.Rounded.EventBusy, stringResource(R.string.day_empty), null) }
             } else if (list != null) {
                 item {
-                    NutrixCard(contentPadding = 8.dp) {
+                    Column {
                         list.forEachIndexed { i, it -> TimelineRow(it, unit, i == list.lastIndex) { onTarget(it.target()) } }
                     }
                 }

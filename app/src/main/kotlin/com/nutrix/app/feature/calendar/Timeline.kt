@@ -1,5 +1,9 @@
 package com.nutrix.app.feature.calendar
 
+import androidx.compose.foundation.border
+import com.nutrix.app.core.ui.icons.ChevronRight
+import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -149,11 +153,11 @@ fun TimelineRow(item: TimelineItem, unit: WeightUnit, isLast: Boolean, onClick: 
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
-                .width(56.dp)
+                .width(42.dp)
                 .padding(top = 12.dp),
             maxLines = 2,
         )
-        Box(Modifier.width(28.dp).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
+        Box(Modifier.width(22.dp).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
             Box(
                 Modifier
                     .padding(top = 18.dp)
@@ -172,19 +176,27 @@ fun TimelineRow(item: TimelineItem, unit: WeightUnit, isLast: Boolean, onClick: 
                 Icon(item.category.icon, null, tint = color, modifier = Modifier.size(14.dp))
             }
         }
-        Spacer(Modifier.width(8.dp))
-        Column(
-            Modifier
-                .weight(1f)
-                .padding(vertical = 10.dp),
-        ) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (subtitle != null) {
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.width(6.dp))
+        Row(Modifier.weight(1f).padding(bottom = 8.dp).clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), MaterialTheme.shapes.medium)
+            .padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (photo != null) PhotoThumb(photo, size = 56.dp)
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (item is TimelineItem.Meal) {
+                    val meal = item.meal.meal
+                    val values = listOfNotNull(meal.portionGrams?.let { "$it ${stringResource(R.string.unit_g)}" },
+                        meal.caloriesEstimate?.let { "≈$it ${stringResource(R.string.unit_kcal)}" })
+                    if (values.isNotEmpty()) Text(values.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    meal.nutrition?.let { n ->
+                        Text(listOfNotNull(n.proteinGrams?.let { "Б ${Formatters.decimal(it)}" }, n.fatGrams?.let { "Ж ${Formatters.decimal(it)}" },
+                            n.carbsGrams?.let { "У ${Formatters.decimal(it)}" }).joinToString(" / "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-        }
-        if (photo != null) {
-            PhotoThumb(photo, size = 44.dp, modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp))
+            Icon(Icons.Rounded.ChevronRight, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

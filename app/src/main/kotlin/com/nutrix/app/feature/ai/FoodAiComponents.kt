@@ -36,6 +36,7 @@ import com.nutrix.app.feature.food.FoodEditorViewModel
 @Composable
 fun FoodAiCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onSettings: () -> Unit, onReview: () -> Unit = {}) {
     var selected by rememberSaveable { mutableStateOf(state.form.photos.firstOrNull()) }
+    var editHint by rememberSaveable { mutableStateOf(false) }
     var showDetails by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(state.form.photos) { if (selected !in state.form.photos) selected = state.form.photos.firstOrNull() }
     LaunchedEffect(state.aiResult) { showDetails = false }
@@ -44,11 +45,11 @@ fun FoodAiCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onSetti
     val analyze = { selected?.let(viewModel::analyzePhoto); Unit }
     NutrixCard(modifier = Modifier.animateContentSize(tween(180))) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            IconBadge(Icons.Rounded.AutoAwesome, MaterialTheme.colorScheme.primary)
+            IconBadge(Icons.Rounded.AutoAwesome, MaterialTheme.colorScheme.primary, size = 30.dp)
             Text(stringResource(R.string.ai_photo_title), style = MaterialTheme.typography.titleMedium)
         }
         Spacer(Modifier.height(10.dp))
-        Text(stringResource(R.string.ai_disclosure), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (!success) Text(stringResource(R.string.ai_disclosure), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (state.form.photos.size > 1) {
             Spacer(Modifier.height(10.dp))
             Text(stringResource(R.string.ai_choose_photo), style = MaterialTheme.typography.labelMedium)
@@ -61,8 +62,10 @@ fun FoodAiCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onSetti
             }
         }
         Spacer(Modifier.height(12.dp))
+        if (!success || editHint) {
         NutrixTextField(state.form.aiHint, { value -> viewModel.update { it.copy(aiHint = value.take(1000)) } },
             stringResource(R.string.ai_hint), placeholder = stringResource(R.string.ai_hint_example), singleLine = false, minLines = 2, enabled = enabled)
+        } else TextButton(onClick = { editHint = true }) { Text(stringResource(R.string.ai_hint)) }
         Spacer(Modifier.height(14.dp))
         if (state.analyzingPhoto) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {

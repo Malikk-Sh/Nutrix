@@ -31,8 +31,8 @@ android {
         applicationId = "com.nutrix.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.2.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "SAMSUNG_SDK_BUNDLED", hasSamsungSdk.toString())
         vectorDrawables.useSupportLibrary = true

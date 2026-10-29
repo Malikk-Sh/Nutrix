@@ -17,6 +17,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.google.common.truth.Truth.assertThat
+import com.nutrix.app.UiScreenshot
 import com.nutrix.app.MainActivity
 import com.nutrix.app.R
 import com.nutrix.app.core.datastore.SettingsRepository
@@ -71,10 +72,7 @@ class CameraNavigationTest {
             settings.clearAll()
             settings.setGeminiKeyBlob("fixture-analyzer-does-not-read-key")
             val capture = photos.newCaptureFile()
-            val bitmap = Bitmap.createBitmap(48, 64, Bitmap.Config.ARGB_8888)
-            bitmap.eraseColor(android.graphics.Color.GREEN)
-            capture.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) }
-            bitmap.recycle()
+            requireNotNull(javaClass.getResourceAsStream("/photos/chicken-vegetables.jpg")).use { input -> capture.outputStream().use { input.copyTo(it) } }
             capturedPhoto = photos.importFile(capture)
             assertThat(capture.exists()).isFalse()
         }
@@ -152,6 +150,8 @@ class CameraNavigationTest {
         capture()
         compose.onAllNodesWithTag("photo:$capturedPhoto").onFirst().performClick()
         click("Обрезать")
+        compose.waitForIdle()
+        scenario.onActivity { UiScreenshot.capture(it, "42-crop") }
         click("Готово")
         compose.waitUntil(15_000) { compose.onAllNodesWithTag("photo:$capturedPhoto").fetchSemanticsNodes().isEmpty() }
         analyzeAndSave()
