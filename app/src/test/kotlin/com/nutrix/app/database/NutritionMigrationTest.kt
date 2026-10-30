@@ -26,10 +26,13 @@ import java.util.zip.ZipOutputStream
 class NutritionMigrationTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
 
-    private fun versionOne(file: File) {
+    private fun versionOne(file: File) = olderVersion(file, 1)
+
+    /** A database file exactly as an older version of the app created it, with one meal and one favorite. */
+    private fun olderVersion(file: File, version: Int) {
         file.parentFile!!.mkdirs()
         file.delete()
-        val schema = Json.parseToJsonElement(File("schemas/com.nutrix.app.database.NutrixDatabase/1.json").readText()).jsonObject.getValue("database").jsonObject
+        val schema = Json.parseToJsonElement(File("schemas/com.nutrix.app.database.NutrixDatabase/$version.json").readText()).jsonObject.getValue("database").jsonObject
         SQLiteDatabase.openOrCreateDatabase(file, null).use { db ->
             schema.getValue("entities").jsonArray.forEach { element ->
                 val table = element.jsonObject
@@ -40,9 +43,9 @@ class NutritionMigrationTest {
                 }
             }
             schema.getValue("setupQueries").jsonArray.forEach { db.execSQL(it.jsonPrimitive.content) }
-            db.execSQL("INSERT INTO meals(id,epochMillis,zoneId,localDate,mealType,title,items,feelings,createdAt,updatedAt) VALUES (1,0,'UTC',0,'LUNCH','Старый обед','[]','',1,1)")
+            db.execSQL("INSERT INTO meals(id,epochMillis,zoneId,localDate,mealType,title,items,feelings,createdAt,updatedAt,portionGrams,caloriesEstimate) VALUES (1,0,'UTC',0,'LUNCH','Старый обед','[\"Суп\",\"Хлеб\"]','',1,1,450,620)")
             db.execSQL("INSERT INTO favorite_meals(id,title,items,useCount,lastUsedAt,createdAt) VALUES (1,'Старый шаблон','[]',0,0,1)")
-            db.version = 1
+            db.version = version
         }
     }
 
@@ -60,7 +63,7 @@ class NutritionMigrationTest {
             repo.save(meal.copy(nutrition = nutrition), emptyList(), saveAsFavorite = true)
             assertThat(repo.get(1)!!.meal.nutrition).isEqualTo(nutrition)
             assertThat(repo.observeFavorites().first().first { it.title == "Старый обед" }.nutrition).isEqualTo(nutrition)
-            assertThat(db.openHelper.readableDatabase.version).isEqualTo(2)
+            assertThat(db.openHelper.readableDatabase.version).isEqualTo(3)
         } finally { db.close() }
     }
 
@@ -102,6 +105,28 @@ class NutritionMigrationTest {
             repo.save(meal.copy(title = "Изменено"), emptyList())
             backup.restore(backup.check(current, null) as RestoreCheck.Ok)
             assertThat(repo.get(1)!!.meal.nutrition?.proteinGrams).isEqualTo(12.5)
+        } finally { db.close() }
+    }
+
+    @Test fun `version two meals keep their whole-meal estimate and gain no invented dishes`() = runBlocking {
+        context.deleteDatabase(NutrixDatabase.NAME)
+        olderVersion(context.getDatabasePath(NutrixDatabase.NAME), 2)
+        val db = NutrixDatabase.build(context)
+        try {
+            val repo = MealRepository(db, db.mealDao(), PhotoStorage(context), DataChangeNotifier())
+            val meal = repo.get(1)!!.meal
+            // The old total stays a whole-meal estimate: nothing is split between "Суп" and "Хлеб".
+            assertThat(meal.dishes).isNull()
+            assertThat(meal.caloriesEstimate).isEqualTo(620)
+            assertThat(meal.portionGrams).isEqualTo(450)
+            assertThat(meal.items).containsExactly("Суп", "Хлеб").inOrder()
+            assertThat(repo.getFavorite(1)!!.dishes).isNull()
+            // Dishes saved after the upgrade round-trip and drive the meal's totals.
+            repo.save(meal.copy(dishes = listOf(com.nutrix.app.core.model.MealDish(name = "Суп", kcal = 300.0))), emptyList())
+            val upgraded = repo.get(1)!!.meal
+            assertThat(upgraded.dishes!!.single().name).isEqualTo("Суп")
+            assertThat(upgraded.caloriesEstimate).isEqualTo(300)
+            assertThat(db.openHelper.readableDatabase.version).isEqualTo(3)
         } finally { db.close() }
     }
 }

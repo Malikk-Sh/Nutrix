@@ -1,6 +1,7 @@
 package com.nutrix.app.domain.insights
 
 import com.nutrix.app.domain.AnalyticsInput
+import com.nutrix.app.domain.kcalIfComplete
 
 /** How much of the analysis window each diary actually covers. Missing days are unknown, never zeros. */
 data class DataCoverage(
@@ -27,7 +28,7 @@ data class DataCoverage(
                 // A night belongs to the morning it ends on, so the window's nights end one day later.
                 sleepNights = records.sleeps.filter { it.localDate in (records.from + 1)..(records.to + 1) }.map { it.localDate }.toSet().size,
                 weightDays = records.weights.filter { it.localDate in range }.map { it.localDate }.toSet().size,
-                estimatedDays = byDay.values.count { l -> l.count { it.caloriesEstimate != null }.let { k -> k >= 2 && k >= l.size * 0.7 } },
+                estimatedDays = byDay.values.count { l -> l.count { it.kcalIfComplete != null }.let { k -> k >= 2 && k >= l.size * 0.7 } },
                 meals = meals.size,
                 ratedMeals = meals.count { it.feelings.isNotEmpty() },
             )

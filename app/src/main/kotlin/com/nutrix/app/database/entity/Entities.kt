@@ -11,6 +11,7 @@ import com.nutrix.app.core.model.AfterMealFeeling
 import com.nutrix.app.core.model.BodyPosition
 import com.nutrix.app.core.model.DataSource
 import com.nutrix.app.core.model.DrinkType
+import com.nutrix.app.core.model.MealDish
 import com.nutrix.app.core.model.MealType
 import com.nutrix.app.core.model.MealNutrition
 import com.nutrix.app.core.model.PortionEaten
@@ -51,6 +52,11 @@ data class MealEntity(
     @ColumnInfo(defaultValue = "NULL") val nutrition: MealNutrition? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+    /**
+     * The dishes of the meal. When present, [portionGrams], [caloriesEstimate] and [nutrition] are their
+     * eaten totals written by MealTotals and are never edited on their own; null keeps a whole-meal estimate.
+     */
+    @ColumnInfo(defaultValue = "NULL") val dishes: List<MealDish>? = null,
 ) {
     val time: RecordTime get() = RecordTime(epochMillis, zoneId)
 }
@@ -270,6 +276,8 @@ data class FavoriteMealEntity(
     val useCount: Int = 0,
     val lastUsedAt: Long = 0,
     val createdAt: Long = System.currentTimeMillis(),
+    /** Dishes to add again; their photos are not kept, only names, portions and nutrients. */
+    @ColumnInfo(defaultValue = "NULL") val dishes: List<MealDish>? = null,
 )
 
 /** Unsaved editor state; one draft per editor kind. */

@@ -47,7 +47,7 @@ import javax.inject.Singleton
         FavoriteMealEntity::class,
         DraftEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -68,9 +68,17 @@ abstract class NutrixDatabase : RoomDatabase() {
             }
         }
 
+        /** Dishes of a meal. Existing meals keep their whole-meal estimate: nothing is split for them. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE meals ADD COLUMN dishes TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE favorite_meals ADD COLUMN dishes TEXT DEFAULT NULL")
+            }
+        }
+
         fun build(context: Context, name: String = NAME): NutrixDatabase =
             Room.databaseBuilder(context, NutrixDatabase::class.java, name)
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 // Future schema changes must ship real migrations; never wipe user diaries.
                 .build()
     }

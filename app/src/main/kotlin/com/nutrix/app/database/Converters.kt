@@ -2,6 +2,7 @@ package com.nutrix.app.database
 
 import androidx.room.TypeConverter
 import com.nutrix.app.core.model.AfterMealFeeling
+import com.nutrix.app.core.model.MealDish
 import com.nutrix.app.core.model.MealNutrition
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
@@ -18,6 +19,16 @@ class Converters {
     fun jsonToNutrition(value: String?): MealNutrition? = value?.let {
         runCatching { json.decodeFromString(MealNutrition.serializer(), it) }.getOrNull()
     }
+
+    // Typed explicitly: Room's processor cannot see the serializer generated for MealDish.
+    private val dishList: kotlinx.serialization.KSerializer<List<MealDish>> by lazy { ListSerializer(MealDish.serializer()) }
+
+    /** Null means the meal has a single whole-meal estimate (older records and quick entries). */
+    @TypeConverter
+    fun dishesToJson(value: List<MealDish>?): String? = value?.takeIf { it.isNotEmpty() }?.let { json.encodeToString(dishList, it) }
+
+    @TypeConverter
+    fun jsonToDishes(value: String?): List<MealDish>? = value?.let { runCatching { json.decodeFromString(dishList, it) }.getOrNull() }?.takeIf { it.isNotEmpty() }
 
     @TypeConverter
     fun stringListToJson(list: List<String>): String = json.encodeToString(stringList, list)
