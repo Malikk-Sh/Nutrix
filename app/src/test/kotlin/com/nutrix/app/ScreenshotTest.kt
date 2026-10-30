@@ -199,7 +199,7 @@ class ScreenshotTest {
         shot("05-calendar")
 
         compose.onNodeWithText("Аналитика").performClick()
-        waitForText("Динамика веса")
+        waitForText("Калории и БЖУ")
         shot("06-analytics")
         compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Сравнения"))
         compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Аппетит и продолжительность сна"))
@@ -366,7 +366,7 @@ class ScreenshotTest {
         waitForText("Открыть день")
         shot("light-02-calendar")
         compose.onNodeWithText("Аналитика").performClick()
-        waitForText("Динамика веса")
+        waitForText("Калории и БЖУ")
         shot("light-03-analytics")
         compose.onNodeWithText("Профиль").performClick()
         waitForText("Профиль и настройки")

@@ -10,7 +10,12 @@ import com.nutrix.app.core.model.MealNutrition
 import com.nutrix.app.core.model.MealType
 import com.nutrix.app.core.photo.PhotoStorage
 import com.nutrix.app.data.repository.DataChangeNotifier
+import com.nutrix.app.data.repository.DayCheckRepository
+import com.nutrix.app.data.repository.DrinkRepository
 import com.nutrix.app.data.repository.MealRepository
+import com.nutrix.app.core.model.DrinkNutrition
+import com.nutrix.app.domain.DrinkIntake
+import com.nutrix.app.domain.intake
 import com.nutrix.app.database.entity.MealEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -45,6 +50,8 @@ class NutritionMigrationTest {
             schema.getValue("setupQueries").jsonArray.forEach { db.execSQL(it.jsonPrimitive.content) }
             db.execSQL("INSERT INTO meals(id,epochMillis,zoneId,localDate,mealType,title,items,feelings,createdAt,updatedAt,portionGrams,caloriesEstimate) VALUES (1,0,'UTC',0,'LUNCH','Старый обед','[\"Суп\",\"Хлеб\"]','',1,1,450,620)")
             db.execSQL("INSERT INTO favorite_meals(id,title,items,useCount,lastUsedAt,createdAt) VALUES (1,'Старый шаблон','[]',0,0,1)")
+            db.execSQL("INSERT INTO drinks(id,epochMillis,zoneId,localDate,drinkType,name,volumeMl,createdAt,updatedAt) VALUES (1,0,'UTC',0,'COFFEE','Кофе',250,1,1)")
+            db.execSQL("INSERT INTO drink_templates(id,name,drinkType,volumeMl,sortOrder,createdAt) VALUES (1,'Моя кружка','COFFEE',300,0,1)")
             db.version = version
         }
     }
@@ -63,7 +70,7 @@ class NutritionMigrationTest {
             repo.save(meal.copy(nutrition = nutrition), emptyList(), saveAsFavorite = true)
             assertThat(repo.get(1)!!.meal.nutrition).isEqualTo(nutrition)
             assertThat(repo.observeFavorites().first().first { it.title == "Старый обед" }.nutrition).isEqualTo(nutrition)
-            assertThat(db.openHelper.readableDatabase.version).isEqualTo(3)
+            assertThat(db.openHelper.readableDatabase.version).isEqualTo(4)
         } finally { db.close() }
     }
 
@@ -126,7 +133,38 @@ class NutritionMigrationTest {
             val upgraded = repo.get(1)!!.meal
             assertThat(upgraded.dishes!!.single().name).isEqualTo("Суп")
             assertThat(upgraded.caloriesEstimate).isEqualTo(300)
-            assertThat(db.openHelper.readableDatabase.version).isEqualTo(3)
+            assertThat(db.openHelper.readableDatabase.version).isEqualTo(4)
+        } finally { db.close() }
+    }
+
+    @Test fun `version three drinks keep an unknown energy and days can be confirmed after the upgrade`() = runBlocking {
+        context.deleteDatabase(NutrixDatabase.NAME)
+        olderVersion(context.getDatabasePath(NutrixDatabase.NAME), 3)
+        val db = NutrixDatabase.build(context)
+        try {
+            val notifier = DataChangeNotifier()
+            val drinks = DrinkRepository(db.drinkDao(), PhotoStorage(context), notifier)
+            val coffee = drinks.get(1)!!
+            // An old coffee is not assumed to have been without milk or sugar.
+            assertThat(coffee.volumeMl).isEqualTo(250)
+            assertThat(coffee.nutrition).isNull()
+            assertThat(coffee.mealId).isNull()
+            assertThat(coffee.intake).isEqualTo(DrinkIntake.UNKNOWN)
+            val template = drinks.observeTemplates().first().single()
+            assertThat(template.nutrition).isNull()
+            drinks.addFromTemplate(template)
+            assertThat(drinks.getRange(0, Long.MAX_VALUE / 2).last().nutrition).isNull()
+            // New values and the link to a meal round-trip; confirmed days are stored per day.
+            val latte = DrinkNutrition(40.0, 2.0, 2.0, 3.2)
+            drinks.save(coffee.copy(nutrition = latte, mealId = 1))
+            assertThat(drinks.get(1)!!.nutrition).isEqualTo(latte)
+            assertThat(drinks.observeForMeal(1).first().map { it.id }).containsExactly(1L)
+            val checks = DayCheckRepository(db.dayCheckDao(), notifier)
+            checks.setConfirmed(0, true)
+            assertThat(checks.getRange(-1, 1)).containsExactly(0L)
+            checks.setConfirmed(0, false)
+            assertThat(checks.getRange(-1, 1)).isEmpty()
+            assertThat(db.openHelper.readableDatabase.version).isEqualTo(4)
         } finally { db.close() }
     }
 }

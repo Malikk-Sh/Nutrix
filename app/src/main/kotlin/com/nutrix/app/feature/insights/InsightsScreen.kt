@@ -514,7 +514,7 @@ private fun limitationText(limitation: com.nutrix.app.domain.insights.DataLimita
     return when (limitation) {
         is com.nutrix.app.domain.insights.DataLimitation.FewMealDays -> stringResource(R.string.limit_few_meals, limitation.days, ofDays(limitation.of))
         com.nutrix.app.domain.insights.DataLimitation.NoSleep -> stringResource(R.string.limit_no_sleep)
-        is com.nutrix.app.domain.insights.DataLimitation.FewEstimates -> stringResource(R.string.limit_few_estimates, limitation.days, ofDays(limitation.of))
+        is com.nutrix.app.domain.insights.DataLimitation.FewCompleteDays -> stringResource(R.string.limit_few_complete_days, limitation.days, ofDays(limitation.of))
         is com.nutrix.app.domain.insights.DataLimitation.FewRatedMeals -> stringResource(R.string.limit_few_rated, limitation.rated, limitation.of)
         com.nutrix.app.domain.insights.DataLimitation.OnlyRecorded -> stringResource(R.string.limit_only_recorded)
     }
@@ -526,7 +526,7 @@ private fun actionText(action: com.nutrix.app.domain.insights.DiaryAction): Stri
     com.nutrix.app.domain.insights.DiaryAction.LOG_MEALS -> R.string.action_log_meals
     com.nutrix.app.domain.insights.DiaryAction.ADD_SLEEP -> R.string.action_add_sleep
     com.nutrix.app.domain.insights.DiaryAction.RATE_MEALS -> R.string.action_rate_meals
-    com.nutrix.app.domain.insights.DiaryAction.ESTIMATE_MEALS -> R.string.action_estimate_meals
+    com.nutrix.app.domain.insights.DiaryAction.COMPLETE_DAYS -> R.string.action_complete_days
     com.nutrix.app.domain.insights.DiaryAction.SET_WATER_GUIDELINE -> R.string.action_set_water_guideline
 })
 

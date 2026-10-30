@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Drink energy -->
+    <string name="drink_energy_title">Калорийность</string>
+    <string name="drink_energy_water">Вода без калорий — указывать ничего не нужно.</string>
+    <string name="drink_energy_none">Без калорий</string>
+    <string name="drink_energy_value">Указать</string>
+    <string name="drink_energy_unknown">Не знаю</string>
+    <string name="drink_basis_100">на 100 мл</string>
+    <string name="drink_basis_drink">на весь напиток</string>
+    <string name="drink_energy_invalid">Проверьте значения: ккал — обязательное число, белки, жиры и углеводы — граммы.</string>
+    <string name="drink_energy_total">≈%1$s ккал в %2$d мл</string>
+    <string name="drink_energy_unknown_hint">Пока калории не указаны, день с этим напитком не будет считаться полностью оценённым.</string>
+    <string name="drink_presets_title">Примерные значения</string>
+    <string name="drink_preset_per_100">/100 мл</string>
+    <string name="drink_preset_per_drink"> на напиток</string>
+    <string name="drink_presets_hint">Это средние значения. Точнее всего — с этикетки вашего напитка.</string>
+    <string name="drink_kcal_unknown">ккал не указаны</string>
+    <string name="preset_sugar_spoon">1 ч. л. сахара</string>
+    <string name="preset_milk_15">Молоко 1,5 %</string>
+    <string name="preset_milk_25">Молоко 2,5 %</string>
+    <string name="preset_milk_32">Молоко 3,2 %</string>
+    <string name="preset_kefir_25">Кефир 2,5 %</string>
+    <string name="preset_juice">Сок</string>
+    <string name="preset_soda">Сладкая газировка</string>
+    <string name="preset_cappuccino">Капучино, латте</string>
+    <string name="preset_tea_milk">С молоком</string>
+    <string name="preset_cocoa">Какао на молоке</string>
+    <string name="drink_meal_title">К приёму пищи</string>
+    <string name="drink_meal_hint">Напиток останется отдельной записью: объём и калории посчитаются один раз, а в приёме пищи он будет виден.</string>
+
+    <!-- Drinks of a meal -->
+    <string name="meal_drinks_title">Напитки к этому приёму</string>
+    <string name="meal_drinks_hint">Если пили что-то калорийное, добавьте это напитком: объём попадёт в жидкость, калории — в итог дня.</string>
+    <string name="meal_drinks_once">Калории этих напитков считаются в напитках. Если тот же напиток добавлен и блюдом, удалите одно из двух, иначе он посчитается дважды.</string>
+    <string name="meal_drinks_add">Добавить напиток к приёму</string>
+
+    <!-- Day intake -->
+    <string name="intake_kcal">Калории</string>
+    <string name="intake_protein">Белки</string>
+    <string name="intake_fat">Жиры</string>
+    <string name="intake_carbs">Углеводы</string>
+    <string name="intake_known">известно %1$s</string>
+    <string name="intake_partial">Оценено %1$d из %2$d записей: итог неполный.</string>
+    <string name="intake_split">Еда %1$s + напитки %2$s</string>
+    <string name="intake_state_complete">Полный день</string>
+    <string name="intake_state_unconfirmed">Не отмечен как полный</string>
+    <string name="intake_state_partial">Оценено не всё</string>
+    <string name="intake_state_today">Сегодня, день ещё идёт</string>
+    <string name="intake_state_empty">Нет записей</string>
+    <string name="intake_confirm_title">Всё за день записано</string>
+    <string name="intake_confirm_hint">Отметьте, когда в дневнике есть вся еда и калорийные напитки дня. Только такие дни идут в средние.</string>
+    <string name="intake_confirm_chip">всё записано</string>
+    <!-- Intake chart -->
+    <string name="intake_card_title">Калории и БЖУ</string>
+    <plurals name="intake_average_days">
+        <item quantity="one">среднее по %1$d полному дню из %2$d завершённых</item>
+        <item quantity="few">среднее по %1$d полным дням из %2$d завершённых</item>
+        <item quantity="many">среднее по %1$d полным дням из %2$d завершённых</item>
+        <item quantity="other">среднее по %1$d полным дням из %2$d завершённых</item>
+    </plurals>
+    <string name="intake_no_complete">Полных дней пока нет</string>
+    <string name="intake_no_complete_hint">Средние считаются только по завершённым дням, где вы отметили «всё записано» и у каждого приёма пищи и калорийного напитка есть оценка. Пропущенный день — это неизвестность, а не ноль.</string>
+    <string name="intake_legend_complete">полный день</string>
+    <string name="intake_legend_unconfirmed">не отмечен как полный</string>
+    <string name="intake_legend_partial">оценено не всё</string>
+    <string name="intake_legend_today">сегодня</string>
+    <string name="intake_select_hint">Нажмите на столбец, чтобы увидеть, из чего сложился день. Точка вместо столбца — в этот день еды и калорийных напитков не записано.</string>
+    <string name="intake_from_macros">Из БЖУ ≈%1$s ккал — грубая проверка по 4/9/4 ккал на грамм.</string>
+    <string name="intake_value_missing">не указано</string>
+    <string name="intake_day_empty">Еды и калорийных напитков в этот день не записано — это неизвестность, а не ноль.</string>
+    <string name="intake_chart_description">%1$s по дням. Полных дней: %2$d.</string>
+</resources>

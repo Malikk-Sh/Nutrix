@@ -144,11 +144,11 @@
     <string name="insight_gaps_title">Длинные перерывы в еде</string>
     <string name="insight_gaps_body">В %1$d %2$s между приёмами пищи был перерыв больше 6 часов. Самый длинный перерыв дня обычно около %3$s.</string>
 
-    <string name="insight_nutrition_title">Питание по оценкам</string>
+    <string name="insight_nutrition_title">Питание по полным дням</string>
     <string name="insight_nutrition_body">В среднем ≈%1$s ккал в день.</string>
     <string name="insight_nutrition_macros">Б %1$s / Ж %2$s / У %3$s г в день.</string>
     <string name="insight_nutrition_evening">После 18:00 — около %1$d%% калорий дня.</string>
-    <string name="insight_nutrition_evidence">По %1$d дням, где у большинства приёмов есть оценка ккал. Оценки приблизительные.</string>
+    <string name="insight_nutrition_evidence">По %1$d полным дням: вы отметили, что записали всё, и у каждого приёма пищи и калорийного напитка есть оценка. Оценки приблизительные.</string>
 
     <string name="insight_sleep_eating_title">Сон и питание</string>
     <string name="insight_sleep_eating_more">После коротких ночей (меньше %1$s) вы съедаете в среднем на %2$s ккал больше, чем в другие дни.</string>
@@ -218,14 +218,14 @@
     <string name="overview_none">Пока нечего выделить: наберите хотя бы неделю записей.</string>
     <string name="limit_few_meals">Еда записана в %1$d %2$s, поэтому наблюдения о питании неполные.</string>
     <string name="limit_no_sleep">Сна нет в записях, поэтому связи сна с едой и кофе не считаются.</string>
-    <string name="limit_few_estimates">Калории оценены лишь в %1$d %2$s с едой.</string>
+    <string name="limit_few_complete_days">Полных дней с калориями — %1$d %2$s с едой: отмеченных как «всё записано», где оценена вся еда и калорийные напитки.</string>
     <string name="limit_few_rated">Самочувствие после еды отмечено у %1$d из %2$d приёмов, поэтому сравнения о самочувствии предварительные.</string>
     <string name="limit_only_recorded">Учитывается только записанное: дни без записей считаются неизвестными, а не нулевыми.</string>
     <string name="action_keep_recording">Продолжайте записи — наблюдения обновятся сами.</string>
     <string name="action_log_meals">Записывайте хотя бы основные приёмы пищи, даже без деталей и фото.</string>
     <string name="action_add_sleep">Подключите Health Connect или записывайте сон вручную.</string>
     <string name="action_rate_meals">После еды отмечайте самочувствие — достаточно «нормально».</string>
-    <string name="action_estimate_meals">Распознавайте еду по фото или вводите ккал — тогда появится питание по оценкам.</string>
+    <string name="action_complete_days">Оценивайте калории приёмов и напитков и отмечайте в дневнике дни, где записано всё, — тогда появится питание по полным дням.</string>
     <string name="action_set_water_guideline">Задайте свой ориентир по воде — напитки будут сравниваться с ним.</string>
     <string name="ai_review_consent_title">Что будет отправлено в Google</string>
     <string name="ai_review_consent_text">Gemini получит только эти числа. Для платного проекта Google не использует запросы для улучшения своих продуктов, но хранит их ограниченное время для контроля нарушений; данные могут обрабатываться в разных странах. Агрегированные числа всё равно относятся к вам. Согласие можно отозвать в любой момент.</string>

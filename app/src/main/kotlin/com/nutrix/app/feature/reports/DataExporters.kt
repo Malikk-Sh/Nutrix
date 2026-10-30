@@ -15,6 +15,9 @@ import com.nutrix.app.database.entity.SleepEntity
 import com.nutrix.app.database.entity.SymptomEntity
 import com.nutrix.app.database.entity.WeightEntity
 import com.nutrix.app.domain.DailyActivity
+import com.nutrix.app.domain.Nutrient
+import com.nutrix.app.domain.intake
+import com.nutrix.app.domain.withoutEnergy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -60,7 +63,11 @@ data class JsonExport(
     val activity: List<DailyActivity>,
     val exercises: List<ExerciseEntity>,
     val notes: List<NoteEntity>,
+    /** Days the user confirmed as fully recorded (ISO dates). */
+    val daysRecordedFully: List<String> = emptyList(),
 )
+
+private fun round1(v: Double) = kotlin.math.round(v * 10) / 10
 
 @Singleton
 class DataExporters @Inject constructor(@ApplicationContext private val context: Context) {
@@ -87,6 +94,7 @@ class DataExporters @Inject constructor(@ApplicationContext private val context:
             activity = data.activity,
             exercises = data.exercises,
             notes = data.notes,
+            daysRecordedFully = data.confirmedDays.sorted().map { LocalDate.ofEpochDay(it).toString() },
         )
         out.write(json.encodeToString(JsonExport.serializer(), export).toByteArray())
     }
@@ -119,7 +127,8 @@ class DataExporters @Inject constructor(@ApplicationContext private val context:
         }
         data.drinks.forEach { x ->
             val (d, t, z) = dt(x.epochMillis, x.zoneId)
-            rows += Row(x.epochMillis, listOf(d, t, z, s(R.string.category_drink), s(x.drinkType.labelRes), x.name, x.volumeMl, "ml", null, x.note, s(R.string.source_manual)))
+            val energy = if (x.withoutEnergy) null else x.intake.kcal?.let { "≈${Math.round(it)} ${s(R.string.unit_kcal)}" } ?: s(R.string.drink_kcal_unknown)
+            rows += Row(x.epochMillis, listOf(d, t, z, s(R.string.category_drink), s(x.drinkType.labelRes), x.name, x.volumeMl, "ml", energy, x.note, s(R.string.source_manual)))
         }
         data.weights.forEach { w ->
             val (d, t, z) = dt(w.epochMillis, w.zoneId)
@@ -184,9 +193,27 @@ class DataExporters @Inject constructor(@ApplicationContext private val context:
                     }
                 }
             }
+            // Energy as the diary counts it for this drink; "unknown" stays empty, it is never written as zero.
             entry("drinks.csv") { c ->
-                c.row("id", "date", "time", "timezone", "type", "name", "volume_ml", "note")
-                data.drinks.forEach { x -> val (d, t, z) = dt(x.epochMillis, x.zoneId); c.row(x.id, d, t, z, s(x.drinkType.labelRes), x.name, x.volumeMl, x.note) }
+                c.row("id", "date", "time", "timezone", "type", "name", "volume_ml", "note", "energy", "kcal_approx", "protein_g_approx",
+                    "fat_g_approx", "carbs_g_approx", "entered_per", "meal_id")
+                data.drinks.forEach { x ->
+                    val (d, t, z) = dt(x.epochMillis, x.zoneId)
+                    val i = x.intake
+                    val energy = when { x.withoutEnergy -> "none"; i.kcal == null -> "unknown"; else -> "value" }
+                    c.row(x.id, d, t, z, s(x.drinkType.labelRes), x.name, x.volumeMl, x.note, energy, i.kcal?.let(::round1), i.protein?.let(::round1),
+                        i.fat?.let(::round1), i.carbs?.let(::round1), x.nutrition?.takeIf { !it.isNone }?.basis?.name?.lowercase(), x.mealId)
+                }
+            }
+            // One row per day of the period, computed by the same rule as the diary and the charts.
+            entry("days.csv") { c ->
+                c.row("date", "state", "all_recorded_confirmed", "records", "kcal_known_approx", "kcal_records_estimated", "protein_g_known",
+                    "protein_records_estimated", "fat_g_known", "fat_records_estimated", "carbs_g_known", "carbs_records_estimated")
+                data.intake.forEach { day ->
+                    val totals = Nutrient.entries.map { day.total(it) }
+                    c.row(LocalDate.ofEpochDay(day.day), day.state(Nutrient.KCAL).name.lowercase(), day.confirmed, day.records,
+                        *totals.flatMap { listOf(it.value?.let(::round1), it.known) }.toTypedArray())
+                }
             }
             entry("weights.csv") { c ->
                 c.row("id", "date", "time", "timezone", "weight_kg", "source", "source_app", "note")

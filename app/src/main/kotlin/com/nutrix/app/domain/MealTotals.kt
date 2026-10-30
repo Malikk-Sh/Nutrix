@@ -5,18 +5,18 @@ import com.nutrix.app.core.model.MealNutrition
 import com.nutrix.app.database.entity.MealEntity
 import kotlin.math.roundToInt
 
-/** A sum over dishes that knows how many of them it covers: "known 650 kcal, 2 of 3 dishes". */
-data class DishTotal(val value: Double?, val known: Int, val of: Int) {
+/** A sum that knows how many of its parts it covers: "known 650 kcal, 2 of 3 dishes" or "of 4 records of the day". */
+data class PartialTotal(val value: Double?, val known: Int, val of: Int) {
     val complete: Boolean get() = known == of
 }
 
 data class DishTotals(
     val dishes: Int,
-    val grams: DishTotal,
-    val kcal: DishTotal,
-    val protein: DishTotal,
-    val fat: DishTotal,
-    val carbs: DishTotal,
+    val grams: PartialTotal,
+    val kcal: PartialTotal,
+    val protein: PartialTotal,
+    val fat: PartialTotal,
+    val carbs: PartialTotal,
 )
 
 /**
@@ -28,9 +28,9 @@ object MealTotals {
     fun eaten(dish: MealDish, value: Double?): Double? = value?.let { it * dish.eatenShare.coerceIn(0.0, 1.0) }
 
     fun of(dishes: List<MealDish>): DishTotals {
-        fun total(pick: (MealDish) -> Double?): DishTotal {
+        fun total(pick: (MealDish) -> Double?): PartialTotal {
             val known = dishes.mapNotNull { d -> eaten(d, pick(d)) }
-            return DishTotal(if (known.isEmpty()) null else known.sum(), known.size, dishes.size)
+            return PartialTotal(if (known.isEmpty()) null else known.sum(), known.size, dishes.size)
         }
         return DishTotals(
             dishes = dishes.size,

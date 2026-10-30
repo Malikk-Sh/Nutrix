@@ -38,6 +38,9 @@ interface DrinkDao {
     @Query("SELECT * FROM drinks WHERE id = :id")
     suspend fun get(id: Long): DrinkEntity?
 
+    @Query("SELECT * FROM drinks WHERE mealId = :mealId ORDER BY epochMillis")
+    fun observeForMeal(mealId: Long): Flow<List<DrinkEntity>>
+
     @Insert
     suspend fun insert(drink: DrinkEntity): Long
 

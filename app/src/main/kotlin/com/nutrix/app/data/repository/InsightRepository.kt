@@ -59,6 +59,7 @@ class InsightRepository @Inject constructor(
     private val notes: NoteRepository,
     private val settings: SettingsRepository,
     notifier: DataChangeNotifier,
+    private val checks: DayCheckRepository,
 ) {
     private data class Inputs(val goal: Int?, val target: Double?, val sources: List<DataSource>, val hidden: Set<String>, val topics: Set<String>)
 
@@ -87,6 +88,7 @@ class InsightRepository @Inject constructor(
             sleeps = health.getSleepRange(earlier.first, window.last + 1),
             activity = health.getActivityRange(earlier.first, window.last),
             notes = notes.getRange(earlier.first, window.last),
+            confirmedDays = checks.getRange(earlier.first, window.last),
         )
         val current = InsightEngine.evaluate(InsightInput(records, s.waterGoalMl, s.targetWeightKg))
         val previous = InsightEngine.evaluate(InsightInput(records.copy(from = earlier.first, to = earlier.last), s.waterGoalMl, s.targetWeightKg))

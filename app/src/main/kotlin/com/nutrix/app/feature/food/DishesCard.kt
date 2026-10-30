@@ -44,7 +44,7 @@ import com.nutrix.app.core.time.Formatters
 import com.nutrix.app.core.ui.components.NutrixCard
 import com.nutrix.app.core.ui.components.NutrixTextField
 import com.nutrix.app.core.ui.theme.LocalCategoryColors
-import com.nutrix.app.domain.DishTotal
+import com.nutrix.app.domain.PartialTotal
 import com.nutrix.app.domain.DishTotals
 import com.nutrix.app.domain.MealTotals
 import kotlin.math.roundToInt
@@ -173,7 +173,7 @@ fun DishTotalsSummary(t: DishTotals) {
         Text(stringResource(R.string.food_total_title), style = MaterialTheme.typography.titleSmall)
         Text(if (parts.isEmpty()) stringResource(R.string.food_total_none) else parts.joinToString(" · "),
             style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag("dish-totals-value"))
-        @Composable fun partial(total: DishTotal, name: Int) {
+        @Composable fun partial(total: PartialTotal, name: Int) {
             if (total.value != null && !total.complete) Text(stringResource(R.string.food_total_partial, stringResource(name), total.known, total.of),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
         }

@@ -1,7 +1,5 @@
 package com.nutrix.app.feature.food
 
-import com.nutrix.app.domain.kcalIfComplete
-
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -62,15 +60,26 @@ import com.nutrix.app.core.ui.components.NutrixScreen
 import com.nutrix.app.core.ui.components.PhotoThumb
 import com.nutrix.app.core.ui.components.Pill
 import com.nutrix.app.core.ui.components.ScreenList
-import com.nutrix.app.core.ui.components.SectionHeader
 import com.nutrix.app.core.ui.labelRes
 import com.nutrix.app.core.ui.theme.LocalCategoryColors
+import com.nutrix.app.data.repository.DayCheckRepository
+import com.nutrix.app.data.repository.DrinkRepository
 import com.nutrix.app.data.repository.MealRepository
+import com.nutrix.app.domain.DayIntake
+import com.nutrix.app.domain.DayIntakes
+import com.nutrix.app.domain.Nutrient
+import com.nutrix.app.feature.intake.DayConfirmRow
+import com.nutrix.app.feature.intake.dayCoverageText
+import com.nutrix.app.feature.intake.dayTotalText
+import androidx.compose.material3.FilterChip
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.ui.platform.testTag
 import com.nutrix.app.database.entity.FavoriteMealEntity
 import com.nutrix.app.database.entity.MealWithPhotos
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -78,20 +87,35 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
 
-data class MealDay(val date: LocalDate, val meals: List<MealWithPhotos>)
+/** A diary day: its meals, newest first, and the day's intake with drinks counted once. */
+data class MealDay(val date: LocalDate, val meals: List<MealWithPhotos>, val intake: DayIntake)
 
 @HiltViewModel
-class FoodDiaryViewModel @Inject constructor(private val meals: MealRepository, private val undo: UndoManager, private val messages: UserMessages) : ViewModel() {
+class FoodDiaryViewModel @Inject constructor(
+    private val meals: MealRepository,
+    private val undo: UndoManager,
+    private val messages: UserMessages,
+    private val drinks: DrinkRepository,
+    private val checks: DayCheckRepository,
+) : ViewModel() {
     private val window = MutableStateFlow(30)
 
     val days = window.flatMapLatest { days ->
         val today = TimeUtils.todayEpochDay()
-        meals.observeRange(today - days + 1, today + 1).map { list ->
+        val from = today - days + 1
+        combine(meals.observeRange(from, today + 1), drinks.observeRange(from, today + 1), checks.observeRange(from, today + 1)) { list, drinkList, confirmed ->
             list.groupBy { it.meal.localDate }
-                .map { (day, items) -> MealDay(LocalDate.ofEpochDay(day), items.sortedByDescending { it.meal.epochMillis }) }
+                .map { (day, items) ->
+                    MealDay(LocalDate.ofEpochDay(day), items.sortedByDescending { it.meal.epochMillis },
+                        DayIntakes.of(day, items.map { it.meal }, drinkList, day in confirmed, today))
+                }
                 .sortedByDescending { it.date }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    fun setConfirmed(day: LocalDate, confirmed: Boolean) {
+        viewModelScope.launch { checks.setConfirmed(day.toEpochDay(), confirmed) }
+    }
 
     fun loadMore() {
         window.value += 30
@@ -154,22 +178,19 @@ fun FoodDiaryScreen(
             }
             list?.firstOrNull { it.date == LocalDate.now() }?.let { today ->
                 item(key = "today-summary") {
-                    // A meal whose dishes are only partly estimated does not count as known.
-                    val knownCalories = today.meals.mapNotNull { it.meal.kcalIfComplete }
-                    NutrixCard {
+                    // Food and drinks with calories, each counted once; a partly estimated day says "known".
+                    NutrixCard(Modifier.testTag("today-intake")) {
                         CardHeader(Icons.Rounded.Restaurant, pluralStringResource(R.plurals.meals_count, today.meals.size, today.meals.size), LocalCategoryColors.current.meal)
-                        if (knownCalories.isNotEmpty()) {
-                            Text("≈${knownCalories.sum()} ${stringResource(R.string.unit_kcal)}", style = MaterialTheme.typography.headlineSmall)
-                            if (knownCalories.size < today.meals.size) Text(stringResource(R.string.alignment_known_meals, knownCalories.size, today.meals.size), style = MaterialTheme.typography.bodySmall)
-                        }
+                        dayTotalText(today.intake, Nutrient.KCAL)?.let { Text(it, style = MaterialTheme.typography.headlineSmall) }
+                        dayCoverageText(today.intake, Nutrient.KCAL)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        Spacer(Modifier.height(8.dp))
+                        DayConfirmRow(today.intake.confirmed, { viewModel.setConfirmed(today.date, it) }, tag = "day-confirm-today")
                     }
                 }
             }
             list?.forEach { day ->
                 item(key = "h-${day.date}") {
-                    SectionHeader(
-                        "${dayTitle(day.date)} · ${pluralStringResource(R.plurals.meals_count, day.meals.size, day.meals.size)}",
-                    )
+                    DayHeader(day, onConfirm = { viewModel.setConfirmed(day.date, it) })
                 }
                 items(day.meals, key = { it.meal.id }) { meal ->
                     Box(Modifier.animateItem()) { MealRow(meal, onClick = { onOpenMeal(meal.meal.id) }, onActions = { actionMeal = meal }) }
@@ -197,6 +218,27 @@ fun FoodDiaryScreen(
             onConfirm = { deleteMeal = null; viewModel.delete(meal.meal.id) }, onDismiss = { deleteMeal = null })
     }
 
+}
+
+/** Day title with its meals and calories, and the switch that says the day is fully recorded. */
+@Composable
+private fun DayHeader(day: MealDay, onConfirm: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("${dayTitle(day.date)} · ${pluralStringResource(R.plurals.meals_count, day.meals.size, day.meals.size)}",
+                style = MaterialTheme.typography.titleMedium)
+            dayTotalText(day.intake, Nutrient.KCAL)?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (day.date != LocalDate.now()) FilterChip(
+            selected = day.intake.confirmed,
+            onClick = { onConfirm(!day.intake.confirmed) },
+            label = { Text(stringResource(R.string.intake_confirm_chip)) },
+            leadingIcon = if (day.intake.confirmed) ({ Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }) else null,
+            modifier = Modifier.testTag("day-confirm-${day.date}"),
+        )
+    }
 }
 
 @Composable

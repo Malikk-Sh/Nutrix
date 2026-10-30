@@ -60,9 +60,9 @@ class InsightEngineTest {
     private fun run(
         meals: List<MealEntity> = emptyList(), drinks: List<DrinkEntity> = emptyList(), sleeps: List<SleepEntity> = emptyList(),
         weights: List<WeightEntity> = emptyList(), symptoms: List<SymptomEntity> = emptyList(), activity: List<DailyActivity> = emptyList(),
-        goal: Int? = null, target: Double? = null,
+        goal: Int? = null, target: Double? = null, confirmed: Set<Long> = emptySet(),
     ): List<Insight> = InsightEngine.analyze(InsightInput(
-        AnalyticsInput(window.first, window.last, meals, drinks, weights, symptoms, sleeps, activity), goal, target,
+        AnalyticsInput(window.first, window.last, meals, drinks, weights, symptoms, sleeps, activity, confirmedDays = confirmed), goal, target,
     ))
 
     private inline fun <reified T : Insight> List<Insight>.find(): T? = filterIsInstance<T>().firstOrNull()
@@ -137,12 +137,29 @@ class InsightEngineTest {
 
     @Test
     fun `evening share of estimated calories is reported`() {
-        val result = run(meals = days.flatMap { listOf(meal(it, 9, kcal = 300), meal(it, 19, kcal = 900)) })
+        val result = run(meals = days.flatMap { listOf(meal(it, 9, kcal = 300), meal(it, 19, kcal = 900)) }, confirmed = days.toSet())
         val nutrition = result.find<NutritionSummary>()!!
         assertThat(nutrition.kcal).isEqualTo(1200)
         assertThat(nutrition.eveningShare).isWithin(1e-9).of(0.75)
         assertThat(nutrition.tone).isEqualTo(InsightTone.ATTENTION)
         assertThat(nutrition.protein).isNull()
+    }
+
+    @Test
+    fun `days that are not confirmed or not fully estimated are not a day's intake`() {
+        // Four meals a day, three of them estimated: without the fourth, 900 kcal is not what was eaten.
+        val partial = days.flatMap { listOf(meal(it, 8, kcal = 300), meal(it, 12, kcal = 300), meal(it, 16, kcal = 300), meal(it, 19)) }
+        assertThat(run(meals = partial, confirmed = days.toSet()).find<NutritionSummary>()).isNull()
+        // Fully estimated but never confirmed as fully recorded: no averages either.
+        val estimated = days.flatMap { listOf(meal(it, 9, kcal = 500), meal(it, 19, kcal = 700)) }
+        assertThat(run(meals = estimated).find<NutritionSummary>()).isNull()
+        // Confirmed days count, drinks with calories included and water left out; unconfirmed days stay out.
+        val juice = days.map { DrinkEntity(epochMillis = at(it, 20), zoneId = zone, localDate = it, drinkType = DrinkType.JUICE, volumeMl = 200,
+            nutrition = com.nutrix.app.core.model.DrinkNutrition(50.0)) } + days.map { drink(it, 10, 500) }
+        val nutrition = run(meals = estimated, drinks = juice, confirmed = days.take(10).toSet()).find<NutritionSummary>()!!
+        assertThat(nutrition.days).isEqualTo(10)
+        assertThat(nutrition.kcal).isEqualTo(1300)
+        assertThat(nutrition.eveningShare).isWithin(1e-9).of(800.0 / 1300)
     }
 
     @Test

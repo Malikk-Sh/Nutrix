@@ -13,7 +13,7 @@ import org.junit.Test
 
 class WeeklyOverviewTest {
     private val full = DataCoverage(windowDays = 28, mealDays = 26, drinkDays = 25, sleepNights = 20, weightDays = 10,
-        estimatedDays = 20, meals = 70, ratedMeals = 40)
+        completeDays = 20, meals = 70, ratedMeals = 40)
     private val rhythm = MealRhythm(26, 540, 1230, 690, 150, 6, 2.7, emptyList())
     private val fluid = FluidSummary(25, 1300, null, 0, 0.3, emptyList())
 
@@ -24,7 +24,7 @@ class WeeklyOverviewTest {
     }
 
     @Test fun `missing sleep is named before estimates and ratings`() {
-        val o = WeeklyOverview.build(listOf(rhythm), full.copy(sleepNights = 0, estimatedDays = 2, ratedMeals = 0), hasWaterGoal = true)
+        val o = WeeklyOverview.build(listOf(rhythm), full.copy(sleepNights = 0, completeDays = 2, ratedMeals = 0), hasWaterGoal = true)
         assertThat(o.limitation).isEqualTo(DataLimitation.NoSleep)
         assertThat(o.action).isEqualTo(DiaryAction.ADD_SLEEP)
     }

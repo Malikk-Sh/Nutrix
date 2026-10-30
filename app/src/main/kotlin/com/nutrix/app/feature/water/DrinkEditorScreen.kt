@@ -42,6 +42,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nutrix.app.R
 import com.nutrix.app.core.model.DrinkType
+import com.nutrix.app.core.time.Formatters
+import androidx.compose.ui.platform.testTag
 import com.nutrix.app.core.ui.components.ChoiceChips
 import com.nutrix.app.core.ui.components.ConfirmDialog
 import com.nutrix.app.core.ui.components.DateTimeRow
@@ -73,6 +75,7 @@ fun DrinkEditorScreen(
     val camera by photoResults.cameraPhoto.collectAsStateWithLifecycle()
     val loaded by viewModel.loaded.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
+    val dayMeals by viewModel.dayMeals.collectAsStateWithLifecycle()
     val colors = LocalCategoryColors.current
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     var allVolumes by rememberSaveable { mutableStateOf(false) }
@@ -88,7 +91,7 @@ fun DrinkEditorScreen(
             if (form.id != 0L) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete)) }
         },
         bottomBar = {
-            NutrixBottomAction(stringResource(R.string.action_save), viewModel::save, enabled = loaded && form.volume != null, loading = busy)
+            NutrixBottomAction(stringResource(R.string.action_save), viewModel::save, enabled = loaded && form.volume != null && !form.energyInvalid, loading = busy)
         },
     ) { padding ->
         ScreenList(padding, bottomExtra = 24.dp) {
@@ -102,7 +105,7 @@ fun DrinkEditorScreen(
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 row.forEach { type ->
                                     val selected = type == form.type
-                                    FilledTonalButton(onClick = { viewModel.update { it.copy(type = type) } }, modifier = Modifier.weight(1f),
+                                    FilledTonalButton(onClick = { viewModel.setType(type) }, modifier = Modifier.weight(1f),
                                         shape = MaterialTheme.shapes.small, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp),
                                         colors = ButtonDefaults.filledTonalButtonColors(containerColor = if (selected) colors.water.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceContainerHigh,
                                             contentColor = if (selected) colors.water else MaterialTheme.colorScheme.onSurfaceVariant)) {
@@ -133,6 +136,27 @@ fun DrinkEditorScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     NutrixTextField(form.name, { v -> viewModel.update { it.copy(name = v) } }, stringResource(R.string.drink_name_label))
+                }
+            }
+            item(key = "energy") {
+                NutrixCard(Modifier.testTag("drink-energy")) {
+                    Text(stringResource(R.string.drink_energy_title), style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.height(6.dp))
+                    if (form.type == DrinkType.WATER) {
+                        Text(stringResource(R.string.drink_energy_water), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        DrinkEnergyEditor(form.energy, form.type, form.volume, viewModel::setEnergy)
+                    }
+                }
+            }
+            if (dayMeals.isNotEmpty()) item(key = "meal") {
+                NutrixCard {
+                    Text(stringResource(R.string.drink_meal_title), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.drink_meal_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
+                    val selected = dayMeals.firstOrNull { it.id == form.mealId }
+                    ChoiceChips(dayMeals, selected, { m -> "${m.title?.takeIf(String::isNotBlank) ?: stringResource(m.mealType.labelRes)} · ${Formatters.time(m.time)}" },
+                        { m -> viewModel.update { it.copy(mealId = m?.id) } }, accent = colors.meal)
                 }
             }
             item {

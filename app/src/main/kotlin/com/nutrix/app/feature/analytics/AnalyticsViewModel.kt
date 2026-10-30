@@ -6,6 +6,7 @@ import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.model.WeightUnit
 import com.nutrix.app.core.time.TimeUtils
 import com.nutrix.app.data.repository.DataChangeNotifier
+import com.nutrix.app.data.repository.DayCheckRepository
 import com.nutrix.app.data.repository.DrinkRepository
 import com.nutrix.app.data.repository.HealthRepository
 import com.nutrix.app.data.repository.MealRepository
@@ -15,6 +16,8 @@ import com.nutrix.app.data.repository.WeightRepository
 import com.nutrix.app.domain.AnalyticsCalculator
 import com.nutrix.app.domain.AnalyticsInput
 import com.nutrix.app.domain.CorrelationResult
+import com.nutrix.app.domain.DayIntake
+import com.nutrix.app.domain.DayIntakes
 import com.nutrix.app.domain.Metric
 import com.nutrix.app.domain.MetricSeries
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,6 +30,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import javax.inject.Inject
@@ -51,6 +55,8 @@ data class AnalyticsState(
     val totalDays: Int = 0,
     val unit: WeightUnit = WeightUnit.KG,
     val loading: Boolean = true,
+    /** Every day of the period, empty days included, by the same rule as the food diary. */
+    val intake: List<DayIntake> = emptyList(),
 )
 
 @HiltViewModel
@@ -61,6 +67,7 @@ class AnalyticsViewModel @Inject constructor(
     private val symptoms: SymptomRepository,
     private val health: HealthRepository,
     private val notes: NoteRepository,
+    private val checks: DayCheckRepository,
     settings: SettingsRepository,
     notifier: DataChangeNotifier,
 ) : ViewModel() {
@@ -87,6 +94,7 @@ class AnalyticsViewModel @Inject constructor(
             sleeps = health.getSleepRange(from, to),
             activity = health.getActivityRange(from, to),
             notes = notes.getRange(from, to),
+            confirmedDays = checks.getRange(from, to),
         )
         val series = AnalyticsCalculator.series(input)
         AnalyticsState(
@@ -97,7 +105,12 @@ class AnalyticsViewModel @Inject constructor(
             totalDays = (to - from + 1).toInt(),
             unit = unit,
             loading = false,
+            intake = DayIntakes.range(input, TimeUtils.todayEpochDay()),
         )
+    }
+
+    fun setConfirmed(day: Long, confirmed: Boolean) {
+        viewModelScope.launch { checks.setConfirmed(day, confirmed) }
     }
 
     fun setPeriod(p: AnalyticsPeriod) {
