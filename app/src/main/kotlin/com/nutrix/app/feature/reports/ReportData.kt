@@ -4,6 +4,8 @@ import com.nutrix.app.core.datastore.SettingsRepository
 import com.nutrix.app.core.datastore.UserSettings
 import com.nutrix.app.data.repository.DayCheckRepository
 import com.nutrix.app.data.repository.DrinkRepository
+import com.nutrix.app.data.repository.IntakePlanRepository
+import com.nutrix.app.database.entity.IntakePlanEntity
 import com.nutrix.app.data.repository.HealthRepository
 import com.nutrix.app.data.repository.MealRepository
 import com.nutrix.app.data.repository.NoteRepository
@@ -44,6 +46,8 @@ data class ReportData(
     val trackedDays: Set<Long>,
     /** Days the user confirmed as fully recorded. */
     val confirmedDays: Set<Long> = emptySet(),
+    /** The whole guideline history; each entry applies from its start day. */
+    val plans: List<IntakePlanEntity> = emptyList(),
 ) {
     /** Every day of the period by the diary's own rule: food and caloric drinks once, missing values never zero. */
     val intake: List<DayIntake>
@@ -66,6 +70,7 @@ class ReportDataLoader @Inject constructor(
     private val notes: NoteRepository,
     private val settings: SettingsRepository,
     private val checks: DayCheckRepository,
+    private val plans: IntakePlanRepository,
 ) {
     suspend fun load(from: LocalDate, to: LocalDate): ReportData {
         val f = from.toEpochDay()
@@ -97,6 +102,7 @@ class ReportDataLoader @Inject constructor(
             series = AnalyticsCalculator.series(input),
             trackedDays = AnalyticsCalculator.trackedDays(input),
             confirmedDays = checks.getRange(f, t),
+            plans = plans.all(),
         )
     }
 }

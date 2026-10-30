@@ -64,6 +64,8 @@ import com.nutrix.app.core.ui.labelRes
 import com.nutrix.app.core.ui.theme.LocalCategoryColors
 import com.nutrix.app.data.repository.DayCheckRepository
 import com.nutrix.app.data.repository.DrinkRepository
+import com.nutrix.app.data.repository.IntakePlanRepository
+import com.nutrix.app.domain.IntakePlans
 import com.nutrix.app.data.repository.MealRepository
 import com.nutrix.app.domain.DayIntake
 import com.nutrix.app.domain.DayIntakes
@@ -97,8 +99,13 @@ class FoodDiaryViewModel @Inject constructor(
     private val messages: UserMessages,
     private val drinks: DrinkRepository,
     private val checks: DayCheckRepository,
+    plans: IntakePlanRepository,
 ) : ViewModel() {
     private val window = MutableStateFlow(30)
+
+    /** Today's calorie guideline, shown as a range next to the day's total; never as "kcal left". */
+    val todayPlan = plans.observeAll().map { all -> IntakePlans.activeOn(TimeUtils.todayEpochDay(), all)?.let { IntakePlans.range(it, Nutrient.KCAL) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val days = window.flatMapLatest { days ->
         val today = TimeUtils.todayEpochDay()
@@ -154,6 +161,7 @@ fun FoodDiaryScreen(
     viewModel: FoodDiaryViewModel = hiltViewModel(),
 ) {
     val days by viewModel.days.collectAsStateWithLifecycle()
+    val todayPlan by viewModel.todayPlan.collectAsStateWithLifecycle()
     var actionMeal by remember { mutableStateOf<MealWithPhotos?>(null) }
     var deleteMeal by remember { mutableStateOf<MealWithPhotos?>(null) }
     NutrixScreen(
@@ -183,6 +191,10 @@ fun FoodDiaryScreen(
                         CardHeader(Icons.Rounded.Restaurant, pluralStringResource(R.plurals.meals_count, today.meals.size, today.meals.size), LocalCategoryColors.current.meal)
                         dayTotalText(today.intake, Nutrient.KCAL)?.let { Text(it, style = MaterialTheme.typography.headlineSmall) }
                         dayCoverageText(today.intake, Nutrient.KCAL)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        todayPlan?.let { r ->
+                            Text(stringResource(R.string.intake_today_plan, "${Formatters.integer(r.min.toLong())}–${Formatters.integer(r.max.toLong())} ${stringResource(R.string.unit_kcal)}"),
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         Spacer(Modifier.height(8.dp))
                         DayConfirmRow(today.intake.confirmed, { viewModel.setConfirmed(today.date, it) }, tag = "day-confirm-today")
                     }

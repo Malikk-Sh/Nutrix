@@ -28,6 +28,7 @@ import kotlinx.serialization.Serializable
 
 // Settings & tools
 @Serializable object ProfileEditRoute
+@Serializable object IntakePlanRoute
 @Serializable object ReportsRoute
 @Serializable object BackupRoute
 @Serializable object IntegrationsRoute

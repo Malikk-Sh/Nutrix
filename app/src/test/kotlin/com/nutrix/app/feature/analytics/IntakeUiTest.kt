@@ -31,6 +31,9 @@ import com.nutrix.app.core.model.MealType
 import com.nutrix.app.core.security.AppLockManager
 import com.nutrix.app.core.time.RecordTime
 import com.nutrix.app.data.repository.DayCheckRepository
+import com.nutrix.app.data.repository.IntakePlanRepository
+import com.nutrix.app.core.model.PlanSource
+import com.nutrix.app.database.entity.IntakePlanEntity
 import com.nutrix.app.data.repository.DrinkRepository
 import com.nutrix.app.data.repository.MealRepository
 import com.nutrix.app.database.entity.MealEntity
@@ -63,6 +66,7 @@ class IntakeUiTest {
     @Inject lateinit var meals: MealRepository
     @Inject lateinit var drinks: DrinkRepository
     @Inject lateinit var checks: DayCheckRepository
+    @Inject lateinit var plans: IntakePlanRepository
     @Inject lateinit var lock: AppLockManager
     private lateinit var scenario: ActivityScenario<MainActivity>
     private val today = LocalDate.now()
@@ -92,6 +96,8 @@ class IntakeUiTest {
             // Day 5: everything estimated but not confirmed. Today: still running.
             meal(5, 13, 2000)
             meal(0, 9, 400)
+            // A guideline from ten days ago: complete days are compared with it, the others are not.
+            plans.startToday(IntakePlanEntity(startDay = 0, source = PlanSource.MANUAL, kcalMin = 1500, kcalMax = 1700), today.minusDays(10).toEpochDay())
         }
         lock.start()
         scenario = ActivityScenario.launch(MainActivity::class.java)
@@ -125,6 +131,8 @@ class IntakeUiTest {
         // (1500 + 90) on three complete days; the partial, unconfirmed and running days are left out.
         compose.onNodeWithTag("intake-average").assertTextContains("590 ккал", substring = true)
         waitFor("среднее по 3 полным дням из 29 завершённых")
+        waitFor("Ориентир: 1")
+        waitFor("в диапазоне 3, ниже 0, выше 0")
 
         tapDay(4)
         scrollTo("intake-day")

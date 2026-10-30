@@ -13,6 +13,13 @@ import com.nutrix.app.data.repository.DataChangeNotifier
 import com.nutrix.app.data.repository.DayCheckRepository
 import com.nutrix.app.data.repository.DrinkRepository
 import com.nutrix.app.data.repository.MealRepository
+import com.nutrix.app.data.repository.IntakePlanRepository
+import com.nutrix.app.core.model.ActivityLevel
+import com.nutrix.app.core.model.FormulaSex
+import com.nutrix.app.core.model.PlanBasis
+import com.nutrix.app.core.model.PlanSource
+import com.nutrix.app.database.entity.IntakePlanEntity
+import com.nutrix.app.domain.IntakePlans
 import com.nutrix.app.core.model.DrinkNutrition
 import com.nutrix.app.domain.DrinkIntake
 import com.nutrix.app.domain.intake
@@ -70,7 +77,7 @@ class NutritionMigrationTest {
             repo.save(meal.copy(nutrition = nutrition), emptyList(), saveAsFavorite = true)
             assertThat(repo.get(1)!!.meal.nutrition).isEqualTo(nutrition)
             assertThat(repo.observeFavorites().first().first { it.title == "Старый обед" }.nutrition).isEqualTo(nutrition)
-            assertThat(db.openHelper.readableDatabase.version).isEqualTo(4)
+            assertThat(db.openHelper.readableDatabase.version).isEqualTo(5)
         } finally { db.close() }
     }
 
@@ -133,7 +140,7 @@ class NutritionMigrationTest {
             val upgraded = repo.get(1)!!.meal
             assertThat(upgraded.dishes!!.single().name).isEqualTo("Суп")
             assertThat(upgraded.caloriesEstimate).isEqualTo(300)
-            assertThat(db.openHelper.readableDatabase.version).isEqualTo(4)
+            assertThat(db.openHelper.readableDatabase.version).isEqualTo(5)
         } finally { db.close() }
     }
 
@@ -164,7 +171,29 @@ class NutritionMigrationTest {
             assertThat(checks.getRange(-1, 1)).containsExactly(0L)
             checks.setConfirmed(0, false)
             assertThat(checks.getRange(-1, 1)).isEmpty()
-            assertThat(db.openHelper.readableDatabase.version).isEqualTo(4)
+            assertThat(db.openHelper.readableDatabase.version).isEqualTo(5)
+        } finally { db.close() }
+    }
+
+    @Test fun `version four gains an empty guideline history and a new guideline never rewrites earlier days`() = runBlocking {
+        context.deleteDatabase(NutrixDatabase.NAME)
+        olderVersion(context.getDatabasePath(NutrixDatabase.NAME), 4)
+        val db = NutrixDatabase.build(context)
+        try {
+            val plans = IntakePlanRepository(db.intakePlanDao(), DataChangeNotifier())
+            assertThat(plans.all()).isEmpty()
+            val basis = PlanBasis(56.0, 99, 168, 30, FormulaSex.FEMALE, ActivityLevel.LOW, 1299, 1299)
+            plans.startToday(IntakePlanEntity(startDay = 0, source = PlanSource.FORMULA, kcalMin = 1650, kcalMax = 2300, basis = basis), today = 100)
+            // Saving again on the same day replaces that day's guideline only.
+            plans.startToday(IntakePlanEntity(startDay = 0, source = PlanSource.FORMULA, kcalMin = 1700, kcalMax = 2300, basis = basis), today = 100)
+            plans.startToday(IntakePlanEntity(startDay = 0, source = PlanSource.MANUAL, kcalMin = 1800, kcalMax = 2000, note = "Диетолог"), today = 105)
+            val all = plans.all()
+            assertThat(all.map { it.startDay }).containsExactly(100L, 105L).inOrder()
+            assertThat(all.first().kcalMin).isEqualTo(1700)
+            assertThat(all.first().basis).isEqualTo(basis)
+            assertThat(IntakePlans.activeOn(104, all)!!.kcalMin).isEqualTo(1700)
+            assertThat(IntakePlans.activeOn(105, all)!!.note).isEqualTo("Диетолог")
+            assertThat(db.openHelper.readableDatabase.version).isEqualTo(5)
         } finally { db.close() }
     }
 }

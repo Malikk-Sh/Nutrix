@@ -7,6 +7,7 @@ import com.nutrix.app.core.time.Formatters
 import com.nutrix.app.core.time.RecordTime
 import com.nutrix.app.core.ui.labelRes
 import com.nutrix.app.database.entity.DrinkEntity
+import com.nutrix.app.database.entity.IntakePlanEntity
 import com.nutrix.app.database.entity.ExerciseEntity
 import com.nutrix.app.database.entity.MealEntity
 import com.nutrix.app.database.entity.MealPhotoEntity
@@ -65,6 +66,8 @@ data class JsonExport(
     val notes: List<NoteEntity>,
     /** Days the user confirmed as fully recorded (ISO dates). */
     val daysRecordedFully: List<String> = emptyList(),
+    /** Calorie and macronutrient guidelines with the epoch day each starts on. */
+    val intakePlans: List<IntakePlanEntity> = emptyList(),
 )
 
 private fun round1(v: Double) = kotlin.math.round(v * 10) / 10
@@ -95,6 +98,7 @@ class DataExporters @Inject constructor(@ApplicationContext private val context:
             exercises = data.exercises,
             notes = data.notes,
             daysRecordedFully = data.confirmedDays.sorted().map { LocalDate.ofEpochDay(it).toString() },
+            intakePlans = data.plans,
         )
         out.write(json.encodeToString(JsonExport.serializer(), export).toByteArray())
     }

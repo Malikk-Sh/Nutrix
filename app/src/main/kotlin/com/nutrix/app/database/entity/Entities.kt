@@ -15,6 +15,8 @@ import com.nutrix.app.core.model.DrinkType
 import com.nutrix.app.core.model.MealDish
 import com.nutrix.app.core.model.MealType
 import com.nutrix.app.core.model.MealNutrition
+import com.nutrix.app.core.model.PlanBasis
+import com.nutrix.app.core.model.PlanSource
 import com.nutrix.app.core.model.PortionEaten
 import com.nutrix.app.core.model.Satiety
 import com.nutrix.app.core.model.SymptomType
@@ -300,6 +302,31 @@ data class FavoriteMealEntity(
 data class DayCheckEntity(
     @PrimaryKey val localDate: Long,
     val confirmedAt: Long = System.currentTimeMillis(),
+)
+
+/**
+ * A calorie and macronutrient guideline that applies from [startDay] until the next one. Saving a new one
+ * never changes earlier days, so a chart of past weeks keeps the guideline those days had; saving again on
+ * the same day replaces only that day's. Ranges are per day; a null bound is not set.
+ */
+@Serializable
+@Entity(tableName = "intake_plans")
+data class IntakePlanEntity(
+    @PrimaryKey val startDay: Long,
+    val source: PlanSource,
+    val kcalMin: Int? = null,
+    val kcalMax: Int? = null,
+    val proteinMin: Int? = null,
+    val proteinMax: Int? = null,
+    val fatMin: Int? = null,
+    val fatMax: Int? = null,
+    val carbsMin: Int? = null,
+    val carbsMax: Int? = null,
+    /** Version of the method for a formula guideline. */
+    val method: String? = null,
+    @ColumnInfo(defaultValue = "NULL") val basis: PlanBasis? = null,
+    val note: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
 )
 
 /** Unsaved editor state; one draft per editor kind. */

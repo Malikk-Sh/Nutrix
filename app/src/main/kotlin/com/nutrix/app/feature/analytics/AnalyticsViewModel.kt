@@ -7,6 +7,8 @@ import com.nutrix.app.core.model.WeightUnit
 import com.nutrix.app.core.time.TimeUtils
 import com.nutrix.app.data.repository.DataChangeNotifier
 import com.nutrix.app.data.repository.DayCheckRepository
+import com.nutrix.app.data.repository.IntakePlanRepository
+import com.nutrix.app.database.entity.IntakePlanEntity
 import com.nutrix.app.data.repository.DrinkRepository
 import com.nutrix.app.data.repository.HealthRepository
 import com.nutrix.app.data.repository.MealRepository
@@ -57,6 +59,8 @@ data class AnalyticsState(
     val loading: Boolean = true,
     /** Every day of the period, empty days included, by the same rule as the food diary. */
     val intake: List<DayIntake> = emptyList(),
+    /** The whole history of guidelines; each day is compared with the one it had. */
+    val plans: List<IntakePlanEntity> = emptyList(),
 )
 
 @HiltViewModel
@@ -68,6 +72,7 @@ class AnalyticsViewModel @Inject constructor(
     private val health: HealthRepository,
     private val notes: NoteRepository,
     private val checks: DayCheckRepository,
+    private val plans: IntakePlanRepository,
     settings: SettingsRepository,
     notifier: DataChangeNotifier,
 ) : ViewModel() {
@@ -106,6 +111,7 @@ class AnalyticsViewModel @Inject constructor(
             unit = unit,
             loading = false,
             intake = DayIntakes.range(input, TimeUtils.todayEpochDay()),
+            plans = plans.all(),
         )
     }
 

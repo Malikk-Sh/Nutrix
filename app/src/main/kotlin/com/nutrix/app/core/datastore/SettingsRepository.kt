@@ -12,7 +12,11 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.datastore.preferences.preferencesDataStoreFile
+import com.nutrix.app.core.model.ActivityLevel
 import com.nutrix.app.core.model.DataSource
+import com.nutrix.app.core.model.FormulaSex
+import com.nutrix.app.core.model.NutritionGoal
+import com.nutrix.app.core.model.SpecialCircumstance
 import com.nutrix.app.core.model.ThemeMode
 import com.nutrix.app.core.model.WeightUnit
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -78,6 +82,12 @@ class SettingsRepository @Inject constructor(
         val insightTopics = stringPreferencesKey("insight_topics")
         val aiReviewConsent = booleanPreferencesKey("ai_review_consent")
         val aiPaidProject = booleanPreferencesKey("ai_paid_project")
+        // Inputs of the maintenance guideline; never sent anywhere.
+        val nutritionGoal = stringPreferencesKey("nutrition_goal")
+        val birthYear = intPreferencesKey("birth_year")
+        val formulaSex = stringPreferencesKey("formula_sex")
+        val activityLevel = stringPreferencesKey("activity_level")
+        val circumstances = stringPreferencesKey("special_circumstances")
         // Regenerable caches start with "cache_" and are left out of backups.
         val aiReviewCache = stringPreferencesKey("cache_ai_review")
 
@@ -106,6 +116,8 @@ class SettingsRepository @Inject constructor(
         Keys.autoBackupInterval.name to "i", Keys.autoBackupKeep.name to "i", Keys.autoBackupEncrypted.name to "b",
         Keys.lastAutoBackup.name to "l", Keys.reportPhotos.name to "b", Keys.geminiModel.name to "s",
         Keys.hiddenInsights.name to "s", Keys.insightTopics.name to "s",
+        Keys.nutritionGoal.name to "s", Keys.birthYear.name to "i", Keys.formulaSex.name to "s", Keys.activityLevel.name to "s",
+        Keys.circumstances.name to "s",
     )
 
     val settings: Flow<UserSettings> = store.data.map { it.toSettings() }
@@ -153,6 +165,12 @@ class SettingsRepository @Inject constructor(
             insightTopics = this[Keys.insightTopics]?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }?.toSet() ?: d.insightTopics,
             aiReviewConsent = this[Keys.aiReviewConsent] ?: d.aiReviewConsent,
             aiPaidProject = this[Keys.aiPaidProject] ?: d.aiPaidProject,
+            nutritionGoal = NutritionGoal.entries.firstOrNull { it.name == this[Keys.nutritionGoal] },
+            birthYear = this[Keys.birthYear],
+            formulaSex = FormulaSex.entries.firstOrNull { it.name == this[Keys.formulaSex] },
+            activityLevel = ActivityLevel.entries.firstOrNull { it.name == this[Keys.activityLevel] },
+            circumstances = this[Keys.circumstances]?.split(',')
+                ?.mapNotNull { name -> SpecialCircumstance.entries.firstOrNull { it.name == name.trim() } }?.toSet() ?: emptySet(),
         )
     }
 
@@ -182,6 +200,19 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun setTargetWeight(kg: Double?) = edit { it.setOrRemove(Keys.targetWeight, kg) }
+
+    /** What the maintenance guideline is computed from, in one write; null clears a value. */
+    suspend fun setNutritionProfile(
+        goal: NutritionGoal?, birthYear: Int?, sex: FormulaSex?, activity: ActivityLevel?, circumstances: Set<SpecialCircumstance>,
+    ) = edit {
+        it.setOrRemove(Keys.nutritionGoal, goal?.name)
+        it.setOrRemove(Keys.birthYear, birthYear)
+        it.setOrRemove(Keys.formulaSex, sex?.name)
+        it.setOrRemove(Keys.activityLevel, activity?.name)
+        it.setOrRemove(Keys.circumstances, circumstances.takeIf { c -> c.isNotEmpty() }?.joinToString(",") { c -> c.name })
+    }
+
+    suspend fun setHeight(cm: Int?) = edit { it.setOrRemove(Keys.heightCm, cm) }
     suspend fun setWeightUnit(unit: WeightUnit) = edit { it[Keys.weightUnit] = unit.name }
     suspend fun setThemeMode(mode: ThemeMode) = edit { it[Keys.themeMode] = mode.name }
     suspend fun setWaterGoal(ml: Int?) = edit { it.setOrRemove(Keys.waterGoal, ml) }

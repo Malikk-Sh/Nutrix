@@ -104,7 +104,7 @@ fun AnalyticsScreen(contentPadding: PaddingValues, onOpenInsights: () -> Unit = 
                 }
             }
             item(key = "charts-h") { SectionHeader(stringResource(R.string.analytics_section_charts)) }
-            item(key = "intake") { IntakeCard(state.intake, onOpenRecord, viewModel::setConfirmed) }
+            item(key = "intake") { IntakeCard(state.intake, state.plans, onOpenRecord, viewModel::setConfirmed) }
             (listOf(Metric.WEIGHT, Metric.FLUID, Metric.SLEEP_DURATION) + Metric.entries.filterNot { it in listOf(Metric.WEIGHT, Metric.FLUID, Metric.SLEEP_DURATION) }).forEach { metric ->
                 item(key = "m-$metric") { MetricCard(metric, state.series[metric]?.points.orEmpty(), state.unit) }
             }
