@@ -49,6 +49,12 @@ data class UserSettings(
      * The free tier's terms forbid sending personal information, so the cloud review needs this.
      */
     val aiPaidProject: Boolean = false,
+    /** Inputs of the maintenance guideline; see MaintenanceGuideline. Unset values stay null. */
+    val nutritionGoal: com.nutrix.app.core.model.NutritionGoal? = null,
+    val birthYear: Int? = null,
+    val formulaSex: com.nutrix.app.core.model.FormulaSex? = null,
+    val activityLevel: com.nutrix.app.core.model.ActivityLevel? = null,
+    val circumstances: Set<com.nutrix.app.core.model.SpecialCircumstance> = emptySet(),
 ) {
     companion object {
         val DEFAULT_QUICK_VOLUMES = listOf(100, 200, 250, 500)

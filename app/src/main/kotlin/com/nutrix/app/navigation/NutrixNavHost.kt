@@ -86,6 +86,7 @@ import com.nutrix.app.feature.ai.GeminiSettingsScreen
 import com.nutrix.app.feature.activity.SleepActivityScreen
 import com.nutrix.app.feature.activity.SleepEditorScreen
 import com.nutrix.app.feature.analytics.AnalyticsScreen
+import com.nutrix.app.feature.plan.IntakePlanScreen
 import com.nutrix.app.feature.calendar.CalendarScreen
 import com.nutrix.app.feature.calendar.DayScreen
 import com.nutrix.app.feature.calendar.TimelineTarget
@@ -275,6 +276,7 @@ fun NutrixNavHost(
                             bottomPadding,
                             ProfileActions(
                                 onEditProfile = { nav.navigate(ProfileEditRoute) },
+                                onIntakePlan = { nav.navigate(IntakePlanRoute) },
                                 onFoodDiary = { nav.navigate(FoodDiaryRoute) },
                                 onWater = { nav.navigate(WaterRoute()) },
                                 onWeight = { nav.navigate(WeightRoute()) },
@@ -385,6 +387,7 @@ fun NutrixNavHost(
                             onOpenDay = { nav.navigate(DayRoute(it)) },
                         )
                     }
+                    composable<IntakePlanRoute> { IntakePlanScreen(onBack = nav::popBackStack, onAddWeight = { nav.navigate(WeightRoute(openAdd = true)) }) }
                     composable<ProfileEditRoute> { ProfileEditScreen(onBack = nav::popBackStack) }
                     composable<ReportsRoute> { ReportsScreen(onBack = nav::popBackStack) }
                     composable<BackupRoute> { BackupScreen(onBack = nav::popBackStack) }

@@ -52,6 +52,9 @@ import com.nutrix.app.core.ui.labelRes
 import com.nutrix.app.core.ui.theme.LocalCategoryColors
 import com.nutrix.app.domain.DayIntake
 import com.nutrix.app.domain.DayIntakes
+import com.nutrix.app.domain.GramRange
+import com.nutrix.app.domain.IntakePlans
+import com.nutrix.app.database.entity.IntakePlanEntity
 import com.nutrix.app.domain.DayState
 import com.nutrix.app.domain.Nutrient
 import com.nutrix.app.domain.intake
@@ -75,7 +78,7 @@ import kotlin.math.pow
  * days are drawn apart and say "known X", today is still running, and averages use complete days only.
  */
 @Composable
-fun IntakeCard(days: List<DayIntake>, onOpenRecord: (RecordRef) -> Unit, onConfirm: (Long, Boolean) -> Unit) {
+fun IntakeCard(days: List<DayIntake>, plans: List<IntakePlanEntity>, onOpenRecord: (RecordRef) -> Unit, onConfirm: (Long, Boolean) -> Unit) {
     val colors = LocalCategoryColors.current
     var nutrient by rememberSaveable { mutableStateOf(Nutrient.KCAL) }
     var selected by rememberSaveable(days.firstOrNull()?.day, days.size) { mutableStateOf<Long?>(null) }
@@ -94,12 +97,23 @@ fun IntakeCard(days: List<DayIntake>, onOpenRecord: (RecordRef) -> Unit, onConfi
             Text(stringResource(R.string.intake_no_complete), style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag("intake-average"))
             Text(stringResource(R.string.intake_no_complete_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        // The guideline of the last day of the period, and how complete days compared with the guideline each had.
+        val current = days.lastOrNull()?.let { IntakePlans.activeOn(it.day, plans) }?.let { IntakePlans.range(it, nutrient) }
+        current?.let { r ->
+            Text(stringResource(R.string.intake_plan_line, rangeText(nutrient, r)), style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.testTag("intake-plan"))
+        }
+        IntakePlans.compare(days, plans, nutrient)?.let { c ->
+            Text(stringResource(R.string.intake_plan_compare, c.within, c.below, c.above), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("intake-plan-compare"))
+        }
         Spacer(Modifier.height(10.dp))
         val description = stringResource(R.string.intake_chart_description, nutrientName(nutrient), average.days)
-        IntakeBars(days, nutrient, colors.meal, selected, { day -> selected = if (selected == day) null else day },
+        val ranges = days.map { d -> IntakePlans.activeOn(d.day, plans)?.let { IntakePlans.range(it, nutrient) } }
+        IntakeBars(days, ranges, nutrient, colors.meal, selected, { day -> selected = if (selected == day) null else day },
             Modifier.semantics { contentDescription = description })
         Spacer(Modifier.height(6.dp))
-        IntakeLegend(colors.meal)
+        IntakeLegend(colors.meal, showPlan = ranges.any { it != null })
         Spacer(Modifier.height(6.dp))
         HorizontalDivider()
         Spacer(Modifier.height(8.dp))
@@ -165,7 +179,13 @@ private fun RecordLine(kind: String, title: String?, time: String, value: String
 }
 
 @Composable
-private fun IntakeLegend(color: Color) {
+private fun rangeText(n: Nutrient, r: GramRange): String {
+    val unit = stringResource(if (n == Nutrient.KCAL) R.string.unit_kcal else R.string.unit_g)
+    return "${Formatters.integer(r.min.toLong())}–${Formatters.integer(r.max.toLong())} $unit"
+}
+
+@Composable
+private fun IntakeLegend(color: Color, showPlan: Boolean) {
     val outline = color
     @Composable fun item(text: String, draw: DrawScope.() -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -179,6 +199,7 @@ private fun IntakeLegend(color: Color) {
         item(stringResource(R.string.intake_legend_unconfirmed)) { bar(DayState.UNCONFIRMED, color, outline, Offset.Zero, size) }
         item(stringResource(R.string.intake_legend_partial)) { bar(DayState.PARTIAL, color, outline, Offset.Zero, size) }
         item(stringResource(R.string.intake_legend_today)) { bar(DayState.TODAY, color, outline, Offset.Zero, size) }
+        if (showPlan) item(stringResource(R.string.intake_legend_plan)) { band(color, Offset.Zero, size) }
     }
 }
 
@@ -204,6 +225,13 @@ private fun DrawScope.bar(state: DayState, color: Color, outline: Color, topLeft
     }
 }
 
+/** The guideline range of a day, drawn behind its bar. */
+private fun DrawScope.band(color: Color, topLeft: Offset, size: Size) {
+    drawRect(color.copy(alpha = 0.14f), topLeft, size)
+    drawLine(color.copy(alpha = 0.55f), topLeft, Offset(topLeft.x + size.width, topLeft.y), 1.dp.toPx())
+    drawLine(color.copy(alpha = 0.55f), Offset(topLeft.x, topLeft.y + size.height), Offset(topLeft.x + size.width, topLeft.y + size.height), 1.dp.toPx())
+}
+
 /** A round upper bound for the axis: 1 850 becomes 2 000, 37 becomes 40. */
 private fun niceMax(max: Double): Double {
     if (max <= 0) return 1.0
@@ -213,13 +241,14 @@ private fun niceMax(max: Double): Double {
 }
 
 @Composable
-private fun IntakeBars(days: List<DayIntake>, n: Nutrient, color: Color, selected: Long?, onSelect: (Long) -> Unit, modifier: Modifier = Modifier) {
+private fun IntakeBars(days: List<DayIntake>, ranges: List<GramRange?>, n: Nutrient, color: Color, selected: Long?, onSelect: (Long) -> Unit,
+    modifier: Modifier = Modifier) {
     val grid = MaterialTheme.colorScheme.outlineVariant
     val highlight = MaterialTheme.colorScheme.surfaceVariant
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val measurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.labelSmall.copy(color = labelColor)
-    val max = niceMax(days.maxOfOrNull { it.total(n).value ?: 0.0 } ?: 0.0)
+    val max = niceMax(maxOf(days.maxOfOrNull { it.total(n).value ?: 0.0 } ?: 0.0, ranges.maxOfOrNull { it?.max?.toDouble() ?: 0.0 } ?: 0.0))
     val unit = stringResource(if (n == Nutrient.KCAL) R.string.unit_kcal else R.string.unit_g)
     val maxLabel = "${Formatters.integer(Math.round(max))} $unit"
     val half = Formatters.integer(Math.round(max / 2))
@@ -254,6 +283,11 @@ private fun IntakeBars(days: List<DayIntake>, n: Nutrient, color: Color, selecte
             days.forEachIndexed { i, d ->
                 val x = left + i * slot
                 if (d.day == selected) drawRect(highlight, Offset(x, top), Size(slot, chartHeight))
+                ranges[i]?.let { r ->
+                    val yMax = size.height - (r.max / max * chartHeight).toFloat()
+                    val yMin = size.height - (r.min / max * chartHeight).toFloat()
+                    band(color, Offset(x, yMax), Size(slot, yMin - yMax))
+                }
                 val state = d.state(n)
                 val cx = x + slot / 2
                 if (state == DayState.NO_RECORDS) {

@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import com.nutrix.app.core.ui.icons.automirrored.Assignment
 import com.nutrix.app.core.ui.icons.Backup
+import com.nutrix.app.core.ui.icons.Insights
 import com.nutrix.app.core.ui.icons.Bedtime
 import com.nutrix.app.core.ui.icons.ChevronRight
 import com.nutrix.app.core.ui.icons.DeleteForever
@@ -99,6 +100,7 @@ data class ProfileActions(
     val onReports: () -> Unit,
     val onAbout: () -> Unit,
     val onGeminiSettings: () -> Unit = {},
+    val onIntakePlan: () -> Unit = {},
 )
 
 @Composable
@@ -133,6 +135,7 @@ fun ProfileScreen(contentPadding: PaddingValues, actions: ProfileActions, viewMo
             item {
                 NutrixCard(contentPadding = 6.dp) {
                     NavRow(Icons.Rounded.Restaurant, colors.meal, stringResource(R.string.settings_food_diary), actions.onFoodDiary)
+                    NavRow(Icons.Rounded.Insights, colors.meal, stringResource(R.string.plan_profile_entry), actions.onIntakePlan)
                     NavRow(Icons.Rounded.WaterDrop, colors.water, stringResource(R.string.settings_water), actions.onWater)
                     NavRow(Icons.Rounded.MonitorWeight, colors.weight, stringResource(R.string.settings_weight), actions.onWeight)
                     NavRow(Icons.Rounded.Healing, colors.symptom, stringResource(R.string.settings_symptoms), actions.onSymptoms)

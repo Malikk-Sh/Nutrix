@@ -5,6 +5,7 @@ import com.nutrix.app.core.model.AfterMealFeeling
 import com.nutrix.app.core.model.DrinkNutrition
 import com.nutrix.app.core.model.MealDish
 import com.nutrix.app.core.model.MealNutrition
+import com.nutrix.app.core.model.PlanBasis
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -29,6 +30,12 @@ class Converters {
     fun jsonToDrinkNutrition(value: String?): DrinkNutrition? = value?.let {
         runCatching { json.decodeFromString(DrinkNutrition.serializer(), it) }.getOrNull()
     }
+
+    @TypeConverter
+    fun planBasisToJson(value: PlanBasis?): String? = value?.let { json.encodeToString(PlanBasis.serializer(), it) }
+
+    @TypeConverter
+    fun jsonToPlanBasis(value: String?): PlanBasis? = value?.let { runCatching { json.decodeFromString(PlanBasis.serializer(), it) }.getOrNull() }
 
     // Typed explicitly: Room's processor cannot see the serializer generated for MealDish.
     private val dishList: kotlinx.serialization.KSerializer<List<MealDish>> by lazy { ListSerializer(MealDish.serializer()) }

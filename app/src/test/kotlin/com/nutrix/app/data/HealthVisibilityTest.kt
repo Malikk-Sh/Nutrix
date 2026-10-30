@@ -57,7 +57,7 @@ class HealthVisibilityTest {
             assertThat(timeline.observeMarkers(day.toEpochDay() - 1, day.toEpochDay()).first()[day.toEpochDay() - 1]).contains(EntryCategory.SLEEP)
             assertThat(timeline.observeMarkers(day.toEpochDay(), day.toEpochDay()).first()[day.toEpochDay()])
                 .contains(EntryCategory.SLEEP)
-            val reports = ReportDataLoader(meals, drinks, weights, symptoms, health, notes, settings, DayCheckRepository(db.dayCheckDao(), notifier)).load(day, day)
+            val reports = ReportDataLoader(meals, drinks, weights, symptoms, health, notes, settings, DayCheckRepository(db.dayCheckDao(), notifier), IntakePlanRepository(db.intakePlanDao(), notifier)).load(day, day)
             assertThat(reports.sleeps).hasSize(3)
             assertThat(reports.series.getValue(Metric.SLEEP_DURATION).points.single().value).isEqualTo(10.0)
 
@@ -69,7 +69,7 @@ class HealthVisibilityTest {
             health.upsertExternalExercise(walk.copy(source = DataSource.HEALTH_CONNECT, externalId = "hc-walk", kcal = null))
             assertThat(health.observeExercises(day.toEpochDay(), day.toEpochDay()).first().single().kcal).isEqualTo(50.0)
             assertThat(timeline.observeDay(day.toEpochDay()).first().filterIsInstance<TimelineItem.Exercise>()).hasSize(1)
-            assertThat(ReportDataLoader(meals, drinks, weights, symptoms, health, notes, settings, DayCheckRepository(db.dayCheckDao(), notifier)).load(day, day).exercises).hasSize(1)
+            assertThat(ReportDataLoader(meals, drinks, weights, symptoms, health, notes, settings, DayCheckRepository(db.dayCheckDao(), notifier), IntakePlanRepository(db.intakePlanDao(), notifier)).load(day, day).exercises).hasSize(1)
             assertThat(db.healthDao().getExerciseRange(day.toEpochDay(), day.toEpochDay())).hasSize(2)
         } finally { db.close() }
     }

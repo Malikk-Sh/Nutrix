@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plan_title">Ориентиры питания</string>
+    <string name="plan_profile_entry">Ориентиры питания</string>
+    <string name="plan_intro">Ориентир — это диапазон, с которым сравниваются ваши полные дни, а не назначение. Приложение не ставит диагнозы; ориентир врача или диетолога всегда важнее. Дневником можно пользоваться и без калорийных ориентиров.</string>
+    <string name="plan_active_title">Сейчас</string>
+    <string name="plan_active_none">Ориентира нет.</string>
+    <string name="plan_active_off">Ориентира нет: калорийные ориентиры выключены.</string>
+    <string name="plan_active_since">%1$s, с %2$s</string>
+    <string name="plan_source_formula">По формуле, для поддержания веса</string>
+    <string name="plan_source_manual">Ориентир специалиста или ваш</string>
+    <string name="plan_source_none">Без калорийных ориентиров</string>
+
+    <string name="plan_goal_title">Цель</string>
+    <string name="plan_goal_maintain">Поддерживать вес</string>
+    <string name="plan_goal_change">Менять вес</string>
+    <string name="plan_goal_observe">Только наблюдать</string>
+
+    <string name="plan_inputs_title">Данные для расчёта</string>
+    <string name="plan_birth_year">Год рождения</string>
+    <string name="plan_sex_title">Пол для формулы</string>
+    <string name="plan_sex_female">Женский</string>
+    <string name="plan_sex_male">Мужской</string>
+    <string name="plan_sex_none">Не указывать</string>
+    <string name="plan_activity_title">Активность</string>
+    <string name="plan_activity_low">Низкая</string>
+    <string name="plan_activity_moderate">Средняя</string>
+    <string name="plan_activity_high">Высокая</string>
+    <string name="plan_activity_low_hint">В основном сидя, ходьбы немного. Коэффициент 1,4–1,6.</string>
+    <string name="plan_activity_moderate_hint">Каждый день много хожу или работаю на ногах, иногда тренировки. Коэффициент 1,6–1,8.</string>
+    <string name="plan_activity_high_hint">Физическая работа или интенсивные тренировки почти каждый день. Коэффициент 1,8–2,1.</string>
+    <string name="plan_weight_latest">Вес: %1$s, взвешивание %2$s</string>
+    <string name="plan_weight_none">Вес: в дневнике веса пока нет взвешиваний.</string>
+    <string name="plan_weight_add">Добавить взвешивание</string>
+    <string name="plan_circumstances_title">Если что-то из этого про вас</string>
+    <string name="plan_circ_pregnancy">Беременность или кормление грудью</string>
+    <string name="plan_circ_medical">Заболевание или диета по назначению врача</string>
+    <string name="plan_circ_weight_loss">Непреднамеренное снижение веса или недостаточное питание</string>
+    <string name="plan_inputs_private">Эти данные хранятся только на телефоне и в ваших резервных копиях. В облачный разбор они не отправляются.</string>
+
+    <string name="plan_result_title">Для поддержания веса</string>
+    <string name="plan_result_range">Вероятный диапазон: %1$s–%2$s ккал в день</string>
+    <string name="plan_result_macros">Белки %1$d–%2$d г · жиры %3$d–%4$d г · углеводы %5$d–%6$d г</string>
+    <string name="plan_result_resting">Расход в покое по формуле ≈%1$s ккал. Это не цель на день: к нему добавляется всё движение за день.</string>
+    <string name="plan_result_method">Как посчитано: расход в покое по формуле Миффлина — Сан Жеора (1990) × коэффициент активности %1$s–%2$s; диапазон учитывает погрешность формулы около 10 %%. БЖУ — доли той же энергии: жиры 20–35 %%, углеводы 45–60 %%, белок от 0,83 г на кг веса до 20 %%.</string>
+    <string name="plan_result_no_sex">Пол не указан, поэтому диапазон охватывает оба варианта формулы и шире.</string>
+    <string name="plan_result_basis">Данные: вес %1$s (%2$s), рост %3$d см, возраст %4$d. Версия метода: mifflin_st_jeor_1990_pal_v1.</string>
+    <string name="plan_result_accept">Принять ориентир с сегодняшнего дня</string>
+    <string name="plan_result_update">Обновить ориентир с сегодняшнего дня</string>
+    <string name="plan_result_accepted">Этот ориентир действует с %1$s.</string>
+    <string name="plan_result_changed">Сейчас действует %1$s. По текущим данным получилось иначе; прошлые дни сохранят прежний ориентир.</string>
+
+    <string name="plan_missing_title">Для расчёта не хватает</string>
+    <string name="plan_missing_height">роста</string>
+    <string name="plan_missing_weight">взвешивания в дневнике веса</string>
+    <string name="plan_missing_weight_old">свежего взвешивания (последнее больше 30 дней назад)</string>
+    <string name="plan_missing_birth_year">года рождения</string>
+    <string name="plan_missing_activity">уровня активности</string>
+
+    <string name="plan_reason_no_goal">Выберите цель, чтобы увидеть, что приложение может посчитать.</string>
+    <string name="plan_reason_change">Для снижения или набора веса приложение план не рассчитывает: это требует отдельной проверки специалистом.</string>
+    <string name="plan_reason_observe">Калорийных ориентиров не будет. Дневник, график и наблюдения работают и без них.</string>
+    <string name="plan_reason_under_18">Формула и диапазоны рассчитаны на взрослых. До 18 лет потребности другие, ориентир лучше получить у врача.</string>
+    <string name="plan_reason_over_80">Формулу проверяли на людях 19–78 лет. После 80 лет ориентир лучше обсудить с врачом.</string>
+    <string name="plan_reason_low_bmi">По вашему весу и росту индекс массы тела ниже 18,5. В этом случае расчёт по формуле не подходит, ориентир лучше получить у врача или диетолога.</string>
+    <string name="plan_reason_pregnancy">Во время беременности и кормления грудью потребности меняются, формула их не учитывает.</string>
+    <string name="plan_reason_medical">При заболевании или диете по назначению врача ориентиром служит назначение специалиста.</string>
+    <string name="plan_reason_weight_loss">При непреднамеренном снижении веса или недостаточном питании автоматический ориентир не рассчитывается. Обсудите это с врачом.</string>
+    <string name="plan_manual_possible">Ориентир, который дал специалист, можно ввести ниже.</string>
+
+    <string name="plan_manual_title">Ориентир специалиста</string>
+    <string name="plan_manual_hint">Диапазон на день от врача или диетолога, либо ваш собственный. Калории обязательны, БЖУ — по желанию.</string>
+    <string name="plan_from">от</string>
+    <string name="plan_to">до</string>
+    <string name="plan_manual_note">Откуда ориентир (необязательно)</string>
+    <string name="plan_manual_save">Сохранить с сегодняшнего дня</string>
+    <string name="plan_manual_too_high">Нижние границы БЖУ дают ≈%1$s ккал по 4/9/4 — больше верхней границы калорий. Проверьте значения.</string>
+    <string name="plan_manual_too_low">Верхние границы БЖУ дают только ≈%1$s ккал по 4/9/4 — меньше нижней границы калорий. Проверьте значения.</string>
+    <string name="plan_turn_off">Без калорийных ориентиров с сегодняшнего дня</string>
+
+    <string name="plan_history">История ориентиров</string>
+    <string name="plan_history_since">с %1$s</string>
+    <string name="plan_history_hint">Новый ориентир начинает действовать с дня сохранения. Прошлые дни на графике сравниваются с тем ориентиром, который был у них.</string>
+
+    <!-- Chart and diary -->
+    <string name="intake_plan_line">Ориентир: %1$s</string>
+    <string name="intake_plan_compare">Полные дни с ориентиром: в диапазоне %1$d, ниже %2$d, выше %3$d.</string>
+    <string name="intake_legend_plan">ориентир</string>
+    <string name="intake_today_plan">Ориентир на день: %1$s</string>
+</resources>

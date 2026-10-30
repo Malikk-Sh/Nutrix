@@ -10,6 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.nutrix.app.database.dao.DayCheckDao
 import com.nutrix.app.database.dao.DrinkDao
 import com.nutrix.app.database.dao.HealthDao
+import com.nutrix.app.database.dao.IntakePlanDao
 import com.nutrix.app.database.dao.MealDao
 import com.nutrix.app.database.dao.NoteDao
 import com.nutrix.app.database.dao.SymptomDao
@@ -21,6 +22,7 @@ import com.nutrix.app.database.entity.DrinkEntity
 import com.nutrix.app.database.entity.DrinkTemplateEntity
 import com.nutrix.app.database.entity.ExerciseEntity
 import com.nutrix.app.database.entity.FavoriteMealEntity
+import com.nutrix.app.database.entity.IntakePlanEntity
 import com.nutrix.app.database.entity.MealEntity
 import com.nutrix.app.database.entity.MealPhotoEntity
 import com.nutrix.app.database.entity.NoteEntity
@@ -49,8 +51,9 @@ import javax.inject.Singleton
         FavoriteMealEntity::class,
         DraftEntity::class,
         DayCheckEntity::class,
+        IntakePlanEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -62,6 +65,7 @@ abstract class NutrixDatabase : RoomDatabase() {
     abstract fun healthDao(): HealthDao
     abstract fun noteDao(): NoteDao
     abstract fun dayCheckDao(): DayCheckDao
+    abstract fun intakePlanDao(): IntakePlanDao
 
     companion object {
         const val NAME = "nutrix.db"
@@ -94,9 +98,20 @@ abstract class NutrixDatabase : RoomDatabase() {
             }
         }
 
+        /** Calorie and macronutrient guidelines with the day each starts on; nothing exists for earlier days. */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `intake_plans` (`startDay` INTEGER NOT NULL, `source` TEXT NOT NULL, `kcalMin` INTEGER, " +
+                        "`kcalMax` INTEGER, `proteinMin` INTEGER, `proteinMax` INTEGER, `fatMin` INTEGER, `fatMax` INTEGER, `carbsMin` INTEGER, " +
+                        "`carbsMax` INTEGER, `method` TEXT, `basis` TEXT DEFAULT NULL, `note` TEXT, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`startDay`))",
+                )
+            }
+        }
+
         fun build(context: Context, name: String = NAME): NutrixDatabase =
             Room.databaseBuilder(context, NutrixDatabase::class.java, name)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 // Future schema changes must ship real migrations; never wipe user diaries.
                 .build()
     }
@@ -116,4 +131,5 @@ object DatabaseModule {
     @Provides fun healthDao(db: NutrixDatabase): HealthDao = db.healthDao()
     @Provides fun noteDao(db: NutrixDatabase): NoteDao = db.noteDao()
     @Provides fun dayCheckDao(db: NutrixDatabase): DayCheckDao = db.dayCheckDao()
+    @Provides fun intakePlanDao(db: NutrixDatabase): IntakePlanDao = db.intakePlanDao()
 }
