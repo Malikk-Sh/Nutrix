@@ -26,6 +26,8 @@ data class AnalyticsInput(
     val sleeps: List<SleepEntity>,
     val activity: List<DailyActivity>,
     val notes: List<NoteEntity> = emptyList(),
+    /** Days the user confirmed as fully recorded (see DayIntake). */
+    val confirmedDays: Set<Long> = emptySet(),
 )
 
 enum class Metric {

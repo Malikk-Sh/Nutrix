@@ -2,6 +2,7 @@ package com.nutrix.app.database
 
 import androidx.room.TypeConverter
 import com.nutrix.app.core.model.AfterMealFeeling
+import com.nutrix.app.core.model.DrinkNutrition
 import com.nutrix.app.core.model.MealDish
 import com.nutrix.app.core.model.MealNutrition
 import kotlinx.serialization.builtins.ListSerializer
@@ -18,6 +19,15 @@ class Converters {
     @TypeConverter
     fun jsonToNutrition(value: String?): MealNutrition? = value?.let {
         runCatching { json.decodeFromString(MealNutrition.serializer(), it) }.getOrNull()
+    }
+
+    @TypeConverter
+    fun drinkNutritionToJson(value: DrinkNutrition?): String? = value?.let { json.encodeToString(DrinkNutrition.serializer(), it) }
+
+    /** Null is an unknown energy value; a damaged value is read as unknown too, never as zero. */
+    @TypeConverter
+    fun jsonToDrinkNutrition(value: String?): DrinkNutrition? = value?.let {
+        runCatching { json.decodeFromString(DrinkNutrition.serializer(), it) }.getOrNull()
     }
 
     // Typed explicitly: Room's processor cannot see the serializer generated for MealDish.

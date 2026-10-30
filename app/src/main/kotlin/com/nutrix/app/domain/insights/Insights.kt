@@ -186,14 +186,14 @@ data class LongGaps(
     override fun facts() = mapOf("days" to days, "days_with_gap_over_6h" to gapDays, "longest_gap_median_min" to longestGapMedianMinutes)
 }
 
-/** Averages over days where most meals carry a calorie estimate. */
+/** Averages over complete days: confirmed as fully recorded, with every meal and caloric drink estimated. */
 data class NutritionSummary(
     override val days: Int,
     val kcal: Int,
     val protein: Int?,
     val fat: Int?,
     val carbs: Int?,
-    /** Share of the day's estimated calories eaten after 18:00. */
+    /** Share of the day's estimated calories, drinks included, had after 18:00. */
     val eveningShare: Double,
 ) : Insight {
     override val id = "nutrition"
@@ -204,7 +204,7 @@ data class NutritionSummary(
         Measure("evening_share", MeasureKind.SHARE, (eveningShare).toDouble()),
     ) + listOfNotNull(protein?.let { Measure("protein", MeasureKind.GRAMS, (it).toDouble()) }, fat?.let { Measure("fat", MeasureKind.GRAMS, (it).toDouble()) }, carbs?.let { Measure("carbs", MeasureKind.GRAMS, (it).toDouble()) })
     override fun facts() = buildMap<String, Any> {
-        put("days_with_estimates", days); put("kcal_per_day_avg", kcal)
+        put("complete_days", days); put("kcal_per_day_avg", kcal)
         protein?.let { put("protein_g_per_day_avg", it) }
         fat?.let { put("fat_g_per_day_avg", it) }
         carbs?.let { put("carbs_g_per_day_avg", it) }
@@ -212,7 +212,7 @@ data class NutritionSummary(
     }
 }
 
-/** Estimated calories on the day after a short night compared with other days. */
+/** Estimated calories of complete days after a short night compared with other complete days. */
 data class SleepAndEating(
     override val days: Int,
     val shortNights: Int,

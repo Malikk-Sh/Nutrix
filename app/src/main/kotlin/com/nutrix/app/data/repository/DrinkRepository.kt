@@ -1,5 +1,6 @@
 package com.nutrix.app.data.repository
 
+import com.nutrix.app.core.model.DrinkNutrition
 import com.nutrix.app.core.model.DrinkType
 import com.nutrix.app.core.photo.PhotoStorage
 import com.nutrix.app.core.time.RecordTime
@@ -23,11 +24,20 @@ class DrinkRepository @Inject constructor(
     fun observeTotalsPerDay(from: Long, to: Long): Flow<List<DayValue>> = dao.observeTotalsPerDay(from, to)
     fun observeDays(from: Long, to: Long): Flow<List<Long>> = dao.observeDays(from, to)
     fun observeTemplates(): Flow<List<DrinkTemplateEntity>> = dao.observeTemplates()
+    fun observeForMeal(mealId: Long): Flow<List<DrinkEntity>> = dao.observeForMeal(mealId)
     suspend fun totalForDay(epochDay: Long): Int = dao.totalForDay(epochDay)
     suspend fun get(id: Long): DrinkEntity? = dao.get(id)
     suspend fun getRange(from: Long, to: Long): List<DrinkEntity> = dao.getRange(from, to)
 
-    suspend fun quickAdd(type: DrinkType, volumeMl: Int, name: String? = null, templateId: Long? = null, time: RecordTime = RecordTime.now()): Long {
+    /** A quick entry gets the type's default energy: tea and coffee without additions, anything else unknown. */
+    suspend fun quickAdd(
+        type: DrinkType,
+        volumeMl: Int,
+        name: String? = null,
+        templateId: Long? = null,
+        time: RecordTime = RecordTime.now(),
+        nutrition: DrinkNutrition? = DrinkNutrition.defaultFor(type),
+    ): Long {
         val id = dao.insert(
             DrinkEntity(
                 epochMillis = time.epochMillis,
@@ -37,14 +47,16 @@ class DrinkRepository @Inject constructor(
                 name = name,
                 volumeMl = volumeMl,
                 templateId = templateId,
+                nutrition = nutrition,
             ),
         )
         notifier.notifyChanged()
         return id
     }
 
+    /** A template's drinks get exactly its energy: an older template without one adds drinks with unknown energy. */
     suspend fun addFromTemplate(template: DrinkTemplateEntity): Long =
-        quickAdd(template.drinkType, template.volumeMl, template.name, template.id)
+        quickAdd(template.drinkType, template.volumeMl, template.name, template.id, nutrition = template.nutrition)
 
     suspend fun save(drink: DrinkEntity): Long {
         val now = System.currentTimeMillis()

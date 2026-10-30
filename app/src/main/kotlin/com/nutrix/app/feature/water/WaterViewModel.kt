@@ -11,10 +11,12 @@ import com.nutrix.app.core.photo.PhotoStorage
 import com.nutrix.app.core.time.RecordTime
 import com.nutrix.app.core.time.TimeUtils
 import com.nutrix.app.data.repository.DrinkRepository
+import com.nutrix.app.data.repository.MealRepository
 import com.nutrix.app.data.repository.UndoManager
 import com.nutrix.app.data.repository.UserMessages
 import com.nutrix.app.database.entity.DrinkEntity
 import com.nutrix.app.database.entity.DrinkTemplateEntity
+import com.nutrix.app.database.entity.MealEntity
 import com.nutrix.app.navigation.DrinkEditorRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +24,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -123,14 +128,22 @@ data class DrinkForm(
     val note: String = "",
     val templateId: Long? = null,
     val createdAt: Long = 0,
+    val energy: EnergyInput = EnergyInput.defaultFor(DrinkType.WATER),
+    /** False until the user picks an energy option, so changing the type still brings that type's default. */
+    val energyTouched: Boolean = false,
+    val mealId: Long? = null,
 ) {
     val volume: Int? get() = volumeText.toIntOrNull()?.takeIf { it in 1..5000 }
+    /** Water needs no energy value; for other drinks only a half-typed number blocks saving. */
+    val energyInvalid: Boolean get() = type != DrinkType.WATER && energy.invalid
+    val nutrition get() = if (type == DrinkType.WATER) null else energy.toNutrition()
 }
 
 @HiltViewModel
 class DrinkEditorViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val drinks: DrinkRepository,
+    private val meals: MealRepository,
     private val photos: PhotoStorage,
     private val undo: UndoManager,
     private val messages: UserMessages,
@@ -139,8 +152,14 @@ class DrinkEditorViewModel @Inject constructor(
     private val _form = MutableStateFlow(DrinkForm())
     val form: StateFlow<DrinkForm> = _form.asStateFlow()
     val closed = MutableStateFlow(false)
-    private val _loaded = MutableStateFlow(route.drinkId == 0L)
+    private val _loaded = MutableStateFlow(route.drinkId == 0L && route.mealId == 0L)
     val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
+
+    /** Meals of the drink's day that it can be linked to. */
+    val dayMeals: StateFlow<List<MealEntity>> = _form.map { it.date.toEpochDay() }.distinctUntilChanged()
+        .flatMapLatest { day -> meals.observeDay(day) }
+        .map { list -> list.map { it.meal }.sortedBy { it.epochMillis } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     /** While a save or delete runs, the form is locked: a second tap cannot insert a duplicate, and leaving cannot delete the photo being saved. */
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
@@ -156,11 +175,28 @@ class DrinkEditorViewModel @Inject constructor(
                     id = d.id, type = d.drinkType, name = d.name.orEmpty(), volumeText = d.volumeMl.toString(),
                     date = rt.localDate, time = rt.localTime, zoneId = d.zoneId, photo = d.photoFile, note = d.note.orEmpty(),
                     templateId = d.templateId, createdAt = d.createdAt,
+                    // A saved drink keeps what it has: an old drink without a value stays unknown, whatever its type.
+                    energy = EnergyInput.of(d.nutrition), energyTouched = true, mealId = d.mealId,
                 )
+                _loaded.value = true
+            }
+        } else if (route.mealId != 0L) {
+            // Added from a meal: the drink starts at the meal's time and is linked to it.
+            viewModelScope.launch {
+                meals.get(route.mealId)?.meal?.let { m ->
+                    val rt = m.time
+                    _form.update { it.copy(date = rt.localDate, time = rt.localTime, zoneId = m.zoneId, mealId = m.id) }
+                }
                 _loaded.value = true
             }
         }
     }
+
+    fun setType(type: DrinkType) = _form.update { f ->
+        f.copy(type = type, energy = if (f.energyTouched) f.energy else EnergyInput.defaultFor(type))
+    }
+
+    fun setEnergy(energy: EnergyInput) = _form.update { it.copy(energy = energy, energyTouched = true) }
 
     fun update(transform: (DrinkForm) -> DrinkForm) = _form.update(transform)
 
@@ -194,19 +230,22 @@ class DrinkEditorViewModel @Inject constructor(
     fun save() {
         val f = _form.value
         val volume = f.volume ?: return
-        if (!_loaded.value || _busy.value || closed.value) return
+        if (!_loaded.value || _busy.value || closed.value || f.energyInvalid) return
         _busy.value = true
         // ATOMIC: even if the screen is cleared before this starts, the write below still runs to the end.
         viewModelScope.launch(start = CoroutineStart.ATOMIC) {
             val saved = withContext(NonCancellable) {
                 try {
                     val rt = RecordTime.of(f.date, f.time, TimeUtils.zoneOrDefault(f.zoneId))
+                    // A link survives only to a meal of the same day; moving the drink to another day drops it.
+                    val mealId = f.mealId?.takeIf { id -> meals.get(id)?.meal?.localDate == rt.epochDay }
                     drinks.save(
                         DrinkEntity(
                             id = f.id, epochMillis = rt.epochMillis, zoneId = rt.zoneId, localDate = rt.epochDay,
                             drinkType = f.type, name = f.name.trim().ifBlank { null }, volumeMl = volume,
                             photoFile = f.photo, note = f.note.trim().ifBlank { null }, templateId = f.templateId,
                             createdAt = if (f.createdAt > 0) f.createdAt else System.currentTimeMillis(),
+                            nutrition = f.nutrition, mealId = mealId,
                         ),
                     )
                     true

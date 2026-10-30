@@ -64,12 +64,14 @@ import com.nutrix.app.domain.Comparison
 import com.nutrix.app.domain.CorrelationResult
 import com.nutrix.app.domain.Metric
 import com.nutrix.app.domain.Strength
+import com.nutrix.app.domain.insights.RecordRef
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.math.max
 
 @Composable
-fun AnalyticsScreen(contentPadding: PaddingValues, onOpenInsights: () -> Unit = {}, viewModel: AnalyticsViewModel = hiltViewModel()) {
+fun AnalyticsScreen(contentPadding: PaddingValues, onOpenInsights: () -> Unit = {}, onOpenRecord: (RecordRef) -> Unit = {},
+    viewModel: AnalyticsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val period by viewModel.period.collectAsStateWithLifecycle()
     var customDialog by rememberSaveable { mutableStateOf(false) }
@@ -102,6 +104,7 @@ fun AnalyticsScreen(contentPadding: PaddingValues, onOpenInsights: () -> Unit = 
                 }
             }
             item(key = "charts-h") { SectionHeader(stringResource(R.string.analytics_section_charts)) }
+            item(key = "intake") { IntakeCard(state.intake, onOpenRecord, viewModel::setConfirmed) }
             (listOf(Metric.WEIGHT, Metric.FLUID, Metric.SLEEP_DURATION) + Metric.entries.filterNot { it in listOf(Metric.WEIGHT, Metric.FLUID, Metric.SLEEP_DURATION) }).forEach { metric ->
                 item(key = "m-$metric") { MetricCard(metric, state.series[metric]?.points.orEmpty(), state.unit) }
             }

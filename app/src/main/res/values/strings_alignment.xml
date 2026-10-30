@@ -20,7 +20,6 @@
     <string name="alignment_nutrition_summary">Пищевая ценность за сегодня</string>
     <string name="alignment_meal_actions">Действия с приёмом пищи</string>
     <string name="alignment_photo_remove">Убрать фото</string>
-    <string name="alignment_known_meals">Калорийность указана для %1$d из %2$d записей</string>
     <string name="alignment_retry_save">Повторить сохранение</string>
     <string name="alignment_favorite_saved">Блюдо добавлено в избранное</string>
     <string name="alignment_more">Ещё</string>

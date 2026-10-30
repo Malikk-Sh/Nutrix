@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.nutrix.app.database.dao.DayCheckDao
 import com.nutrix.app.database.dao.DrinkDao
 import com.nutrix.app.database.dao.HealthDao
 import com.nutrix.app.database.dao.MealDao
@@ -14,6 +15,7 @@ import com.nutrix.app.database.dao.NoteDao
 import com.nutrix.app.database.dao.SymptomDao
 import com.nutrix.app.database.dao.WeightDao
 import com.nutrix.app.database.entity.ActivityDailyEntity
+import com.nutrix.app.database.entity.DayCheckEntity
 import com.nutrix.app.database.entity.DraftEntity
 import com.nutrix.app.database.entity.DrinkEntity
 import com.nutrix.app.database.entity.DrinkTemplateEntity
@@ -46,8 +48,9 @@ import javax.inject.Singleton
         NoteEntity::class,
         FavoriteMealEntity::class,
         DraftEntity::class,
+        DayCheckEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -58,6 +61,7 @@ abstract class NutrixDatabase : RoomDatabase() {
     abstract fun symptomDao(): SymptomDao
     abstract fun healthDao(): HealthDao
     abstract fun noteDao(): NoteDao
+    abstract fun dayCheckDao(): DayCheckDao
 
     companion object {
         const val NAME = "nutrix.db"
@@ -76,9 +80,23 @@ abstract class NutrixDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Energy of drinks, the meal a drink was had with, and days confirmed as fully recorded. Existing
+         * drinks keep an unknown energy: an old coffee is not assumed to have been without milk.
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE drinks ADD COLUMN nutrition TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE drinks ADD COLUMN mealId INTEGER DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_drinks_mealId` ON `drinks` (`mealId`)")
+                db.execSQL("ALTER TABLE drink_templates ADD COLUMN nutrition TEXT DEFAULT NULL")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `day_checks` (`localDate` INTEGER NOT NULL, `confirmedAt` INTEGER NOT NULL, PRIMARY KEY(`localDate`))")
+            }
+        }
+
         fun build(context: Context, name: String = NAME): NutrixDatabase =
             Room.databaseBuilder(context, NutrixDatabase::class.java, name)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 // Future schema changes must ship real migrations; never wipe user diaries.
                 .build()
     }
@@ -97,4 +115,5 @@ object DatabaseModule {
     @Provides fun symptomDao(db: NutrixDatabase): SymptomDao = db.symptomDao()
     @Provides fun healthDao(db: NutrixDatabase): HealthDao = db.healthDao()
     @Provides fun noteDao(db: NutrixDatabase): NoteDao = db.noteDao()
+    @Provides fun dayCheckDao(db: NutrixDatabase): DayCheckDao = db.dayCheckDao()
 }

@@ -54,7 +54,7 @@ object InsightReviewPayload {
      * Version of what is sent and of the prompt that reads it. Part of the cache fingerprint, so a review
      * written for an older contract is shown as outdated.
      */
-    const val CONTRACT_VERSION = 3
+    const val CONTRACT_VERSION = 4
 
     fun build(report: InsightReport): JsonObject = buildJsonObject {
         put("contract_version", CONTRACT_VERSION)

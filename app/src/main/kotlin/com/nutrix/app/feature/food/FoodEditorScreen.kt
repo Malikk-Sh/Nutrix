@@ -128,9 +128,12 @@ fun FoodEditorScreen(
     onAddSymptom: (mealId: Long) -> Unit,
     onRepeat: (mealId: Long) -> Unit,
     onOpenGeminiSettings: () -> Unit = {},
+    onOpenDrink: (Long) -> Unit = {},
+    onAddDrink: (mealId: Long) -> Unit = {},
     viewModel: FoodEditorViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val linkedDrinks by viewModel.linkedDrinks.collectAsStateWithLifecycle()
     val event by viewModel.events.collectAsStateWithLifecycle()
     val cameraResult by photoResults.cameraPhoto.collectAsStateWithLifecycle()
     val cropResult by photoResults.croppedPhoto.collectAsStateWithLifecycle()
@@ -289,6 +292,11 @@ fun FoodEditorScreen(
             item(key = "nutrition") {
                 if (form.hasDishes) DishesCard(state, viewModel)
                 else NutritionCard(state, viewModel, onEstimateFailed = { kcalNotFound = true })
+            }
+
+            // A saved meal can have drinks linked to it; they stay drinks, so their energy counts once.
+            if (form.mealId != 0L) item(key = "drinks") {
+                LinkedDrinksCard(linkedDrinks, onOpen = onOpenDrink, onAdd = { onAddDrink(form.mealId) })
             }
 
             item(key = "when") {

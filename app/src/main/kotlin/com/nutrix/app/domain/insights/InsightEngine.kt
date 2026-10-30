@@ -8,10 +8,13 @@ import com.nutrix.app.database.entity.MealEntity
 import com.nutrix.app.database.entity.SleepEntity
 import com.nutrix.app.domain.AnalyticsInput
 import com.nutrix.app.domain.ChartPoint
+import com.nutrix.app.domain.DayIntake
+import com.nutrix.app.domain.DayIntakes
+import com.nutrix.app.domain.Nutrient
+import com.nutrix.app.domain.intake
 import com.nutrix.app.domain.SleepTotals
 import com.nutrix.app.domain.gramsIfComplete
 import com.nutrix.app.domain.kcalIfComplete
-import com.nutrix.app.domain.macroIfComplete
 import java.time.DayOfWeek
 import java.time.LocalDate
 import kotlin.math.abs
@@ -61,8 +64,8 @@ object InsightEngine {
             "meal_rhythm" to mealRhythm(mealsByDay),
             "late_meals" to lateMeals(mealsByDay, nights),
             "long_gaps" to longGaps(mealsByDay),
-            "nutrition" to nutrition(mealsByDay),
-            "sleep_eating" to sleepAndEating(mealsByDay, nights),
+            "nutrition" to nutrition(completeDays(r)),
+            "sleep_eating" to sleepAndEating(completeDays(r), nights),
             "fluid" to fluid(input, range),
             "late_caffeine" to lateCaffeine(input, range, nights),
             "sleep_rhythm" to sleepRhythm(nights),
@@ -177,41 +180,42 @@ object InsightEngine {
             }.newestFirst()))
     }
 
-    /** Days where at least two meals and most of the day's meals carry a calorie estimate. */
-    private fun estimatedDays(byDay: Map<Long, List<MealEntity>>): Map<Long, List<MealEntity>> = byDay.filterValues { list ->
-        val known = list.count { it.kcalIfComplete != null }
-        known >= 2 && known >= list.size * 0.7
-    }
+    /**
+     * Days that can stand for what was eaten: confirmed by the user as fully recorded, with every meal and
+     * caloric drink estimated. A day where some meal has no estimate says nothing about the day's intake.
+     */
+    private fun completeDays(r: AnalyticsInput): List<DayIntake> =
+        DayIntakes.range(r, today = null).filter { it.usable(Nutrient.KCAL) }
 
-    private fun nutrition(byDay: Map<Long, List<MealEntity>>): Outcome {
-        val days = estimatedDays(byDay)
+    private fun nutrition(days: List<DayIntake>): Outcome {
         if (days.size < 5) return Outcome.NoData
-        fun macro(pick: (MealEntity) -> Double?): Int? {
-            val values = days.values.filter { l -> l.count { pick(it) != null } >= l.size * 0.7 }
-                .map { l -> l.sumOf { pick(it) ?: 0.0 } }
+        fun macro(n: Nutrient): Int? {
+            val values = days.filter { it.usable(n) }.mapNotNull { it.total(n).value }
             return if (values.size >= 5) values.average().roundToInt() else null
         }
-        val kcal = days.values.map { l -> l.sumOf { it.kcalIfComplete ?: 0 } }
-        val evening = days.values.mapNotNull { l ->
-            val total = l.sumOf { it.kcalIfComplete ?: 0 }
-            if (total <= 0) null else l.filter { it.minute() >= EVENING_START }.sumOf { it.kcalIfComplete ?: 0 } / total.toDouble()
+        val kcal = days.map { it.total(Nutrient.KCAL).value ?: 0.0 }
+        val evening = days.mapNotNull { d ->
+            val total = d.total(Nutrient.KCAL).value ?: 0.0
+            if (total <= 0) return@mapNotNull null
+            val late = d.meals.filter { it.minute() >= EVENING_START }.sumOf { it.kcalIfComplete ?: 0 } +
+                d.drinks.filter { minuteOf(it.epochMillis, it.zoneId) >= EVENING_START }.sumOf { it.intake.kcal ?: 0.0 }
+            late / total
         }
         return Outcome.Found(NutritionSummary(
             days = days.size,
             kcal = kcal.average().roundToInt(),
-            protein = macro { it.macroIfComplete({ n -> n.proteinGrams }, { n -> n.proteinKnown }) },
-            fat = macro { it.macroIfComplete({ n -> n.fatGrams }, { n -> n.fatKnown }) },
-            carbs = macro { it.macroIfComplete({ n -> n.carbsGrams }, { n -> n.carbsKnown }) },
+            protein = macro(Nutrient.PROTEIN),
+            fat = macro(Nutrient.FAT),
+            carbs = macro(Nutrient.CARBS),
             eveningShare = if (evening.isEmpty()) 0.0 else median(evening),
         ))
     }
 
-    private fun sleepAndEating(byDay: Map<Long, List<MealEntity>>, nights: Map<Long, List<SleepEntity>>): Outcome {
-        val days = estimatedDays(byDay)
+    private fun sleepAndEating(days: List<DayIntake>, nights: Map<Long, List<SleepEntity>>): Outcome {
         // A night belongs to the day it ends on, which is the day whose eating it may influence.
-        val pairs = days.mapNotNull { (day, list) ->
-            val night = nights[day] ?: return@mapNotNull null
-            Triple(day, SleepTotals.minutes(night), list.sumOf { it.kcalIfComplete ?: 0 })
+        val pairs = days.mapNotNull { d ->
+            val night = nights[d.day] ?: return@mapNotNull null
+            Triple(d.day, SleepTotals.minutes(night), (d.total(Nutrient.KCAL).value ?: 0.0).roundToInt())
         }
         if (pairs.size < MIN_DAYS) return Outcome.NoData
         val threshold = (median(pairs.map { it.second }) - 60).roundToInt()

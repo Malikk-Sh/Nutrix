@@ -1,6 +1,7 @@
 package com.nutrix.app.navigation
 
 import com.nutrix.app.domain.insights.RecordType
+import com.nutrix.app.domain.insights.RecordRef
 
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
@@ -144,6 +145,13 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.backEnter(): Enter
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.backExit(): ExitTransition =
     if (isTabSwitch()) forwardExit() else fadeOut(tween(90)) + slideOutHorizontally(axisSpec) { it / 10 }
 
+/** Opens the exact record an observation or a day's breakdown refers to. */
+fun NavHostController.openRecord(ref: RecordRef) = when (ref.type) {
+    RecordType.MEAL -> navigate(FoodEditorRoute(mealId = ref.id))
+    RecordType.SYMPTOM -> navigate(SymptomEditorRoute(symptomId = ref.id))
+    RecordType.DRINK -> navigate(DrinkEditorRoute(drinkId = ref.id))
+}
+
 fun NavHostController.openTarget(target: TimelineTarget) = when (target) {
     is TimelineTarget.Meal -> navigate(FoodEditorRoute(mealId = target.id))
     is TimelineTarget.Drink -> navigate(DrinkEditorRoute(target.id))
@@ -254,17 +262,13 @@ fun NutrixNavHost(
                     composable<CalendarRoute> {
                         CalendarScreen(bottomPadding, onOpenDay = { nav.navigate(DayRoute(it)) }, onTarget = nav::openTarget)
                     }
-                    composable<AnalyticsRoute> { AnalyticsScreen(bottomPadding, onOpenInsights = { nav.navigate(InsightsRoute) }) }
+                    composable<AnalyticsRoute> {
+                        AnalyticsScreen(bottomPadding, onOpenInsights = { nav.navigate(InsightsRoute) }, onOpenRecord = { ref -> nav.openRecord(ref) })
+                    }
                     composable<InsightsRoute> {
                         InsightsScreen(onBack = nav::popBackStack, onOpenGeminiSettings = { nav.navigate(GeminiSettingsRoute) },
                             onOpenDay = { nav.navigate(DayRoute(it)) },
-                            onOpenRecord = { ref ->
-                                when (ref.type) {
-                                    RecordType.MEAL -> nav.navigate(FoodEditorRoute(mealId = ref.id))
-                                    RecordType.SYMPTOM -> nav.navigate(SymptomEditorRoute(symptomId = ref.id))
-                                    RecordType.DRINK -> nav.navigate(DrinkEditorRoute(drinkId = ref.id))
-                                }
-                            })
+                            onOpenRecord = { ref -> nav.openRecord(ref) })
                     }
                     composable<ProfileRoute> {
                         ProfileScreen(
@@ -312,6 +316,8 @@ fun NutrixNavHost(
                             onRepeat = { id ->
                                 nav.navigate(FoodEditorRoute(repeatMealId = id)) { popUpTo<FoodEditorRoute> { inclusive = true } }
                             },
+                            onOpenDrink = { nav.navigate(DrinkEditorRoute(drinkId = it)) },
+                            onAddDrink = { nav.navigate(DrinkEditorRoute(mealId = it)) },
                         )
                     }
                     composable<FavoritesRoute> {

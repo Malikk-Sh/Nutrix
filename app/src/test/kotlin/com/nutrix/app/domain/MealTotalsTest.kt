@@ -13,7 +13,7 @@ class MealTotalsTest {
     private fun meal(dishes: List<MealDish>?) = MealEntity(epochMillis = 0, zoneId = "UTC", localDate = 0, mealType = MealType.LUNCH, dishes = dishes)
 
     @Test fun `three dishes make one meal with their sum, and removing one takes away only its share`() {
-        assertThat(MealTotals.of(listOf(soup, main, drink)).kcal).isEqualTo(DishTotal(750.0, 3, 3))
+        assertThat(MealTotals.of(listOf(soup, main, drink)).kcal).isEqualTo(PartialTotal(750.0, 3, 3))
         assertThat(MealTotals.of(listOf(soup, drink)).kcal.value).isEqualTo(350.0)
         val saved = MealTotals.apply(meal(listOf(soup, main, drink)))
         assertThat(saved.caloriesEstimate).isEqualTo(750)
@@ -30,7 +30,7 @@ class MealTotalsTest {
     @Test fun `an unknown value stays unknown and the total says what it covers`() {
         val unknown = drink.copy(kcal = null)
         val totals = MealTotals.of(listOf(soup, main, unknown))
-        assertThat(totals.kcal).isEqualTo(DishTotal(650.0, 2, 3))
+        assertThat(totals.kcal).isEqualTo(PartialTotal(650.0, 2, 3))
         assertThat(totals.kcal.complete).isFalse()
         val saved = MealTotals.apply(meal(listOf(soup, main, unknown)))
         assertThat(saved.caloriesEstimate).isEqualTo(650)
@@ -38,7 +38,7 @@ class MealTotalsTest {
         assertThat(saved.nutrition!!.dishCount).isEqualTo(3)
         // A partial sum is never the meal's intake.
         assertThat(saved.kcalIfComplete).isNull()
-        assertThat(MealTotals.of(listOf(MealDish(name = "?"))).kcal).isEqualTo(DishTotal(null, 0, 1))
+        assertThat(MealTotals.of(listOf(MealDish(name = "?"))).kcal).isEqualTo(PartialTotal(null, 0, 1))
     }
 
     @Test fun `the eaten share counts once, per dish`() {

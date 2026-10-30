@@ -10,6 +10,7 @@ import androidx.room.Relation
 import com.nutrix.app.core.model.AfterMealFeeling
 import com.nutrix.app.core.model.BodyPosition
 import com.nutrix.app.core.model.DataSource
+import com.nutrix.app.core.model.DrinkNutrition
 import com.nutrix.app.core.model.DrinkType
 import com.nutrix.app.core.model.MealDish
 import com.nutrix.app.core.model.MealType
@@ -91,7 +92,7 @@ data class MealWithPhotos(
 }
 
 @Serializable
-@Entity(tableName = "drinks", indices = [Index("localDate"), Index("epochMillis")])
+@Entity(tableName = "drinks", indices = [Index("localDate"), Index("epochMillis"), Index("mealId")])
 data class DrinkEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val epochMillis: Long,
@@ -106,6 +107,13 @@ data class DrinkEntity(
     val templateId: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+    /** Energy of the drink; null is unknown (water is always without calories). */
+    @ColumnInfo(defaultValue = "NULL") val nutrition: DrinkNutrition? = null,
+    /**
+     * The meal this drink was had with. The drink stays the one record of its volume and energy; the
+     * meal only shows it. A link to a deleted meal is ignored and comes back if the meal is restored.
+     */
+    @ColumnInfo(defaultValue = "NULL") val mealId: Long? = null,
 ) {
     val time: RecordTime get() = RecordTime(epochMillis, zoneId)
 }
@@ -119,6 +127,8 @@ data class DrinkTemplateEntity(
     val volumeMl: Int,
     val sortOrder: Int = 0,
     val createdAt: Long = System.currentTimeMillis(),
+    /** Energy copied to each drink added from the template; null is unknown (templates made before drinks had energy). */
+    @ColumnInfo(defaultValue = "NULL") val nutrition: DrinkNutrition? = null,
 )
 
 @Serializable
@@ -278,6 +288,18 @@ data class FavoriteMealEntity(
     val createdAt: Long = System.currentTimeMillis(),
     /** Dishes to add again; their photos are not kept, only names, portions and nutrients. */
     @ColumnInfo(defaultValue = "NULL") val dishes: List<MealDish>? = null,
+)
+
+/**
+ * A day the user confirmed as fully recorded: everything eaten and every drink with calories is in the
+ * diary. Only such days, with every record estimated, count as a day's intake; it is a statement about
+ * the diary, not about how exact the estimates are.
+ */
+@Serializable
+@Entity(tableName = "day_checks")
+data class DayCheckEntity(
+    @PrimaryKey val localDate: Long,
+    val confirmedAt: Long = System.currentTimeMillis(),
 )
 
 /** Unsaved editor state; one draft per editor kind. */

@@ -17,11 +17,13 @@ import com.nutrix.app.core.photo.PhotoStorage
 import com.nutrix.app.core.time.RecordTime
 import com.nutrix.app.core.time.TimeUtils
 import com.nutrix.app.core.util.Units
+import com.nutrix.app.data.repository.DrinkRepository
 import com.nutrix.app.data.repository.MealRepository
 import com.nutrix.app.data.repository.UndoManager
 import com.nutrix.app.data.repository.UserMessages
 import com.nutrix.app.R
 import com.nutrix.app.data.repository.WeightRepository
+import com.nutrix.app.database.entity.DrinkEntity
 import com.nutrix.app.database.entity.FavoriteMealEntity
 import com.nutrix.app.database.entity.MealEntity
 import com.nutrix.app.database.entity.WeightEntity
@@ -41,6 +43,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -144,9 +147,15 @@ class FoodEditorViewModel @Inject constructor(
     private val undo: UndoManager,
     private val messages: UserMessages,
     private val foodAi: FoodPhotoAnalyzer,
+    private val drinks: DrinkRepository,
 ) : ViewModel() {
 
     private val route = savedStateHandle.toRoute<FoodEditorRoute>()
+
+    /** Drinks recorded separately and linked to this meal; they keep their own volume and energy. */
+    val linkedDrinks: StateFlow<List<DrinkEntity>> =
+        (if (route.mealId != 0L) drinks.observeForMeal(route.mealId) else flowOf(emptyList()))
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     private val json = Json { ignoreUnknownKeys = true }
     private var initialForm: MealForm? = null
     private val draftMutex = Mutex()

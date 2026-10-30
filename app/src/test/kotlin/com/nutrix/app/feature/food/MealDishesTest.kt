@@ -68,7 +68,7 @@ class MealDishesTest {
         return ViewModelProvider(store, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-                FoodEditorViewModel(handle, meals, weights, settings, photos, UndoManager(), UserMessages(), analyzer) as T
+                FoodEditorViewModel(handle, meals, weights, settings, photos, UndoManager(), UserMessages(), analyzer, com.nutrix.app.data.repository.DrinkRepository(db.drinkDao(), photos, com.nutrix.app.data.repository.DataChangeNotifier())) as T
         })[FoodEditorViewModel::class.java]
     }
 

@@ -15,7 +15,7 @@ import kotlinx.serialization.Serializable
 @Serializable object CameraRoute
 @Serializable data class CropRoute(val fileName: String)
 @Serializable data class WaterRoute(val openAdd: Boolean = false)
-@Serializable data class DrinkEditorRoute(val drinkId: Long = 0)
+@Serializable data class DrinkEditorRoute(val drinkId: Long = 0, val mealId: Long = 0)
 @Serializable data class WeightRoute(val openAdd: Boolean = false)
 @Serializable data class SymptomsRoute(val openAdd: Boolean = false)
 @Serializable data class SymptomEditorRoute(val symptomId: Long = 0, val mealId: Long = 0)

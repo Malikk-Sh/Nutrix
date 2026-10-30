@@ -58,6 +58,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -286,7 +288,10 @@ fun DrinkRow(drink: DrinkEntity, onClick: () -> Unit, onDelete: (() -> Unit)?) {
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text("${drink.volumeMl} ${stringResource(R.string.unit_ml)}", style = MaterialTheme.typography.titleMedium)
+            Column(horizontalAlignment = Alignment.End) {
+                Text("${drink.volumeMl} ${stringResource(R.string.unit_ml)}", style = MaterialTheme.typography.titleMedium)
+                drinkKcalText(drink)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
             if (onDelete != null) {
                 IconButton(onClick = onDelete) { Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete), Modifier.size(20.dp)) }
             }
@@ -346,19 +351,31 @@ private fun TemplateDialog(template: DrinkTemplateEntity, onDismiss: () -> Unit,
     var name by remember { mutableStateOf(template.name) }
     var type by remember { mutableStateOf(template.drinkType) }
     var volume by remember { mutableStateOf(template.volumeMl.toString()) }
-    val valid = name.isNotBlank() && volume.toIntOrNull()?.let { it in 1..5000 } == true
+    // A new template starts with its type's default; a saved one keeps what it has (an older one is unknown).
+    var energy by remember { mutableStateOf(if (template.id == 0L) EnergyInput.defaultFor(template.drinkType) else EnergyInput.of(template.nutrition)) }
+    var energyTouched by remember { mutableStateOf(template.id != 0L) }
+    val valid = name.isNotBlank() && volume.toIntOrNull()?.let { it in 1..5000 } == true && (type == DrinkType.WATER || !energy.invalid)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.water_template_edit)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 NutrixTextField(name, { name = it }, stringResource(R.string.water_template_name), placeholder = stringResource(R.string.water_template_name_hint))
-                ChoiceChips(DrinkType.entries, type, { stringResource(it.labelRes) }, { t -> if (t != null) type = t }, allowDeselect = false, accent = LocalCategoryColors.current.water)
+                ChoiceChips(DrinkType.entries, type, { stringResource(it.labelRes) }, { t ->
+                    if (t != null) { type = t; if (!energyTouched) energy = EnergyInput.defaultFor(t) }
+                }, allowDeselect = false, accent = LocalCategoryColors.current.water)
                 NutrixTextField(volume, { volume = it.filter(Char::isDigit).take(4) }, stringResource(R.string.water_volume), keyboardType = KeyboardType.Number, suffix = stringResource(R.string.unit_ml))
+                if (type != DrinkType.WATER) {
+                    Text(stringResource(R.string.drink_energy_title), style = MaterialTheme.typography.titleSmall)
+                    DrinkEnergyEditor(energy, type, volume.toIntOrNull(), { energy = it; energyTouched = true })
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(template.copy(name = name.trim(), drinkType = type, volumeMl = volume.toInt())) }, enabled = valid) {
+            TextButton(onClick = {
+                onSave(template.copy(name = name.trim(), drinkType = type, volumeMl = volume.toInt(),
+                    nutrition = if (type == DrinkType.WATER) null else energy.toNutrition()))
+            }, enabled = valid) {
                 Text(stringResource(R.string.action_save))
             }
         },
