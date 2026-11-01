@@ -291,6 +291,7 @@ fun DrinkRow(drink: DrinkEntity, onClick: () -> Unit, onDelete: (() -> Unit)?) {
             Column(horizontalAlignment = Alignment.End) {
                 Text("${drink.volumeMl} ${stringResource(R.string.unit_ml)}", style = MaterialTheme.typography.titleMedium)
                 drinkKcalText(drink)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                drinkMacrosText(drink)?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
             if (onDelete != null) {
                 IconButton(onClick = onDelete) { Icon(Icons.Rounded.Delete, stringResource(R.string.action_delete), Modifier.size(20.dp)) }

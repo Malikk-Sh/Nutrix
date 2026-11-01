@@ -201,6 +201,7 @@ val FoodAiError.messageRes: Int get() = when (this) {
     FoodAiError.BLOCKED -> R.string.ai_error_blocked
     FoodAiError.TRUNCATED -> R.string.ai_error_truncated
     FoodAiError.NO_FOOD -> R.string.ai_error_no_food
+    FoodAiError.NO_DRINK -> R.string.ai_error_no_drink
     FoodAiError.PHOTO_UNAVAILABLE -> R.string.ai_error_photo
     FoodAiError.PHOTO_CHANGED -> R.string.ai_error_changed
     FoodAiError.INVALID_RESPONSE -> R.string.ai_error_response

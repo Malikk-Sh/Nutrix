@@ -27,6 +27,8 @@ import com.nutrix.app.core.ui.theme.LocalCategoryColors
 import com.nutrix.app.core.util.Units
 import com.nutrix.app.domain.intake
 import com.nutrix.app.domain.withoutEnergy
+import com.nutrix.app.feature.ai.DrinkEstimate
+import androidx.compose.ui.platform.testTag
 import com.nutrix.app.feature.food.NutritionValue
 
 enum class EnergyMode { NONE, VALUE, UNKNOWN }
@@ -39,6 +41,9 @@ data class EnergyInput(
     val proteinText: String = "",
     val fatText: String = "",
     val carbsText: String = "",
+    /** Set while the values are exactly a Gemini photo estimate; any manual change clears it. */
+    val estimateModel: String? = null,
+    val uncertainty: String? = null,
 ) {
     private val maxKcal get() = if (basis == NutrientBasis.PER_100_ML) 900.0 else 5000.0
     private val maxGrams get() = if (basis == NutrientBasis.PER_100_ML) 100.0 else 1000.0
@@ -56,26 +61,45 @@ data class EnergyInput(
         EnergyMode.NONE -> DrinkNutrition.NONE
         EnergyMode.UNKNOWN -> null
         EnergyMode.VALUE -> kcal?.takeIf { !invalid }?.let { k ->
-            if (k == 0.0) DrinkNutrition.NONE else DrinkNutrition(k, grams(proteinText), grams(fatText), grams(carbsText), basis)
+            if (k == 0.0) DrinkNutrition.NONE
+            else DrinkNutrition(k, grams(proteinText), grams(fatText), grams(carbsText), basis, estimateModel, uncertainty?.takeIf(String::isNotBlank))
         }
     }
 
-    /** Energy of this drink for [volumeMl], when it can be told. */
-    fun totalKcal(volumeMl: Int?): Double? = toNutrition()?.let { n ->
-        if (n.basis == NutrientBasis.PER_100_ML) volumeMl?.let { n.kcal * it / 100.0 } else n.kcal
+    /** Whole-drink amounts for [volumeMl]: kcal, then protein, fat and carbohydrates when entered. */
+    fun totals(volumeMl: Int?): List<Double?>? = toNutrition()?.let { n ->
+        val factor = if (n.basis == NutrientBasis.PER_100_ML) (volumeMl ?: return null) / 100.0 else 1.0
+        listOf(n.kcal * factor, n.proteinGrams?.times(factor), n.fatGrams?.times(factor), n.carbsGrams?.times(factor))
     }
+
+    /** A manual change: the values are no longer the model's estimate. */
+    fun edited(): EnergyInput = copy(estimateModel = null, uncertainty = null)
 
     companion object {
         fun of(nutrition: DrinkNutrition?): EnergyInput = when {
             nutrition == null -> EnergyInput(EnergyMode.UNKNOWN)
             nutrition.isNone -> EnergyInput(EnergyMode.NONE)
             else -> EnergyInput(EnergyMode.VALUE, nutrition.basis, text(nutrition.kcal), nutrition.proteinGrams?.let(::text).orEmpty(),
-                nutrition.fatGrams?.let(::text).orEmpty(), nutrition.carbsGrams?.let(::text).orEmpty())
+                nutrition.fatGrams?.let(::text).orEmpty(), nutrition.carbsGrams?.let(::text).orEmpty(), nutrition.estimateModel, nutrition.uncertainty)
+        }
+
+        /**
+         * A photo estimate for the whole drink, stored per 100 ml when the volume is known so that a corrected
+         * volume scales it; near-zero drinks (plain water, tea, coffee) become "without calories".
+         */
+        fun fromEstimate(e: DrinkEstimate, model: String): EnergyInput {
+            val kcal = e.caloriesKcal ?: return EnergyInput(EnergyMode.UNKNOWN)
+            if (kcal < 0.5) return EnergyInput(EnergyMode.NONE)
+            val volume = e.volumeMl
+            fun per(v: Double?) = v?.let { text(if (volume != null) it * 100 / volume else it) }.orEmpty()
+            return EnergyInput(EnergyMode.VALUE, if (volume != null) NutrientBasis.PER_100_ML else NutrientBasis.PER_DRINK,
+                per(kcal), per(e.proteinGrams), per(e.fatGrams), per(e.carbsGrams), model, e.uncertainty)
         }
 
         fun defaultFor(type: DrinkType): EnergyInput = of(DrinkNutrition.defaultFor(type))
 
-        private fun text(v: Double): String = Units.roundTo(v, 1).let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() }
+        /** Two decimals, so a value per 100 ml reproduces the whole-drink estimate; the app's decimal comma. */
+        private fun text(v: Double): String = Units.roundTo(v, 2).let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString().replace('.', ',') }
     }
 }
 
@@ -106,10 +130,18 @@ object DrinkPresets {
 
 /** Energy of a drink: without calories, a value from the label (or a preset), or not known yet. */
 @Composable
-fun DrinkEnergyEditor(input: EnergyInput, type: DrinkType, volumeMl: Int?, onChange: (EnergyInput) -> Unit, modifier: Modifier = Modifier) {
+fun DrinkEnergyEditor(input: EnergyInput, type: DrinkType, volumeMl: Int?, onEdit: (EnergyInput) -> Unit, modifier: Modifier = Modifier) {
     val colors = LocalCategoryColors.current
     val kcalUnit = stringResource(R.string.unit_kcal)
+    val onChange: (EnergyInput) -> Unit = { onEdit(it.edited()) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        input.estimateModel?.let { model ->
+            Text(stringResource(R.string.drink_energy_from_photo, model), style = MaterialTheme.typography.bodySmall, color = colors.water,
+                modifier = Modifier.testTag("drink-energy-source"))
+            input.uncertainty?.takeIf(String::isNotBlank)?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         ChoiceChips(EnergyMode.entries, input.mode, { stringResource(when (it) {
             EnergyMode.NONE -> R.string.drink_energy_none
             EnergyMode.VALUE -> R.string.drink_energy_value
@@ -141,9 +173,9 @@ fun DrinkEnergyEditor(input: EnergyInput, type: DrinkType, volumeMl: Int?, onCha
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { fields.indices.forEach { field(it, Modifier.weight(1f)) } }
                 } else fields.indices.forEach { field(it, Modifier.fillMaxWidth()) }
                 if (input.invalid) Text(stringResource(R.string.drink_energy_invalid), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                else input.totalKcal(volumeMl)?.takeIf { input.basis == NutrientBasis.PER_100_ML && volumeMl != null }?.let { total ->
-                    Text(stringResource(R.string.drink_energy_total, Formatters.integer(Math.round(total)), volumeMl ?: 0),
-                        style = MaterialTheme.typography.bodyMedium)
+                else input.totals(volumeMl)?.takeIf { input.basis == NutrientBasis.PER_100_ML && volumeMl != null }?.let { t ->
+                    Text(stringResource(R.string.drink_energy_total, Formatters.integer(Math.round(t[0] ?: 0.0)), volumeMl ?: 0) +
+                        macrosSuffix(t[1], t[2], t[3]), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("drink-energy-total"))
                 }
             }
         }
@@ -154,7 +186,8 @@ fun DrinkEnergyEditor(input: EnergyInput, type: DrinkType, volumeMl: Int?, onCha
             Text(stringResource(R.string.drink_presets_title), style = MaterialTheme.typography.labelLarge)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 presets.forEach { p ->
-                    val per = stringResource(if (p.nutrition.basis == NutrientBasis.PER_100_ML) R.string.drink_preset_per_100 else R.string.drink_preset_per_drink)
+                    val per = if (p.nutrition.basis == NutrientBasis.PER_100_ML) stringResource(R.string.drink_preset_per_100)
+                        else " " + stringResource(R.string.drink_preset_per_drink)
                     SuggestionChip(onClick = { onChange(EnergyInput.of(p.nutrition)) },
                         label = { Text("${stringResource(p.label)} · ${Formatters.integer(p.nutrition.kcal.toLong())} $kcalUnit$per") })
                 }
@@ -170,4 +203,21 @@ fun drinkKcalText(drink: com.nutrix.app.database.entity.DrinkEntity): String? {
     if (drink.withoutEnergy) return null
     val kcal = drink.intake.kcal ?: return stringResource(R.string.drink_kcal_unknown)
     return "≈${Formatters.integer(Math.round(kcal))} ${stringResource(R.string.unit_kcal)}"
+}
+
+/** "Б 6 · Ж 5 · У 9" for the whole drink, when its macronutrients are known. */
+@Composable
+fun drinkMacrosText(drink: com.nutrix.app.database.entity.DrinkEntity): String? {
+    if (drink.withoutEnergy) return null
+    val i = drink.intake
+    return macrosSuffix(i.protein, i.fat, i.carbs).removePrefix(" · ").takeIf { it.isNotEmpty() }
+}
+
+/** " · Б 6 · Ж 5 · У 9" with only the known parts; empty when none is known. */
+@Composable
+fun macrosSuffix(protein: Double?, fat: Double?, carbs: Double?): String {
+    val g = stringResource(R.string.unit_g)
+    fun f(v: Double) = Formatters.decimal(v, if (v >= 10 || v % 1.0 == 0.0) 0 else 1)
+    return listOfNotNull(protein?.let { "Б ${f(it)}" }, fat?.let { "Ж ${f(it)}" }, carbs?.let { "У ${f(it)} $g" })
+        .joinToString(" · ").let { if (it.isEmpty()) "" else " · $it" }
 }

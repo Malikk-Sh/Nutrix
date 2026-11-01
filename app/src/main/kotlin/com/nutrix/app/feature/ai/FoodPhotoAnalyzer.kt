@@ -41,6 +41,31 @@ class GeminiFoodPhotoAnalyzer @Inject constructor(
     }
 }
 
+fun interface DrinkPhotoAnalyzer {
+    suspend fun analyze(fileName: String, hint: String): DrinkPhotoResult
+}
+
+data class DrinkPhotoResult(val estimate: DrinkEstimate, val model: String, val photoFile: String)
+
+@Singleton
+class GeminiDrinkPhotoAnalyzer @Inject constructor(
+    private val client: GeminiClient,
+    private val protocol: DrinkProtocol,
+    private val settings: SettingsRepository,
+    private val cipher: SecretCipher,
+    private val photos: PhotoStorage,
+) : DrinkPhotoAnalyzer {
+    override suspend fun analyze(fileName: String, hint: String): DrinkPhotoResult {
+        val key = settings.readGeminiKey(cipher)
+        val model = settings.current().geminiModel
+        val photo = try { photos.prepareForAi(fileName) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { throw FoodAiException(FoodAiError.PHOTO_UNAVAILABLE) }
+        val body = client.generate(key, model, protocol.request(AiPhoto(photo), hint))
+        return DrinkPhotoResult(protocol.response(body), model, fileName)
+    }
+}
+
 suspend fun SettingsRepository.readGeminiKey(cipher: SecretCipher): String {
     val blob = geminiKeyBlob() ?: throw FoodAiException(FoodAiError.KEY_MISSING)
     return try { withContext(Dispatchers.IO) { cipher.decrypt(blob).decodeToString() } }
@@ -56,7 +81,19 @@ abstract class FoodAiBindings {
 
 @Module
 @InstallIn(SingletonComponent::class)
+abstract class DrinkAiBindings {
+    @Binds abstract fun analyzer(implementation: GeminiDrinkPhotoAnalyzer): DrinkPhotoAnalyzer
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
 object FoodAiProviders {
+    @Provides @Singleton
+    fun drinkProtocol(@ApplicationContext context: Context) = DrinkProtocol(
+        Json.parseToJsonElement(context.assets.open("drink-analysis.schema.json").bufferedReader().use { it.readText() }).jsonObject,
+        context.assets.open("drink-analysis-prompt.txt").bufferedReader().use { it.readText() },
+    )
+
     @Provides @Singleton
     fun protocol(@ApplicationContext context: Context) = GeminiProtocol(
         Json.parseToJsonElement(context.assets.open("food-analysis.schema.json").bufferedReader().use { it.readText() }).jsonObject,

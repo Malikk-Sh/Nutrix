@@ -19,6 +19,14 @@ import com.nutrix.app.domain.intake
 import com.nutrix.app.data.repository.UndoManager
 import com.nutrix.app.data.repository.UserMessages
 import com.nutrix.app.database.NutrixDatabase
+import com.nutrix.app.core.datastore.SettingsRepository
+import com.nutrix.app.core.model.NutrientBasis
+import com.nutrix.app.feature.ai.DrinkEstimate
+import com.nutrix.app.feature.ai.DrinkPhotoAnalyzer
+import com.nutrix.app.feature.ai.DrinkPhotoResult
+import com.nutrix.app.feature.ai.FoodAiError
+import com.nutrix.app.feature.ai.FoodAiException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -55,14 +63,89 @@ class DrinkEditorSafetyTest {
         db.close()
     }
 
+    private var analyzer: DrinkPhotoAnalyzer = DrinkPhotoAnalyzer { _, _ -> error("no request expected") }
+
     private fun editor(handle: SavedStateHandle = SavedStateHandle()): Pair<DrinkEditorViewModel, ViewModelStore> {
         val store = ViewModelStore().also(stores::add)
         val vm = ViewModelProvider(store, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-                DrinkEditorViewModel(handle, drinks, MealRepository(db, db.mealDao(), photos, DataChangeNotifier()), photos, UndoManager(), UserMessages()) as T
+                DrinkEditorViewModel(handle, drinks, MealRepository(db, db.mealDao(), photos, DataChangeNotifier()), photos, UndoManager(), UserMessages(),
+                    { file, hint -> analyzer.analyze(file, hint) }, SettingsRepository(ApplicationProvider.getApplicationContext())) as T
         })[DrinkEditorViewModel::class.java]
         return vm to store
+    }
+
+    private fun latte(file: String) = DrinkPhotoResult(DrinkEstimate(true, "Латте", "COFFEE", 300.0, 150.0, 8.0, 7.5, 12.0,
+        listOf("молоко"), "Жирность молока неизвестна"), "gemini-test", file)
+
+    @Test fun `a fresh drink is filled from its photo and a change made while it was read is kept`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val answer = CompletableDeferred<Unit>()
+        analyzer = DrinkPhotoAnalyzer { file, hint -> assertThat(hint).isEqualTo("кружка"); answer.await(); latte(file) }
+        val (vm, _) = editor()
+        vm.consumeCamera(photo("cup.jpg"))
+        vm.update { it.copy(aiHint = "кружка") }
+        vm.analyzePhoto()
+        testScheduler.advanceUntilIdle()
+        assertThat(vm.ai.value.analyzing).isTrue()
+        vm.update { it.copy(volumeText = "400") }
+        answer.complete(Unit)
+        testScheduler.advanceUntilIdle()
+        val f = vm.form.value
+        assertThat(f.type).isEqualTo(DrinkType.COFFEE)
+        assertThat(f.name).isEqualTo("Латте")
+        assertThat(f.volumeText).isEqualTo("400")
+        assertThat(f.nutrition).isEqualTo(DrinkNutrition(50.0, 2.67, 2.5, 4.0, NutrientBasis.PER_100_ML, "gemini-test", "Жирность молока неизвестна"))
+        assertThat(f.energy.totals(f.volume)!![0]).isWithin(1e-9).of(200.0)
+        assertThat(vm.ai.value.choice).isNull()
+        vm.save()
+        vm.closed.first { it }
+        val saved = withContext(Dispatchers.IO) { drinks.observeDay(TimeUtils.todayEpochDay()).first { it.isNotEmpty() } }.single()
+        assertThat(saved.nutrition!!.estimateModel).isEqualTo("gemini-test")
+    }
+
+    @Test fun `values already given are replaced only when the user applies the estimate`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        analyzer = DrinkPhotoAnalyzer { file, _ -> latte(file) }
+        val (vm, _) = editor()
+        vm.consumeCamera(photo("glass.jpg"))
+        vm.setType(DrinkType.JUICE)
+        vm.setEnergy(EnergyInput(EnergyMode.VALUE, kcalText = "45"))
+        vm.analyzePhoto()
+        testScheduler.advanceUntilIdle()
+        assertThat(vm.ai.value.choice).isNotNull()
+        assertThat(vm.form.value.type).isEqualTo(DrinkType.JUICE)
+        assertThat(vm.form.value.energy.kcalText).isEqualTo("45")
+        vm.dismissAi()
+        assertThat(vm.form.value.energy.kcalText).isEqualTo("45")
+        vm.analyzePhoto()
+        testScheduler.advanceUntilIdle()
+        vm.applyAi()
+        assertThat(vm.form.value.type).isEqualTo(DrinkType.COFFEE)
+        assertThat(vm.form.value.volumeText).isEqualTo("300")
+        assertThat(vm.form.value.energy.estimateModel).isEqualTo("gemini-test")
+    }
+
+    @Test fun `no drink on the photo, or a photo replaced meanwhile, gives an error and changes nothing`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        analyzer = DrinkPhotoAnalyzer { _, _ -> throw FoodAiException(FoodAiError.NO_DRINK) }
+        val (vm, _) = editor()
+        vm.consumeCamera(photo("plate.jpg"))
+        vm.analyzePhoto()
+        testScheduler.advanceUntilIdle()
+        assertThat(vm.ai.value.error).isEqualTo(FoodAiError.NO_DRINK)
+        assertThat(vm.form.value.name).isEmpty()
+        val answer = CompletableDeferred<Unit>()
+        analyzer = DrinkPhotoAnalyzer { file, _ -> answer.await(); latte(file) }
+        vm.analyzePhoto()
+        testScheduler.advanceUntilIdle()
+        // A new photo cancels the request for the old one.
+        vm.consumeCamera(photo("other.jpg"))
+        answer.complete(Unit)
+        testScheduler.advanceUntilIdle()
+        assertThat(vm.ai.value.result).isNull()
+        assertThat(vm.form.value.type).isEqualTo(DrinkType.WATER)
     }
 
     private fun route(drinkId: Long = 0, mealId: Long = 0) = SavedStateHandle(mapOf("drinkId" to drinkId, "mealId" to mealId))

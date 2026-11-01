@@ -15,6 +15,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.nutrix.app.R
+import androidx.compose.ui.platform.LocalFocusManager
 import com.nutrix.app.core.ui.components.NutrixCard
 import com.nutrix.app.core.ui.components.NutrixTextField
 import com.nutrix.app.core.util.Units
@@ -22,7 +23,7 @@ import com.nutrix.app.feature.ai.NutritionTable
 
 /** Always visible and editable. Portion mass is deliberately separate from body weight. */
 @Composable
-fun NutritionCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onEstimateFailed: () -> Unit) {
+fun NutritionCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onEstimateFailed: () -> Unit, onAsDrink: () -> Unit = {}) {
     val form = state.form
     var showTable by rememberSaveable { mutableStateOf(false) }
     val inline = LocalConfiguration.current.screenWidthDp >= 360 && LocalDensity.current.fontScale <= 1.2f
@@ -74,6 +75,11 @@ fun NutritionCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onEs
         Text(stringResource(R.string.food_split_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         TextButton(onClick = viewModel::addDish, enabled = state.loaded && !state.isSaving && state.pendingDraft == null,
             modifier = Modifier.testTag("food-split")) { Text(stringResource(R.string.food_split_action)) }
+        // A drink photographed as a meal (a latte, a smoothie) is saved where it belongs, with its estimate.
+        val focus = LocalFocusManager.current
+        TextButton(onClick = { focus.clearFocus(); onAsDrink() },
+            enabled = state.loaded && !state.isSaving && state.pendingDraft == null && !state.analyzingPhoto && form.drinks.isEmpty(),
+            modifier = Modifier.testTag("food-as-drink")) { Text(stringResource(R.string.food_as_drink)) }
     }
 }
 

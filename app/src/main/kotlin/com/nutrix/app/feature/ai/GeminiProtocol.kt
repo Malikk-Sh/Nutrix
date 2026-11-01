@@ -24,7 +24,7 @@ data class FoodEstimate(
 enum class FoodAiError {
     KEY_MISSING, KEY_UNAVAILABLE, KEY_INVALID, ACCESS_DENIED, MODEL_UNAVAILABLE,
     QUOTA, TIMEOUT, NETWORK, SERVER, BAD_REQUEST, INVALID_RESPONSE, BLOCKED, TRUNCATED,
-    NO_FOOD, PHOTO_UNAVAILABLE, PHOTO_CHANGED,
+    NO_FOOD, NO_DRINK, PHOTO_UNAVAILABLE, PHOTO_CHANGED,
 }
 
 /** Only transient failures may repeat an upload, at most once in the editor. */
@@ -35,38 +35,41 @@ class FoodAiException(val reason: FoodAiError) : Exception(reason.name)
 
 data class AiPhoto(val bytes: ByteArray, val mimeType: String = "image/jpeg")
 
-class GeminiProtocol(val schema: JsonObject, private val systemPrompt: String) {
-    private val json = Json { ignoreUnknownKeys = true }
-
-    fun request(photo: AiPhoto, hint: String): JsonObject {
-        if (photo.bytes.isEmpty() || photo.bytes.size > MAX_PHOTO_BYTES || photo.mimeType !in IMAGE_TYPES) {
-            throw FoodAiException(FoodAiError.PHOTO_UNAVAILABLE)
-        }
-        require(hint.length <= 1000)
-        return buildJsonObject {
-            putJsonObject("systemInstruction") { putJsonArray("parts") { addJsonObject { put("text", systemPrompt) } } }
-            putJsonArray("contents") {
-                addJsonObject {
-                    put("role", "user")
-                    putJsonArray("parts") {
-                        addJsonObject { put("text", "Проанализируй фото еды. Уточнение пользователя: ${hint.ifBlank { "нет" }}") }
-                        addJsonObject {
-                            putJsonObject("inlineData") {
-                                put("mimeType", photo.mimeType)
-                                put("data", Base64.getEncoder().encodeToString(photo.bytes))
-                            }
+/** One photo and the user's short hint, answered strictly by [schema] under [systemPrompt]. */
+internal fun photoRequest(systemPrompt: String, schema: JsonObject, task: String, photo: AiPhoto, hint: String): JsonObject {
+    if (photo.bytes.isEmpty() || photo.bytes.size > GeminiProtocol.MAX_PHOTO_BYTES || photo.mimeType !in GeminiProtocol.IMAGE_TYPES) {
+        throw FoodAiException(FoodAiError.PHOTO_UNAVAILABLE)
+    }
+    require(hint.length <= 1000)
+    return buildJsonObject {
+        putJsonObject("systemInstruction") { putJsonArray("parts") { addJsonObject { put("text", systemPrompt) } } }
+        putJsonArray("contents") {
+            addJsonObject {
+                put("role", "user")
+                putJsonArray("parts") {
+                    addJsonObject { put("text", "$task Уточнение пользователя: ${hint.ifBlank { "нет" }}") }
+                    addJsonObject {
+                        putJsonObject("inlineData") {
+                            put("mimeType", photo.mimeType)
+                            put("data", Base64.getEncoder().encodeToString(photo.bytes))
                         }
                     }
                 }
             }
-            putJsonObject("generationConfig") {
-                put("responseMimeType", "application/json")
-                put("responseJsonSchema", schema)
-                put("maxOutputTokens", 4096)
-                put("candidateCount", 1)
-            }
+        }
+        putJsonObject("generationConfig") {
+            put("responseMimeType", "application/json")
+            put("responseJsonSchema", schema)
+            put("maxOutputTokens", 4096)
+            put("candidateCount", 1)
         }
     }
+}
+
+class GeminiProtocol(val schema: JsonObject, private val systemPrompt: String) {
+    private val json = Json { ignoreUnknownKeys = true }
+
+    fun request(photo: AiPhoto, hint: String): JsonObject = photoRequest(systemPrompt, schema, "Проанализируй фото еды.", photo, hint)
 
     fun response(body: String): FoodEstimate = try {
         validate(json.decodeFromString<FoodEstimate>(candidateText(body)))

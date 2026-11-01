@@ -51,6 +51,7 @@
     <string name="ai_error_blocked">Gemini не обработал этот снимок. Попробуйте другое фото еды.</string>
     <string name="ai_error_truncated">Ответ модели обрезан. Попробуйте более простое фото или другую модель.</string>
     <string name="ai_error_no_food">На снимке не удалось распознать еду. Выберите другое фото.</string>
+    <string name="ai_error_no_drink">На снимке не удалось распознать напиток. Выберите другое фото.</string>
     <string name="ai_error_photo">Не удалось подготовить выбранное фото. Попробуйте прикрепить его заново.</string>
     <string name="ai_error_changed">Фото изменилось или удалено. Повторите распознавание выбранного снимка.</string>
     <string name="ai_hint_example">Например: гречка с курицей, сметана 10 г</string>

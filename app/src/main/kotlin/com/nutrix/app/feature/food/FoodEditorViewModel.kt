@@ -24,6 +24,9 @@ import com.nutrix.app.data.repository.UserMessages
 import com.nutrix.app.R
 import com.nutrix.app.data.repository.WeightRepository
 import com.nutrix.app.database.entity.DrinkEntity
+import com.nutrix.app.core.model.DrinkType
+import com.nutrix.app.core.model.MealDish
+import com.nutrix.app.domain.DishAsDrink
 import com.nutrix.app.database.entity.FavoriteMealEntity
 import com.nutrix.app.database.entity.MealEntity
 import com.nutrix.app.database.entity.WeightEntity
@@ -97,6 +100,8 @@ data class MealForm(
      * meal's totals are computed from them and the whole-meal fields are not used, so nothing counts twice.
      */
     val dishes: List<DishForm> = emptyList(),
+    /** Dishes moved to drinks; saved as drinks linked to this meal together with it. */
+    val drinks: List<PendingDrink> = emptyList(),
 ) {
     val hasDishes: Boolean get() = dishes.isNotEmpty()
     /** A whole-meal estimate has been entered (by hand, from the reference table or from a photo). */
@@ -474,6 +479,76 @@ class FoodEditorViewModel @Inject constructor(
     /** Removing a dish removes only its numbers; the others and the meal stay as they are. */
     fun removeDish(id: String) = update { form -> form.copy(dishes = form.dishes.filterNot { it.id == id }) }
 
+    /**
+     * Moves a dish to the drinks of this meal: its energy and macronutrients go with it (per 100 ml when its
+     * served mass is known), so they leave the meal's total and count once, as a drink, when the meal is saved.
+     */
+    fun dishToDrink(id: String, type: DrinkType, name: String, volumeMl: Int) = update { form ->
+        val dish = form.dishes.firstOrNull { it.id == id } ?: return@update form
+        val drink = PendingDrink(type, name.trim().ifBlank { dish.name.trim() }, volumeMl.coerceIn(1, 5000),
+            DishAsDrink.nutrition(dish.toDish()).takeIf { type != DrinkType.WATER }, dish)
+        form.copy(dishes = form.dishes - dish, drinks = form.drinks + drink)
+    }
+
+    /** Takes a dish back from the drinks before the meal is saved. */
+    fun drinkBackToDish(dishId: String) = update { form ->
+        val pending = form.drinks.firstOrNull { it.dish.id == dishId } ?: return@update form
+        form.copy(drinks = form.drinks - pending, dishes = form.dishes + pending.dish)
+    }
+
+    /** What the whole-meal estimate would carry over to a drink: values per 100 ml when the mass is known. */
+    fun wholeMealAsDish(): MealDish = _state.value.form.let { f ->
+        MealDish(name = f.title.ifBlank { f.items.firstOrNull().orEmpty() }, servedGrams = f.gramsText.toDoubleOrNull()?.takeIf { it > 0 },
+            kcal = f.kcalText.toDoubleOrNull(), proteinGrams = macroValue(f.proteinText), fatGrams = macroValue(f.fatText),
+            carbsGrams = macroValue(f.carbsText), estimateModel = f.nutritionInfo?.estimateModel, uncertainty = f.nutritionInfo?.uncertainty)
+    }
+
+    fun isSavedMeal(): Boolean = _state.value.form.mealId != 0L
+
+    /**
+     * Saves a record entered as a meal as a drink instead, with the estimate of [source] (the whole-meal estimate
+     * or its only dish): the first photo is copied to the drink, the note goes with it, and a saved meal is
+     * deleted with the usual undo (which also removes the drink).
+     */
+    fun saveRecordAsDrink(type: DrinkType, name: String, volumeMl: Int, source: MealDish) {
+        val s = _state.value
+        if (!s.loaded || s.isSaving || s.processingPhoto || s.analyzingPhoto || s.pendingDraft != null || finished) return
+        if (s.form.dishes.size > 1 || s.form.drinks.isNotEmpty()) return
+        val form = s.form
+        _state.update { it.copy(isSaving = true, error = null) }
+        draftJob?.cancel()
+        viewModelScope.launch {
+            draftMutex.withLock {
+                withContext(NonCancellable) {
+                    try {
+                        val rt = form.recordTime
+                        val photo = form.photos.firstOrNull()?.let { photoStorage.duplicate(it) }
+                        val drinkId = drinks.save(DrinkEntity(
+                            epochMillis = rt.epochMillis, zoneId = rt.zoneId, localDate = rt.epochDay, drinkType = type,
+                            name = name.trim().ifBlank { null }, volumeMl = volumeMl.coerceIn(1, 5000), photoFile = photo,
+                            note = form.note.trim().ifBlank { null },
+                            nutrition = DishAsDrink.nutrition(source).takeIf { type != DrinkType.WATER },
+                        ))
+                        // A saved meal goes away with the usual undo, which also takes the new drink back.
+                        val snapshot = if (form.mealId != 0L) meals.delete(form.mealId, draftKind) else null.also { meals.deleteDraft(draftKind) }
+                        if (snapshot != null) undo.offer(R.string.food_saved_as_drink,
+                            undo = { meals.restore(snapshot); drinks.delete(drinkId)?.let(drinks::purge) },
+                            commit = { meals.purge(snapshot) },
+                        ) else messages.show(R.string.food_saved_as_drink)
+                        finished = true
+                        savedStateHandle.remove<String>(EDITOR_FORM)
+                        // Photos added in this editor stay with the meal only; the drink has its own copy.
+                        runCatching { meals.deleteUnusedPhotos(ownedPhotos()) }
+                        savedStateHandle.remove<ArrayList<String>>(EDITOR_PHOTOS)
+                        _events.value = FoodEditorEvent.Saved
+                    } catch (_: Exception) {
+                        _state.update { it.copy(isSaving = false, error = "save") }
+                    }
+                }
+            }
+        }
+    }
+
     fun toggleDishPhoto(id: String, photo: String) = updateDish(id) { d ->
         if (photo in d.photos) d.copy(photos = d.photos - photo) else d.copy(photos = d.photos + photo)
     }
@@ -709,7 +784,11 @@ class FoodEditorViewModel @Inject constructor(
                             createdAt = if (form.createdAt > 0) form.createdAt else System.currentTimeMillis(),
                             dishes = form.dishes.map(DishForm::toDish).takeIf { it.isNotEmpty() },
                         )
-                        meals.save(entity, form.photos, form.alsoSaveWeight, form.saveAsFavorite, draftKind, form.saveToken)
+                        val rtDrinks = form.drinks.map { d ->
+                            DrinkEntity(epochMillis = rt.epochMillis, zoneId = rt.zoneId, localDate = rt.epochDay, drinkType = d.type,
+                                name = d.name.ifBlank { null }, volumeMl = d.volumeMl, nutrition = d.nutrition)
+                        }
+                        meals.save(entity, form.photos, form.alsoSaveWeight, form.saveAsFavorite, draftKind, form.saveToken, drinks = rtDrinks)
                         finished = true
                         savedStateHandle.remove<String>(EDITOR_FORM)
                         // Only files no longer referenced by the committed record may be removed.

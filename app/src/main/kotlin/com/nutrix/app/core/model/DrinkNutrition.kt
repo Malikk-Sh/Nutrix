@@ -17,6 +17,10 @@ data class DrinkNutrition(
     val fatGrams: Double? = null,
     val carbsGrams: Double? = null,
     val basis: NutrientBasis = NutrientBasis.PER_100_ML,
+    /** The Gemini model when the values came from a photo estimate the user has not changed since. */
+    val estimateModel: String? = null,
+    /** What the estimate could not see, as the model put it. */
+    val uncertainty: String? = null,
 ) {
     /** A drink marked as having no calories (tea or coffee without additions). */
     val isNone: Boolean get() = kcal == 0.0
