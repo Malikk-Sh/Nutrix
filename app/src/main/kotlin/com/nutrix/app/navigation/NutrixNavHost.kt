@@ -353,7 +353,8 @@ fun NutrixNavHost(
                         )
                     }
                     composable<DrinkEditorRoute> { entry ->
-                        DrinkEditorScreen(photoResults = rememberPhotoNavigationResults(entry), onClose = { nav.popBackStack() }, onOpenCamera = { nav.navigate(CameraRoute) })
+                        DrinkEditorScreen(photoResults = rememberPhotoNavigationResults(entry), onClose = { nav.popBackStack() }, onOpenCamera = { nav.navigate(CameraRoute) },
+                            onOpenGeminiSettings = { nav.navigate(GeminiSettingsRoute) })
                     }
                     composable<WeightRoute> { entry -> WeightScreen(openAdd = entry.toRoute<WeightRoute>().openAdd, onBack = nav::popBackStack) }
                     composable<SymptomsRoute> { entry ->

@@ -1,0 +1,83 @@
+{
+  "type": "object",
+  "properties": {
+    "isDrink": {
+      "type": "boolean"
+    },
+    "drinkName": {
+      "type": "string"
+    },
+    "drinkType": {
+      "type": "string",
+      "enum": [
+        "WATER",
+        "TEA",
+        "COFFEE",
+        "MILK",
+        "JUICE",
+        "OTHER"
+      ]
+    },
+    "volumeMl": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "caloriesKcal": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "proteinGrams": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "fatGrams": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "carbsGrams": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "additions": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "string"
+      }
+    },
+    "uncertainty": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "isDrink",
+    "drinkName",
+    "drinkType",
+    "volumeMl",
+    "caloriesKcal",
+    "proteinGrams",
+    "fatGrams",
+    "carbsGrams",
+    "additions",
+    "uncertainty"
+  ],
+  "additionalProperties": false
+}

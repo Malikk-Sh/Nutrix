@@ -68,8 +68,11 @@ fun DrinkEditorScreen(
     photoResults: PhotoNavigationResults,
     onClose: () -> Unit,
     onOpenCamera: () -> Unit,
+    onOpenGeminiSettings: () -> Unit = {},
     viewModel: DrinkEditorViewModel = hiltViewModel(),
 ) {
+    val ai by viewModel.ai.collectAsStateWithLifecycle()
+    val hasGeminiKey by viewModel.hasGeminiKey.collectAsStateWithLifecycle()
     val form by viewModel.form.collectAsStateWithLifecycle()
     val closed by viewModel.closed.collectAsStateWithLifecycle()
     val camera by photoResults.cameraPhoto.collectAsStateWithLifecycle()
@@ -186,6 +189,12 @@ fun DrinkEditorScreen(
                         }) {
                             Icon(Icons.Rounded.PhotoLibrary, null, Modifier.size(18.dp))
                         }
+                    }
+                    form.photo?.let { photo ->
+                        Spacer(Modifier.height(12.dp))
+                        DrinkAiSection(photo, form.aiHint, ai, hasGeminiKey, enabled = loaded && !busy && !ai.analyzing,
+                            onHint = { v -> viewModel.update { it.copy(aiHint = v) } }, onAnalyze = viewModel::analyzePhoto, onCancel = viewModel::cancelAi,
+                            onApply = viewModel::applyAi, onDismiss = viewModel::dismissAi, onSettings = onOpenGeminiSettings)
                     }
                     Spacer(Modifier.height(12.dp))
                     NutrixTextField(form.note, { v -> viewModel.update { it.copy(note = v) } }, stringResource(R.string.label_note), singleLine = false, minLines = 2)

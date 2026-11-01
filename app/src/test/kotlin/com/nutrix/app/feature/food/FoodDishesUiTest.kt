@@ -28,6 +28,10 @@ import com.nutrix.app.core.model.MealType
 import com.nutrix.app.core.security.AppLockManager
 import com.nutrix.app.core.time.TimeUtils
 import com.nutrix.app.data.repository.MealRepository
+import com.nutrix.app.data.repository.DrinkRepository
+import com.nutrix.app.core.model.DrinkType
+import com.nutrix.app.domain.intake
+import kotlinx.coroutines.flow.first
 import com.nutrix.app.database.entity.MealEntity
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -54,6 +58,7 @@ class FoodDishesUiTest {
 
     @Inject lateinit var settings: SettingsRepository
     @Inject lateinit var meals: MealRepository
+    @Inject lateinit var drinks: DrinkRepository
     @Inject lateinit var lock: AppLockManager
     private lateinit var scenario: ActivityScenario<MainActivity>
     private var mealId = 0L
@@ -131,5 +136,45 @@ class FoodDishesUiTest {
         }
         // The diary says the total is partial instead of presenting it as the meal's calories.
         compose.waitUntil(10_000) { compose.onAllNodesWithText("оценены 2 из 3", substring = true).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test fun `a dish that is a drink is saved as a drink linked to the meal and counted once`() {
+        click("Питание")
+        click("Обед")
+        tap("food-split")
+        edit("dish-name-0", "Суп")
+        edit("dish-grams-0", "300")
+        edit("dish-kcal-0", "250")
+        tap("dish-add")
+        edit("dish-name-1", "Морс")
+        edit("dish-grams-1", "200")
+        edit("dish-kcal-1", "80")
+        edit("dish-carbs-1", "20")
+        tap("dish-as-drink-1")
+        // The type is suggested from the name, the volume from the served mass; the energy goes with it.
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("as-drink-energy").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("as-drink-energy").assertTextContains("≈80 ккал", substring = true)
+        compose.onNodeWithTag("as-drink-confirm").performSemanticsAction(SemanticsActions.OnClick)
+        compose.waitForIdle()
+        scrollTo("meal-pending-drink-0")
+        assertThat(compose.onAllNodesWithText("сохранится напитком вместе с приёмом", substring = true).fetchSemanticsNodes()).isNotEmpty()
+        repeat(10) { Thread.sleep(50); compose.mainClock.advanceTimeBy(100); compose.waitForIdle() }
+        scenario.onActivity { UiScreenshot.capture(it, "54-dish-as-drink") }
+        click("Сохранить")
+        compose.waitUntil(10_000) {
+            compose.waitForIdle()
+            runBlocking { drinks.observeForMeal(mealId).first().isNotEmpty() }
+        }
+        runBlocking {
+            val meal = meals.get(mealId)!!.meal
+            assertThat(meal.dishes!!.map { it.name }).containsExactly("Суп")
+            assertThat(meal.caloriesEstimate).isEqualTo(250)
+            val drink = drinks.observeForMeal(mealId).first().single()
+            assertThat(drink.drinkType).isEqualTo(DrinkType.JUICE)
+            assertThat(drink.name).isEqualTo("Морс")
+            assertThat(drink.volumeMl).isEqualTo(200)
+            assertThat(drink.intake.kcal).isWithin(1e-9).of(80.0)
+            assertThat(drink.intake.carbs).isWithin(1e-9).of(20.0)
+        }
     }
 }

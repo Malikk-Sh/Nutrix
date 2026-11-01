@@ -31,6 +31,16 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import com.nutrix.app.core.model.DrinkNutrition
+import com.nutrix.app.core.model.DrinkType
+import com.nutrix.app.core.model.NutrientBasis
+import com.nutrix.app.core.model.MealNutrition
+import com.nutrix.app.domain.DayIntakes
+import com.nutrix.app.domain.Nutrient
+import com.nutrix.app.domain.intake
+import com.nutrix.app.core.time.TimeUtils
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -63,13 +73,71 @@ class MealDishesTest {
         db.close()
     }
 
-    private fun editor(handle: SavedStateHandle = SavedStateHandle(), analyzer: FoodPhotoAnalyzer = FoodPhotoAnalyzer { file, _ -> result(file) }): FoodEditorViewModel {
+    private fun editor(handle: SavedStateHandle = SavedStateHandle(), analyzer: FoodPhotoAnalyzer = FoodPhotoAnalyzer { file, _ -> result(file) },
+        undo: UndoManager = UndoManager()): FoodEditorViewModel {
         val store = ViewModelStore().also(stores::add)
         return ViewModelProvider(store, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-                FoodEditorViewModel(handle, meals, weights, settings, photos, UndoManager(), UserMessages(), analyzer, com.nutrix.app.data.repository.DrinkRepository(db.drinkDao(), photos, com.nutrix.app.data.repository.DataChangeNotifier())) as T
+                FoodEditorViewModel(handle, meals, weights, settings, photos, undo, UserMessages(), analyzer, com.nutrix.app.data.repository.DrinkRepository(db.drinkDao(), photos, com.nutrix.app.data.repository.DataChangeNotifier())) as T
         })[FoodEditorViewModel::class.java]
+    }
+
+    @Test fun `a dish saved as a drink leaves the meal total and is written as a drink linked to the meal`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val vm = editor()
+        vm.loaded()
+        vm.update { it.copy(title = "Обед") }
+        repeat(2) { vm.addDish() }
+        val ids = vm.state.value.form.dishes.map { it.id }
+        vm.updateDish(ids[0]) { it.copy(name = "Суп", gramsText = "300", kcalText = "250") }
+        vm.updateDish(ids[1]) { it.copy(name = "Компот", gramsText = "200", kcalText = "100", carbsText = "24", share = 0.5) }
+        vm.dishToDrink(ids[1], DrinkType.JUICE, "Компот", 100)
+        val pending = vm.state.value.form.drinks.single()
+        // Served values per 100 ml: 100 kcal in 200 g is 50 kcal per 100 ml; half of it was drunk.
+        assertThat(pending.nutrition).isEqualTo(DrinkNutrition(50.0, null, null, 12.0, NutrientBasis.PER_100_ML))
+        assertThat(vm.state.value.form.dishes.map { it.name }).containsExactly("Суп")
+        // Taken back and moved again: nothing is lost on the way.
+        vm.drinkBackToDish(ids[1])
+        assertThat(vm.state.value.form.dishes.map { it.name }).containsExactly("Суп", "Компот").inOrder()
+        assertThat(vm.state.value.form.drinks).isEmpty()
+        vm.dishToDrink(ids[1], DrinkType.JUICE, "Компот", 100)
+        val saved = vm.saved()
+        assertThat(saved.caloriesEstimate).isEqualTo(250)
+        val drink = db.drinkDao().allDrinks().single()
+        assertThat(drink.mealId).isEqualTo(saved.id)
+        assertThat(drink.drinkType).isEqualTo(DrinkType.JUICE)
+        assertThat(drink.volumeMl).isEqualTo(100)
+        assertThat(drink.localDate).isEqualTo(saved.localDate)
+        assertThat(drink.intake.kcal).isWithin(1e-9).of(50.0)
+        // The day counts the soup and the compote once each.
+        assertThat(DayIntakes.of(saved.localDate, listOf(saved), listOf(drink), true, null).total(Nutrient.KCAL).value).isWithin(1e-9).of(300.0)
+    }
+
+    @Test fun `a record entered as a meal becomes a drink and undo brings the meal back`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val photo = "latte.jpg".also { photos.file(it).writeBytes(byteArrayOf(1, 2, 3)) }
+        val now = System.currentTimeMillis()
+        val id = meals.save(MealEntity(epochMillis = now, zoneId = "UTC", localDate = TimeUtils.todayEpochDay(), mealType = MealType.SNACK,
+            title = "Латте", portionGrams = 300, caloriesEstimate = 150, nutrition = MealNutrition(proteinGrams = 8.0), note = "кафе"), listOf(photo))
+        val undo = UndoManager()
+        val vm = editor(route(mealId = id), undo = undo)
+        vm.loaded()
+        val offered = async(start = CoroutineStart.UNDISPATCHED) { undo.pending.first() }
+        vm.saveRecordAsDrink(DrinkType.COFFEE, "Латте", 300, vm.wholeMealAsDish())
+        vm.events.first { it == FoodEditorEvent.Saved }
+        assertThat(db.mealDao().count()).isEqualTo(0)
+        val drink = db.drinkDao().allDrinks().single()
+        assertThat(drink.drinkType).isEqualTo(DrinkType.COFFEE)
+        assertThat(drink.note).isEqualTo("кафе")
+        assertThat(drink.nutrition).isEqualTo(DrinkNutrition(50.0, 2.67, null, null, NutrientBasis.PER_100_ML))
+        assertThat(drink.intake.kcal).isWithin(1e-9).of(150.0)
+        // The drink has its own copy of the photo, so the meal's file can be cleaned up separately.
+        assertThat(drink.photoFile).isNotEqualTo(photo)
+        assertThat(photos.exists(drink.photoFile!!)).isTrue()
+        offered.await().undo()
+        assertThat(db.mealDao().get(id)!!.meal.title).isEqualTo("Латте")
+        assertThat(db.drinkDao().count()).isEqualTo(0)
     }
 
     private fun route(mealId: Long = 0, favoriteId: Long = 0, repeatMealId: Long = 0) = SavedStateHandle(

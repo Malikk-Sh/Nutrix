@@ -148,6 +148,7 @@ fun FoodEditorScreen(
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var cameraLaunched by rememberSaveable { mutableStateOf(false) }
     var kcalNotFound by remember { mutableStateOf(false) }
+    var asDrink by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(event) {
         when (event) {
@@ -290,13 +291,14 @@ fun FoodEditorScreen(
 
             // A meal of several dishes counts them one by one; otherwise one estimate covers the whole meal.
             item(key = "nutrition") {
-                if (form.hasDishes) DishesCard(state, viewModel)
-                else NutritionCard(state, viewModel, onEstimateFailed = { kcalNotFound = true })
+                if (form.hasDishes) DishesCard(state, viewModel, onAsDrink = { asDrink = it })
+                else NutritionCard(state, viewModel, onEstimateFailed = { kcalNotFound = true }, onAsDrink = { asDrink = WHOLE_RECORD })
             }
 
-            // A saved meal can have drinks linked to it; they stay drinks, so their energy counts once.
-            if (form.mealId != 0L) item(key = "drinks") {
-                LinkedDrinksCard(linkedDrinks, onOpen = onOpenDrink, onAdd = { onAddDrink(form.mealId) })
+            // Drinks linked to the meal, and dishes moved to drinks in this edit; they stay drinks, so their energy counts once.
+            if (form.mealId != 0L || form.drinks.isNotEmpty()) item(key = "drinks") {
+                LinkedDrinksCard(linkedDrinks, form.drinks, onOpen = onOpenDrink,
+                    onAdd = if (form.mealId != 0L) ({ onAddDrink(form.mealId) }) else null, onBackToDish = viewModel::drinkBackToDish)
             }
 
             item(key = "when") {
@@ -400,6 +402,22 @@ fun FoodEditorScreen(
             confirmButton = { TextButton(onClick = { kcalNotFound = false }) { Text(stringResource(R.string.action_ok)) } },
             text = { Text(stringResource(R.string.food_kcal_not_found)) },
         )
+    }
+
+    // Kept outside the list, so scrolling cannot take an open sheet away. A dish id, or the whole record.
+    asDrink?.let { target ->
+        val dish = form.dishes.firstOrNull { it.id == target }
+        if (target != WHOLE_RECORD && dish == null) return@let
+        val whole = target == WHOLE_RECORD || (dish != null && form.dishes.size == 1 && form.drinks.isEmpty())
+        val source = dish?.toDish() ?: viewModel.wholeMealAsDish()
+        AsDrinkSheet(source,
+            stringResource(if (!whole) R.string.as_drink_dish_text else if (form.mealId != 0L) R.string.as_drink_meal_text_saved else R.string.as_drink_meal_text_new),
+            onConfirm = { type, name, volume ->
+                asDrink = null
+                // The only dish of the record: the whole record becomes a drink instead of leaving an empty meal behind.
+                if (whole) viewModel.saveRecordAsDrink(type, name, volume, source) else viewModel.dishToDrink(target, type, name, volume)
+            },
+            onDismiss = { asDrink = null })
     }
 
     if (showLeaveDialog) {
@@ -678,3 +696,5 @@ private fun MoreCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel) {
 }
 
 private const val MAX_PHOTOS = 6
+
+private const val WHOLE_RECORD = "whole-record"

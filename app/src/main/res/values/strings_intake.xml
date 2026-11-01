@@ -13,7 +13,7 @@
     <string name="drink_energy_unknown_hint">Пока калории не указаны, день с этим напитком не будет считаться полностью оценённым.</string>
     <string name="drink_presets_title">Примерные значения</string>
     <string name="drink_preset_per_100">/100 мл</string>
-    <string name="drink_preset_per_drink"> на напиток</string>
+    <string name="drink_preset_per_drink">на напиток</string>
     <string name="drink_presets_hint">Это средние значения. Точнее всего — с этикетки вашего напитка.</string>
     <string name="drink_kcal_unknown">ккал не указаны</string>
     <string name="preset_sugar_spoon">1 ч. л. сахара</string>
@@ -70,4 +70,33 @@
     <string name="intake_value_missing">не указано</string>
     <string name="intake_day_empty">Еды и калорийных напитков в этот день не записано — это неизвестность, а не ноль.</string>
     <string name="intake_chart_description">%1$s по дням. Полных дней: %2$d.</string>
+    <!-- Drink recognition -->
+    <string name="drink_ai_title">Распознать напиток по фото</string>
+    <string name="drink_ai_disclosure">Фото и подсказка отправятся в Google. Gemini оценит тип напитка, объём, калорийность и БЖУ на весь напиток; всё можно исправить перед сохранением. При временном сбое возможен один повтор.</string>
+    <string name="drink_ai_hint_example">Например: кружка 400 мл, 2 ложки сахара</string>
+    <string name="drink_ai_analyze">Распознать напиток</string>
+    <string name="drink_ai_again">Распознать заново</string>
+    <string name="drink_ai_analyzing">Определяем напиток, объём и калорийность…</string>
+    <string name="drink_ai_filled">Заполнено по фото: проверьте тип, объём и калорийность.</string>
+    <string name="drink_ai_choice_text">В напитке уже есть значения. Заменить их оценкой по фото?</string>
+    <string name="drink_ai_apply">Применить оценку</string>
+    <string name="drink_ai_dismiss">Не применять</string>
+    <string name="drink_ai_additions">Добавки: %1$s</string>
+    <string name="drink_energy_from_photo">Оценка Gemini по фото (%1$s) — проверьте значения.</string>
+    <!-- Dish or meal as a drink -->
+    <string name="dish_as_drink">Сохранить как напиток</string>
+    <string name="food_as_drink">Это напиток — сохранить как напиток</string>
+    <string name="as_drink_title">Сохранить как напиток</string>
+    <string name="as_drink_dish_text">Блюдо уйдёт из приёма пищи и сохранится напитком, привязанным к этому приёму, вместе с приёмом: объём войдёт в жидкость, а калории и БЖУ посчитаются один раз — в напитках.</string>
+    <string name="as_drink_meal_text_new">Запись сохранится напитком, а не приёмом пищи: калорийность, БЖУ, первое фото и заметка перейдут в напиток.</string>
+    <string name="as_drink_meal_text_saved">Запись станет напитком: калорийность, БЖУ, первое фото и заметка перейдут в напиток, а приём пищи удалится. Это можно отменить сразу после сохранения.</string>
+    <string name="as_drink_volume_needed">Масса порции не указана — укажите объём напитка</string>
+    <string name="as_drink_energy">Перейдёт в напиток: ≈%1$s ккал</string>
+    <string name="as_drink_energy_later">Калорийность перейдёт в напиток; итог появится, когда будет указан объём.</string>
+    <string name="as_drink_energy_unknown">Калорийность не указана — у напитка она останется неизвестной, пока вы её не укажете.</string>
+    <string name="as_drink_water">Вода без калорий: калорийность не переносится.</string>
+    <string name="as_drink_confirm">Сохранить напитком</string>
+    <string name="meal_drinks_pending">сохранится напитком вместе с приёмом</string>
+    <string name="meal_drinks_back">Вернуть в блюда</string>
+    <string name="food_saved_as_drink">Сохранено как напиток</string>
 </resources>

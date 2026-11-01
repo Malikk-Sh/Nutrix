@@ -39,6 +39,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.nutrix.app.R
+import androidx.compose.ui.platform.LocalFocusManager
 import com.nutrix.app.core.model.DishSource
 import com.nutrix.app.core.time.Formatters
 import com.nutrix.app.core.ui.components.NutrixCard
@@ -54,7 +55,7 @@ private val SHARES = listOf(1.0 to R.string.portion_all, 0.75 to R.string.portio
 
 /** The meal's dishes, each with its own portion and nutrients, and the eaten total computed from them. */
 @Composable
-fun DishesCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel) {
+fun DishesCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel, onAsDrink: (String) -> Unit = {}) {
     val form = state.form
     val totals = MealTotals.of(form.dishes.map { it.toDish() })
     var chooseFavorite by rememberSaveable { mutableStateOf(false) }
@@ -63,7 +64,7 @@ fun DishesCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel) {
         Text(stringResource(R.string.food_dishes_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         form.dishes.forEachIndexed { index, dish ->
             Spacer(Modifier.height(12.dp))
-            DishEditor(index, dish, form.photos, viewModel)
+            DishEditor(index, dish, form.photos, viewModel, onAsDrink)
         }
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -91,7 +92,7 @@ fun DishesCard(state: FoodEditorUiState, viewModel: FoodEditorViewModel) {
 }
 
 @Composable
-private fun DishEditor(index: Int, dish: DishForm, photos: List<String>, viewModel: FoodEditorViewModel) {
+private fun DishEditor(index: Int, dish: DishForm, photos: List<String>, viewModel: FoodEditorViewModel, onAsDrink: (String) -> Unit) {
     val accent = LocalCategoryColors.current.meal
     Surface(shape = MaterialTheme.shapes.medium, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth().testTag("dish-$index")) {
@@ -145,6 +146,10 @@ private fun DishEditor(index: Int, dish: DishForm, photos: List<String>, viewMod
                 style = MaterialTheme.typography.labelSmall, color = accent)
             dish.uncertainty?.takeIf(String::isNotBlank)?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            val focus = LocalFocusManager.current
+            TextButton(onClick = { focus.clearFocus(); onAsDrink(dish.id) }, enabled = !dish.invalid, modifier = Modifier.testTag("dish-as-drink-$index")) {
+                Text(stringResource(R.string.dish_as_drink))
             }
         }
     }

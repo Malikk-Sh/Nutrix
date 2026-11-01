@@ -144,3 +144,16 @@ HTTP-тесты используют локальный MockWebServer, UI-тес
 [JSON-схемы](https://ai.google.dev/gemini-api/docs/structured-output),
 [работа с изображениями](https://ai.google.dev/gemini-api/docs/image-understanding),
 [ключи API](https://ai.google.dev/gemini-api/docs/api-key).
+
+## Напитки
+
+Для фото напитка используется отдельный запрос: `app/src/main/assets/drink-analysis-prompt.txt` и `drink-analysis.schema.json`. Ответ: `isDrink`, `drinkName`, `drinkType` (WATER, TEA, COFFEE, MILK, JUICE, OTHER), `volumeMl`, `caloriesKcal`, `proteinGrams`, `fatGrams`, `carbsGrams` на весь показанный напиток, `additions` и `uncertainty`.
+
+Приложение отклоняет ответ:
+- если объём вне 1–5000 мл;
+- если ккал больше 5000 или БЖУ больше 1000 г;
+- если сумма БЖУ больше 1,2 г на мл объёма;
+- если тип не из списка;
+- если напитка нет (`isDrink=false` → «На снимке не удалось распознать напиток»).
+
+Проверки: `DrinkProtocolTest` и `DrinkEditorSafetyTest`, а в настоящем интерфейсе — `DrinkAiUiTest`. Подробнее о том, как результат попадает в напиток: [калории за день](intake.md#распознавание-напитка-по-фото).

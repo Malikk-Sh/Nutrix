@@ -1,6 +1,8 @@
 package com.nutrix.app.feature.food
 
 import com.nutrix.app.core.model.DishSource
+import com.nutrix.app.core.model.DrinkNutrition
+import com.nutrix.app.core.model.DrinkType
 import com.nutrix.app.core.model.MealDish
 import com.nutrix.app.core.util.Units
 import kotlinx.serialization.Serializable
@@ -46,3 +48,16 @@ data class DishForm(
         fun copyOf(d: MealDish, source: DishSource) = of(d).copy(id = UUID.randomUUID().toString(), photos = emptyList(), source = source)
     }
 }
+
+/**
+ * A dish moved to the drinks of this meal. Nothing is written until the meal is saved; then it becomes a drink
+ * linked to the meal, and [dish] lets the user take it back to the dishes unchanged before that.
+ */
+@Serializable
+data class PendingDrink(
+    val type: DrinkType,
+    val name: String,
+    val volumeMl: Int,
+    val nutrition: DrinkNutrition?,
+    val dish: DishForm,
+)

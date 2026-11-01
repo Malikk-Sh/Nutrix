@@ -11,6 +11,16 @@ import com.nutrix.app.core.photo.PhotoStorage
 import com.nutrix.app.core.time.RecordTime
 import com.nutrix.app.core.time.TimeUtils
 import com.nutrix.app.data.repository.DrinkRepository
+import com.nutrix.app.feature.ai.DrinkPhotoAnalyzer
+import com.nutrix.app.feature.ai.DrinkPhotoResult
+import com.nutrix.app.feature.ai.FoodAiError
+import com.nutrix.app.feature.ai.FoodAiException
+import com.nutrix.app.feature.ai.isTransient
+import com.nutrix.app.feature.food.FoodEditorViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 import com.nutrix.app.data.repository.MealRepository
 import com.nutrix.app.data.repository.UndoManager
 import com.nutrix.app.data.repository.UserMessages
@@ -132,12 +142,25 @@ data class DrinkForm(
     /** False until the user picks an energy option, so changing the type still brings that type's default. */
     val energyTouched: Boolean = false,
     val mealId: Long? = null,
+    val aiHint: String = "",
 ) {
     val volume: Int? get() = volumeText.toIntOrNull()?.takeIf { it in 1..5000 }
     /** Water needs no energy value; for other drinks only a half-typed number blocks saving. */
     val energyInvalid: Boolean get() = type != DrinkType.WATER && energy.invalid
     val nutrition get() = if (type == DrinkType.WATER) null else energy.toNutrition()
 }
+
+/** Recognition of the drink's photo: progress, a result applied to the form or waiting for the user's choice, or an error. */
+data class DrinkAiState(
+    val analyzing: Boolean = false,
+    val attempt: Int = 0,
+    val retrying: Boolean = false,
+    /** The last estimate, for "show result". */
+    val result: DrinkPhotoResult? = null,
+    /** An estimate that would replace values already in the drink: applied only when the user says so. */
+    val choice: DrinkPhotoResult? = null,
+    val error: FoodAiError? = null,
+)
 
 @HiltViewModel
 class DrinkEditorViewModel @Inject constructor(
@@ -147,7 +170,15 @@ class DrinkEditorViewModel @Inject constructor(
     private val photos: PhotoStorage,
     private val undo: UndoManager,
     private val messages: UserMessages,
+    private val drinkAi: DrinkPhotoAnalyzer,
+    settings: SettingsRepository,
 ) : ViewModel() {
+    val hasGeminiKey: StateFlow<Boolean> = settings.hasGeminiKey.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    private val _ai = MutableStateFlow(DrinkAiState())
+    val ai: StateFlow<DrinkAiState> = _ai.asStateFlow()
+    private var aiJob: Job? = null
+    private var aiRequest = 0L
+
     private val route = savedStateHandle.toRoute<DrinkEditorRoute>()
     private val _form = MutableStateFlow(DrinkForm())
     val form: StateFlow<DrinkForm> = _form.asStateFlow()
@@ -216,15 +247,91 @@ class DrinkEditorViewModel @Inject constructor(
     private fun setPhoto(file: String) {
         val previous = _form.value.photo
         if (previous == file) return
+        cancelAi()
         if (previous != null && previous != originalPhoto) photos.delete(previous)
         _form.update { it.copy(photo = file) }
     }
 
     fun removePhoto() {
         if (_busy.value) return
+        cancelAi()
         val previous = _form.value.photo
         if (previous != null && previous != originalPhoto) photos.delete(previous)
         _form.update { it.copy(photo = null) }
+    }
+
+    /** Sends the drink's photo to Gemini; one repeat for a transient failure, like the food photo. */
+    fun analyzePhoto() {
+        val requested = _form.value
+        val photo = requested.photo ?: return
+        if (!_loaded.value || _busy.value || closed.value || _ai.value.analyzing) return
+        val request = ++aiRequest
+        _ai.value = DrinkAiState(analyzing = true, attempt = 1)
+        aiJob = viewModelScope.launch {
+            try {
+                for (attempt in 1..FoodEditorViewModel.MAX_AI_ATTEMPTS) {
+                    if (request != aiRequest) return@launch
+                    _ai.update { it.copy(attempt = attempt, retrying = false) }
+                    try {
+                        val result = drinkAi.analyze(photo, requested.aiHint)
+                        if (request != aiRequest) return@launch
+                        if (result.photoFile != photo || _form.value.photo != photo) throw FoodAiException(FoodAiError.PHOTO_CHANGED)
+                        // A fresh drink is filled at once; values the user already gave are replaced only by choice.
+                        if (!requested.energyTouched && requested.name.isBlank()) {
+                            fill(result, requested, overwrite = false)
+                            _ai.update { it.copy(result = result, error = null) }
+                        } else {
+                            _ai.update { it.copy(result = result, choice = result, error = null) }
+                        }
+                        return@launch
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (error: Exception) {
+                        if (request != aiRequest) return@launch
+                        val reason = (error as? FoodAiException)?.reason ?: FoodAiError.INVALID_RESPONSE
+                        if (attempt < FoodEditorViewModel.MAX_AI_ATTEMPTS && reason.isTransient) {
+                            _ai.update { it.copy(retrying = true) }
+                            delay(FoodEditorViewModel.AI_RETRY_DELAY_MS)
+                        } else {
+                            _ai.update { it.copy(error = reason) }
+                            return@launch
+                        }
+                    }
+                }
+            } finally {
+                if (request == aiRequest) _ai.update { it.copy(analyzing = false, retrying = false) }
+            }
+        }
+    }
+
+    fun cancelAi() {
+        aiRequest++
+        aiJob?.cancel()
+        aiJob = null
+        _ai.value = DrinkAiState()
+    }
+
+    fun applyAi() {
+        val choice = _ai.value.choice ?: return
+        fill(choice, _form.value, overwrite = true)
+        _ai.update { it.copy(choice = null) }
+    }
+
+    fun dismissAi() = _ai.update { it.copy(choice = null) }
+
+    /** Fields the user changed while the request ran are kept, unless the user chose to replace them. */
+    private fun fill(result: DrinkPhotoResult, requested: DrinkForm, overwrite: Boolean) {
+        val e = result.estimate
+        fun <T> keep(now: T, then: T, new: T) = if (overwrite || now == then) new else now
+        _form.update { f ->
+            val type = keep(f.type, requested.type, e.type)
+            f.copy(
+                type = type,
+                name = keep(f.name, requested.name, e.drinkName),
+                volumeText = e.volumeMl?.let { keep(f.volumeText, requested.volumeText, it.roundToInt().coerceIn(1, 5000).toString()) } ?: f.volumeText,
+                energy = if (type == DrinkType.WATER) f.energy else keep(f.energy, requested.energy, EnergyInput.fromEstimate(e, result.model)),
+                energyTouched = true,
+            )
+        }
     }
 
     fun save() {
@@ -281,6 +388,7 @@ class DrinkEditorViewModel @Inject constructor(
     /** Leaving while a save runs is ignored: the save closes the screen itself and keeps the photo. */
     fun cancel() {
         if (_busy.value) return
+        cancelAi()
         val f = _form.value
         if (f.photo != null && f.photo != originalPhoto) photos.delete(f.photo)
         closed.value = true

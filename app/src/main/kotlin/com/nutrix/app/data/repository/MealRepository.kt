@@ -10,6 +10,7 @@ import com.nutrix.app.core.time.RecordTime
 import com.nutrix.app.database.NutrixDatabase
 import com.nutrix.app.database.dao.MealDao
 import com.nutrix.app.database.entity.DraftEntity
+import com.nutrix.app.database.entity.DrinkEntity
 import com.nutrix.app.database.entity.FavoriteMealEntity
 import com.nutrix.app.database.entity.MealEntity
 import com.nutrix.app.database.entity.MealPhotoEntity
@@ -53,6 +54,8 @@ class MealRepository @Inject constructor(
         saveAsFavorite: Boolean = false,
         draftKind: String? = null,
         saveToken: String? = null,
+        /** Drinks had with this meal (dishes moved to drinks), written in the same transaction and linked to it. */
+        drinks: List<DrinkEntity> = emptyList(),
     ): Long = gate.exclusive {
         // A meal made of dishes stores their eaten totals; dishes only link photos the meal keeps.
         val meal = MealTotals.apply(input.copy(dishes = input.dishes?.map { d -> d.copy(photos = d.photos.filter { it in photoFiles }) }))
@@ -78,6 +81,10 @@ class MealRepository @Inject constructor(
                         meal.id
                     }
                     dao.insertPhotos(photoFiles.mapIndexed { index, file -> MealPhotoEntity(mealId = id, fileName = file, position = index) })
+                    drinks.forEach { d ->
+                        db.drinkDao().insert(d.copy(id = 0, mealId = id, epochMillis = meal.epochMillis, zoneId = meal.zoneId,
+                            localDate = meal.localDate, createdAt = now, updatedAt = now))
+                    }
                     if (alsoSaveWeight && meal.weightKg != null) {
                         db.weightDao().insert(WeightEntity(epochMillis = meal.epochMillis, zoneId = meal.zoneId,
                             localDate = meal.localDate, weightKg = meal.weightKg))
